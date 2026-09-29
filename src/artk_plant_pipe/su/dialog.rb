@@ -28,6 +28,22 @@ module ArtK
           @dialog.show
         end
 
+        # Push current settings to an open dialog (after Tab in a tool).
+        def refresh
+          js('setSettings', H.load_settings) if @dialog && @dialog.visible?
+        end
+
+        # Show the user's valve model library.
+        def library
+          rows = Library.entries.map do |e|
+            [e['type'], e['size'] || 'ทุกขนาด (scaled)', e['name'], e['file']]
+          end
+          body = "<p class='mut'>โฟลเดอร์: #{Reports.esc(Library.dir)}</p>" +
+                 (rows.empty? ? '<p>ยังไม่มีโมเดล – เลือก Component วาล์วแล้วใช้คำสั่ง Register Valve Model</p>' :
+                                Reports.table(%w[Type Size Model File], rows))
+          Reports.show('Valve Model Library', body)
+        end
+
         private
 
         def js(fn, data)
@@ -75,7 +91,7 @@ module ArtK
             model.commit_operation
           end
           js('setSettings', s)
-          PipeTool.active&.reload_settings
+          [PipeTool, ValveTool, SupportTool].each { |t| t.active&.reload_settings }
         rescue JSON::ParserError => e
           puts "Plant Piping settings: #{e.message}"
         end
@@ -123,6 +139,8 @@ module ArtK
           when 'style' then Commands.technical_style
           when 'help' then Commands.help
           when 'diag' then Commands.diagnostics
+          when 'register' then Sketchup.active_model.select_tool(RegisterModelTool.new)
+          when 'library' then SettingsDialog.library
           end
         end
       end

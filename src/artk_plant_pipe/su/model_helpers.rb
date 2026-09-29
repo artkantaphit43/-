@@ -169,7 +169,8 @@ module ArtK
       # listed (:pipe, :fitting, :flange) are left unpainted so they take the
       # colour of the instance – one definition serves every service colour.
       FIXED_ROLES = {
-        valve:    ['PP_Valve_Body', [92, 96, 104]],
+        valve:    ['PP_Valve_Body', [92, 96, 104]],          # cast iron / steel
+        valve_plastic: ['PP_Valve_PVC', [168, 172, 178]],     # PVC-U / PP valve grey
         handle:   ['PP_Handwheel', [196, 36, 36]],
         bolt:     ['PP_Bolt', [178, 180, 184]],
         galv:     ['PP_Galvanised', [186, 190, 194]],

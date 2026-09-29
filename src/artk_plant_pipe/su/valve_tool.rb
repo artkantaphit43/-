@@ -9,11 +9,19 @@ module ArtK
     class ValveTool
       H = ModelHelpers
 
-      def initialize(type = 'gate')
+      class << self
+        attr_accessor :active
+      end
+
+      # type given (menu) = fixed; nil = follow the dialog selection.
+      def initialize(type = nil)
+        @fixed = type
         @type = type
       end
 
       def activate
+        self.class.active = self
+        @type = @fixed || H.load_settings['valve_type']
         @model = Sketchup.active_model
         @ip = Sketchup::InputPoint.new
         @place = nil
@@ -21,7 +29,15 @@ module ArtK
       end
 
       def deactivate(view)
+        self.class.active = nil
         view.invalidate
+      end
+
+      # Called when the settings dialog changes.
+      def reload_settings
+        @fixed = nil
+        @type = H.load_settings['valve_type']
+        update_status
       end
 
       def resume(view)
@@ -57,6 +73,8 @@ module ArtK
 
         types = FittingsData.valve_types
         @type = types[(types.index(@type).to_i + 1) % types.size]
+        H.save_settings(H.load_settings.merge('valve_type' => @type)) # keep the dialog in sync
+        SettingsDialog.refresh if defined?(SettingsDialog)
         update_status
         view.invalidate
         true
@@ -103,7 +121,8 @@ module ArtK
 
       def update_status
         info = FittingsData.valve(@type)
-        Sketchup.status_text = "ใส่ #{info[:th]} – คลิกบนท่อตรง | Tab = เปลี่ยนชนิดวาล์ว (cycle type)"
+        src = Library.find(@type, nil) ? 'โมเดลจากไลบรารี' : 'โมเดลในตัว'
+        Sketchup.status_text = "ใส่ #{info[:th]} (#{src}) – คลิกบนท่อตรง | Tab = เปลี่ยนชนิดวาล์ว (cycle type)"
       end
     end
   end

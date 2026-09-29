@@ -477,18 +477,32 @@ module ArtK
         dir = Vec.unit(dir)
         up = stem_direction(dir)
         f = Mesh.frame(at, dir, Vec.cross(up, dir))
-        name = "PP Valve #{type} | #{spec_key(spec)} | #{lod_key(ctx)}"
-        recolor = metallic ? {} : { valve: :fitting }
-        inst = place_part(ctx, name, f, recolor: recolor) { Parts.valve(type, ctx[:opts], metallic: metallic) }
         len = FittingsData.face_to_face(type, spec.od)
-        fr = FittingsData.flange(spec.od).od / 2.0
+        entry = Library.find(type, spec.size)
+        if entry
+          # A real model registered by the user: exact size at 1:1,
+          # otherwise scaled to the standard face-to-face for this size.
+          defn = Library.load_definition(ctx[:model], entry)
+          inst = ctx[:ents].add_instance(defn, Library.transform(entry, at, dir, up, entry['size'] ? nil : len))
+          finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", nil,
+                       valve_attrs(type, info, metallic, spec, len, at, dir).merge('model' => entry['file']))
+          return inst
+        end
+        name = "PP Valve #{type} | #{spec_key(spec)} | #{lod_key(ctx)}"
+        recolor = metallic ? {} : { valve: :valve_plastic }
+        inst = place_part(ctx, name, f, recolor: recolor) { Parts.valve(type, ctx[:opts], metallic: metallic) }
         finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat],
-                     'type' => 'valve', 'valve_type' => type, 'valve_name' => info[:name],
-                     'valve_rating' => metallic ? 'Class 150' : spec.rating,
-                     'end_type' => metallic ? 'Flanged' : 'Socket / union',
-                     'face_to_face' => len, 'at' => JSON.generate(at), 'dir' => JSON.generate(dir),
-                     'geom' => JSON.generate('a' => Vec.sub(at, Vec.scale(dir, len / 2.0)),
-                                             'b' => Vec.add(at, Vec.scale(dir, len / 2.0)), 'r' => fr))
+                     valve_attrs(type, info, metallic, spec, len, at, dir))
+      end
+
+      def valve_attrs(type, info, metallic, spec, len, at, dir)
+        fr = FittingsData.flange(spec.od).od / 2.0
+        { 'type' => 'valve', 'valve_type' => type, 'valve_name' => info[:name],
+          'valve_rating' => metallic ? 'Class 150' : spec.rating,
+          'end_type' => metallic ? 'Flanged' : 'Socket / union',
+          'face_to_face' => len, 'at' => JSON.generate(at), 'dir' => JSON.generate(dir),
+          'geom' => JSON.generate('a' => Vec.sub(at, Vec.scale(dir, len / 2.0)),
+                                  'b' => Vec.add(at, Vec.scale(dir, len / 2.0)), 'r' => fr) }
       end
 
       # Insert a valve into a run (run-local coordinates).
@@ -510,7 +524,7 @@ module ArtK
 
       def finish_piece(ctx, ent, name, mat, attrs)
         ent.name = name
-        ent.material = mat
+        ent.material = mat if mat
         ent.layer = ctx[:tag]
         H.set_attrs(ent, ctx[:common].merge(attrs).reject { |_, v| v.nil? })
         ent

@@ -91,12 +91,27 @@ module Geom
       Transformation.new([tt[0] + t[0], tt[1] + t[1], tt[2] + t[2]], cols)
     end
 
+    def self.scaling(k)
+      new([0, 0, 0], [[k.to_f, 0.0, 0.0], [0.0, k.to_f, 0.0], [0.0, 0.0, k.to_f]])
+    end
+
+    def self.translation(v)
+      new(v.to_a)
+    end
+
+    # General 3×3 inverse (supports scaling), m[row][col] = @r[col][row].
     def inverse
-      # R⁻¹ = Rᵀ: its column i is row i of R
-      inv_cols = [0, 1, 2].map { |i| [0, 1, 2].map { |j| @r[j][i] } }
-      tmp = Transformation.new([0, 0, 0], inv_cols)
-      nt = tmp.rot(t).map(&:-@)
-      Transformation.new(nt, inv_cols)
+      m = [0, 1, 2].map { |i| [0, 1, 2].map { |j| @r[j][i] } }
+      det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+            m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+            m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+      inv = [[(m[1][1] * m[2][2] - m[1][2] * m[2][1]), -(m[0][1] * m[2][2] - m[0][2] * m[2][1]), (m[0][1] * m[1][2] - m[0][2] * m[1][1])],
+             [-(m[1][0] * m[2][2] - m[1][2] * m[2][0]), (m[0][0] * m[2][2] - m[0][2] * m[2][0]), -(m[0][0] * m[1][2] - m[0][2] * m[1][0])],
+             [(m[1][0] * m[2][1] - m[1][1] * m[2][0]), -(m[0][0] * m[2][1] - m[0][1] * m[2][0]), (m[0][0] * m[1][1] - m[0][1] * m[1][0])]]
+      inv = inv.map { |row| row.map { |x| x / det } }
+      cols = [0, 1, 2].map { |j| [0, 1, 2].map { |i| inv[i][j] } }
+      tmp = Transformation.new([0, 0, 0], cols)
+      Transformation.new(tmp.rot(t).map(&:-@), cols)
     end
   end
 
@@ -307,6 +322,11 @@ module Sketchup
     def count_instances
       @instances.count(&:valid?)
     end
+
+    def save_as(path)
+      File.write(path, "stub skp #{@name}")
+      true
+    end
   end
 
   class DefinitionList
@@ -330,6 +350,10 @@ module Sketchup
 
     def remove(d)
       @h.delete(d.name)
+    end
+
+    def load(path)
+      @h[path] ||= Definition.new(nil, File.basename(path, '.skp'))
     end
   end
 

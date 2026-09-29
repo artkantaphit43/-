@@ -14,7 +14,7 @@ module ArtK
     end
     # SketchUp integration
     %w[model_helpers builder support_builder collector picker pipe_tool valve_tool support_tool reports
-       commands dialog].each do |f|
+       library commands dialog].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
 
@@ -65,6 +65,9 @@ module ArtK
         style: command('Technical Line Style / ลายเส้นแบบเทคนิค', 'เส้นขอบดำคม + Profile แบบแบบก่อสร้าง',
                        'style') { Commands.technical_style },
         help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help },
+        register: command('Register Valve Model / ใช้โมเดลวาล์วของฉัน',
+                          'เลือก Component วาล์ว แล้วคลิกศูนย์กลางขาเข้า-ขาออก') { Commands.register_model },
+        library: command('Valve Model Library / รายการโมเดลวาล์ว', 'ดูโมเดลวาล์วที่ลงทะเบียนไว้') { SettingsDialog.library },
         diag: command('Diagnostics / ตรวจสอบระบบ', 'ทดสอบการสร้างข้อต่อในเครื่องนี้ และแสดงคำเตือนของแนวท่อ') { Commands.diagnostics }
       }
 
@@ -74,6 +77,7 @@ module ArtK
       FittingsData::VALVES.each do |type, info|
         valves.add_item("#{info[:name]} – #{info[:th]}") { Commands.insert_valve(type) }
       end
+      %i[register library].each { |k| valves.add_item(cmds[k]) }
       menu.add_separator
       %i[auto_support support clear_support].each { |k| menu.add_item(cmds[k]) }
       sups = menu.add_submenu('Support Type / ชนิดซัพพอร์ต')

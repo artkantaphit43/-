@@ -9,20 +9,34 @@ module ArtK
     class SupportTool
       H = ModelHelpers
 
+      class << self
+        attr_accessor :active
+      end
+
+      # type given (menu) = fixed; nil = follow the dialog selection.
       def initialize(type = nil)
+        @fixed = type
         @type = type
       end
 
       def activate
+        self.class.active = self
         @model = Sketchup.active_model
-        @type ||= H.load_settings['support_type']
+        @type = @fixed || H.load_settings['support_type']
         @ip = Sketchup::InputPoint.new
         @hit = nil
         update_status
       end
 
       def deactivate(view)
+        self.class.active = nil
         view.invalidate
+      end
+
+      def reload_settings
+        @fixed = nil
+        @type = H.load_settings['support_type']
+        update_status
       end
 
       def resume(view)
@@ -53,6 +67,8 @@ module ArtK
 
         types = Supports::TYPES.keys
         @type = types[(types.index(@type).to_i + 1) % types.size]
+        H.save_settings(H.load_settings.merge('support_type' => @type))
+        SettingsDialog.refresh if defined?(SettingsDialog)
         update_status
         view.invalidate
         true

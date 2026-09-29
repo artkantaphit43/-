@@ -13,9 +13,13 @@ module ArtK
         Sketchup.active_model.select_tool(PipeTool.new)
       end
 
+      # nil = follow the type selected in the settings dialog.
       def insert_valve(type = nil)
-        type ||= H.load_settings['valve_type']
         Sketchup.active_model.select_tool(ValveTool.new(type))
+      end
+
+      def register_model
+        Sketchup.active_model.select_tool(RegisterModelTool.new)
       end
 
       # Convert selected edges (drawn with the normal Line tool) into runs –
