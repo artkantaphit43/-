@@ -1,0 +1,452 @@
+# frozen_string_literal: true
+
+module ArtK
+  module PlantPipe
+    # Interactive tool: click the centreline points of a pipe run.
+    #
+    #   Click            – add a point (first click on an existing pipe makes
+    #                      a branch tee; on a run's open end continues it)
+    #   Type a length    – exact length along the current direction (VCB);
+    #                      for sloped drains the length is the plan length
+    #   → / ← / ↑        – lock to red / green / blue axis, ↓ unlocks
+    #   Shift (hold)     – lock the current direction
+    #   Backspace        – remove the last point
+    #   Double-click / Enter – finish the run,  Esc – cancel
+    #
+    # Design aids
+    # * 45° snapping in plan (standard 90°/45° fittings only) and clean
+    #   vertical risers, unless you snap to an existing point.
+    # * Gravity services get their fall applied automatically on level
+    #   segments, in the direction you draw (= flow direction).
+    # * Elevation reference "BOP" lifts points picked on geometry by half
+    #   the OD, so a pipe drawn on a rack beam sits on the beam.
+    class PipeTool
+      H = ModelHelpers
+
+      class << self
+        attr_accessor :active
+      end
+
+      def activate
+        @model = Sketchup.active_model
+        @ip = Sketchup::InputPoint.new
+        @anchor = Sketchup::InputPoint.new
+        load_settings
+        reset_state
+        self.class.active = self
+        update_status
+      end
+
+      def deactivate(view)
+        self.class.active = nil
+        view.invalidate
+      end
+
+      def resume(view)
+        load_settings
+        update_status
+        view.invalidate
+      end
+
+      # Called by the settings dialog when settings change.
+      def reload_settings
+        load_settings
+        update_status
+        @model.active_view.invalidate
+      end
+
+      def onCancel(_reason, view)
+        reset_state
+        update_status
+        view.invalidate
+      end
+
+      def enableVCB?
+        true
+      end
+
+      def onMouseMove(_flags, x, y, view)
+        if @points.empty?
+          @ip.pick(view, x, y)
+        else
+          @ip.pick(view, x, y, @anchor)
+        end
+        @cursor = @ip.valid? ? constrain(@ip) : nil
+        @hover = @cursor && @points.empty? ? detect_link(@cursor) : nil
+        view.tooltip = hover_tip || @ip.tooltip
+        update_vcb
+        view.invalidate
+      end
+
+      def onLButtonDown(_flags, _x, _y, view)
+        return unless @cursor
+
+        if @points.empty?
+          start_run(@cursor)
+        else
+          return if Vec.dist(@cursor, @points.last) < 1.0
+
+          link = detect_link(@cursor, exclude_run: @start_link && @start_link[:run])
+          if link && link[:kind] == :tee
+            @points << link[:point]
+            @end_link = link
+            return finish(view)
+          end
+          @points << (link ? link[:point] : @cursor)
+        end
+        set_anchor
+        update_status
+        view.invalidate
+      end
+
+      def onLButtonDoubleClick(_flags, _x, _y, view)
+        finish(view)
+      end
+
+      def onReturn(view)
+        finish(view)
+      end
+
+      def onUserText(text, view)
+        return if @points.empty? || @cursor.nil?
+
+        len = begin
+          text.to_l.to_f * H::MM_PER_INCH
+        rescue ArgumentError
+          UI.beep
+          Sketchup.status_text = "ความยาวไม่ถูกต้อง (invalid length): #{text}"
+          return
+        end
+        return if len <= 0
+
+        last = @points.last
+        d = Vec.sub(@cursor, last)
+        h = Math.hypot(d[0], d[1])
+        pt =
+          if gravity? && h >= 1.0 && d[2].abs < h
+            # plan length for sloped drains
+            u = [d[0] / h, d[1] / h, 0.0]
+            p = Vec.add(last, Vec.scale(u, len))
+            p[2] = last[2] - len * slope_ratio
+            p
+          elsif Vec.length(d) >= 1e-6
+            Vec.add(last, Vec.scale(Vec.unit(d), len))
+          end
+        return unless pt
+
+        @points << pt
+        set_anchor
+        update_status
+        view.invalidate
+      end
+
+      def onKeyDown(key, _repeat, _flags, view)
+        case key
+        when VK_RIGHT then toggle_axis([1.0, 0.0, 0.0])
+        when VK_LEFT then toggle_axis([0.0, 1.0, 0.0])
+        when VK_UP then toggle_axis([0.0, 0.0, 1.0])
+        when VK_DOWN then @axis = nil
+        when CONSTRAIN_MODIFIER_KEY
+          if @cursor && !@points.empty? && Vec.dist(@cursor, @points.last) > 1.0
+            @axis = Vec.unit(Vec.sub(@cursor, @points.last))
+            @shift_lock = true
+          end
+        when 8 # Backspace
+          @points.pop
+          @start_link = nil if @points.empty?
+          set_anchor unless @points.empty?
+        else
+          return false
+        end
+        update_status
+        view.invalidate
+        true
+      end
+
+      def onKeyUp(key, _repeat, _flags, view)
+        return false unless key == CONSTRAIN_MODIFIER_KEY && @shift_lock
+
+        @axis = nil
+        @shift_lock = false
+        view.invalidate
+        true
+      end
+
+      def draw(view)
+        @ip.draw(view) if @ip.valid? && @ip.display?
+        pts = @points.map { |p| H.to_pt(p) }
+        pts << H.to_pt(@cursor) if @cursor && !@points.empty?
+        color = Sketchup::Color.new(*Services.color(@settings['service'], @settings['color_scheme']))
+        if pts.size >= 2
+          view.line_stipple = ''
+          view.line_width = 4
+          view.drawing_color = color
+          view.draw(GL_LINE_STRIP, pts[0..-2]) if pts.size > 2
+          view.line_stipple = @axis ? '' : '-'
+          view.drawing_color = axis_color || color
+          view.draw(GL_LINES, pts[-2], pts[-1])
+          view.line_stipple = ''
+        end
+        view.draw_points(pts, 8, 2, color) unless pts.empty?
+        if @hover
+          view.draw_points([H.to_pt(@hover[:point])], 14, 4, Sketchup::Color.new(255, 140, 0))
+        end
+        draw_readout(view)
+      end
+
+      def getExtents
+        bb = Geom::BoundingBox.new
+        @points.each { |p| bb.add(H.to_pt(p)) }
+        bb.add(H.to_pt(@cursor)) if @cursor
+        bb
+      end
+
+      private
+
+      def load_settings
+        @settings = H.load_settings
+        @spec = Settings.spec(@settings)
+        return unless @start_link && @start_link[:kind] == :append
+
+        # Continuing a run keeps that run's own size & service.
+        @settings = Builder.run_settings(@start_link[:run]).merge(
+          'snap45' => @settings['snap45'], 'elevation_ref' => @settings['elevation_ref'],
+          'slope_pct' => @settings['slope_pct'], 'color_scheme' => @settings['color_scheme']
+        )
+        @spec = Settings.spec(@settings)
+      end
+
+      def reset_state
+        @points = []
+        @cursor = nil
+        @axis = nil
+        @shift_lock = false
+        @start_link = nil
+        @end_link = nil
+        @hover = nil
+        @ip.clear
+        @anchor.clear
+        load_settings
+      end
+
+      def set_anchor
+        @anchor = Sketchup::InputPoint.new(H.to_pt(@points.last))
+      end
+
+      def gravity?
+        Services.gravity?(@settings['service']) && @settings['slope_pct'].to_f.positive?
+      end
+
+      def slope_ratio
+        @settings['slope_pct'].to_f / 100.0
+      end
+
+      def toggle_axis(axis)
+        @axis = @axis == axis ? nil : axis
+        @shift_lock = false
+      end
+
+      def axis_color
+        return nil unless @axis
+
+        case @axis
+        when [1.0, 0.0, 0.0] then Sketchup::Color.new(255, 0, 0)
+        when [0.0, 1.0, 0.0] then Sketchup::Color.new(0, 170, 0)
+        when [0.0, 0.0, 1.0] then Sketchup::Color.new(0, 0, 255)
+        else Sketchup::Color.new(255, 0, 255)
+        end
+      end
+
+      # ---------- point constraints ----------
+
+      def constrain(ip)
+        raw = H.from_pt(ip.position)
+        raw[2] += @spec.od / 2.0 if bop_offset?(ip)
+        return raw if @points.empty?
+
+        last = @points.last
+        pt =
+          if @axis
+            Vec.add(last, Vec.scale(@axis, Vec.dot(Vec.sub(raw, last), @axis)))
+          elsif @settings['snap45'] && !hard_snap?(ip)
+            snap45(last, raw)
+          else
+            raw
+          end
+        apply_slope(last, pt)
+      end
+
+      def hard_snap?(ip)
+        !ip.vertex.nil? || ip.degrees_of_freedom.zero?
+      end
+
+      def bop_offset?(ip)
+        return false unless @settings['elevation_ref'] == 'bop'
+        return false unless ip.face || ip.edge || ip.vertex
+
+        path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
+        path.none? { |e| e.respond_to?(:attribute_dictionary) && H.type_of(e) }
+      rescue StandardError
+        false
+      end
+
+      def snap45(last, raw)
+        d = Vec.sub(raw, last)
+        h = Math.hypot(d[0], d[1])
+        return [last[0], last[1], raw[2]] if d[2].abs > h # riser
+
+        step = Math::PI / 4.0
+        a = (Math.atan2(d[1], d[0]) / step).round * step
+        u = [Math.cos(a), Math.sin(a)]
+        len = d[0] * u[0] + d[1] * u[1]
+        [last[0] + u[0] * len, last[1] + u[1] * len, last[2]]
+      end
+
+      def apply_slope(last, pt)
+        return pt unless gravity?
+
+        d = Vec.sub(pt, last)
+        h = Math.hypot(d[0], d[1])
+        return pt if h < 1.0 || d[2].abs >= 1.0 # only level segments get the fall
+
+        [pt[0], pt[1], last[2] - h * slope_ratio]
+      end
+
+      # ---------- links to existing runs ----------
+
+      def detect_link(pt, exclude_run: nil)
+        unless exclude_run
+          e = Picker.run_end(@model, pt)
+          return { kind: :append, run: e[:run], tr: e[:tr], point: e[:world] } if e
+        end
+        hit = Picker.nearest_pipe(@model, pt, exclude_run: exclude_run)
+        return nil unless hit
+
+        { kind: :tee, hit: hit, point: hit[:proj] }
+      end
+
+      def hover_tip
+        return nil unless @hover
+
+        if @hover[:kind] == :append
+          "ต่อท่อ (continue) #{@hover[:run].name}"
+        else
+          "แยกท่อด้วย Tee (branch from) #{@hover[:hit][:run].name}"
+        end
+      end
+
+      def start_run(pt)
+        link = detect_link(pt)
+        if link
+          @start_link = link
+          pt = link[:point]
+          load_settings if link[:kind] == :append
+        end
+        @points << pt
+      end
+
+      def tee_record(hit, at_world, inv)
+        a = hit[:attrs]
+        { 'at' => H.transform_mm(inv, at_world),
+          'main_dir' => Vec.unit(H.from_vec(H.to_vec(hit[:dir]).transform(inv))),
+          'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
+          'main_service' => a['service'], 'main_pid' => hit[:run].persistent_id }
+      end
+
+      # A branch must leave the main pipe at a real angle.
+      def valid_branch?(hit, a, b)
+        ang = Vec.angle(Vec.sub(b, a), hit[:dir]) * 180.0 / Math::PI
+        ang = 180.0 - ang if ang > 90.0
+        ang >= 30.0
+      end
+
+      def finish(view)
+        if @points.size < 2
+          reset_state
+          return view.invalidate
+        end
+        segs = @points.each_cons(2).map { |a, b| [a, b] }.reject { |a, b| Vec.dist(a, b) < 1.0 }
+        if segs.empty?
+          reset_state
+          return view.invalidate
+        end
+        warnings = []
+        append = @start_link && @start_link[:kind] == :append
+        inv = append ? @start_link[:tr].inverse : H.edit_transform(@model).inverse
+        tees = []
+        if @start_link && @start_link[:kind] == :tee
+          if valid_branch?(@start_link[:hit], segs.first[0], segs.first[1])
+            tees << tee_record(@start_link[:hit], @points.first, inv)
+          else
+            warnings << 'มุมแยกท่อน้อยกว่า 30° – ไม่ใส่ Tee (branch angle < 30°, no tee added)'
+          end
+        end
+        if @end_link && @end_link[:kind] == :tee
+          if valid_branch?(@end_link[:hit], segs.last[1], segs.last[0])
+            tees << tee_record(@end_link[:hit], @points.last, inv)
+          else
+            warnings << 'มุมเชื่อมท่อน้อยกว่า 30° – ไม่ใส่ Tee (branch angle < 30°, no tee added)'
+          end
+        end
+        local = segs.map { |a, b| [H.transform_mm(inv, a), H.transform_mm(inv, b)] }
+
+        warnings +=
+          if append
+            Builder.extend_run(@model, @start_link[:run], local, tees: tees)
+          else
+            Builder.create_run(@model, local, @settings, tees: tees)[1]
+          end
+        report(warnings)
+        reset_state
+        update_status
+        view.invalidate
+      rescue StandardError => e
+        UI.messagebox("Plant Piping: ไม่สามารถสร้างท่อได้ (could not build run)\n#{e.message}")
+        reset_state
+        view.invalidate
+      end
+
+      def report(warnings)
+        return if warnings.empty?
+
+        shown = warnings.uniq.first(10)
+        more = warnings.uniq.size > 10 ? "\n… (+#{warnings.uniq.size - 10})" : ''
+        UI.messagebox("Plant Piping – ข้อควรตรวจสอบ (review):\n\n• #{shown.join("\n• ")}#{more}")
+      end
+
+      # ---------- UI feedback ----------
+
+      def update_vcb
+        Sketchup.vcb_label = 'Length'
+        return unless @cursor && !@points.empty?
+
+        len = Vec.dist(@cursor, @points.last)
+        Sketchup.vcb_value = Sketchup.format_length(H.mm(len))
+      end
+
+      def update_status
+        svc = Services.get(@settings['service'])
+        mode = if @start_link && @start_link[:kind] == :append
+                 "ต่อท่อ #{@start_link[:run].name} | "
+               else
+                 ''
+               end
+        slope = gravity? ? " | ลาด #{@settings['slope_pct']}% (min #{Services.min_drain_slope_pct(@spec.od)}%)" : ''
+        Sketchup.status_text = "#{mode}#{svc[:code]} #{@spec.size} #{@spec.material} #{@spec.rating}#{slope} | " \
+                               'คลิกจุด, พิมพ์ความยาว, ลูกศร=ล็อกแกน, ดับเบิลคลิก/Enter=จบ, Esc=ยกเลิก'
+      end
+
+      def draw_readout(view)
+        return unless @cursor && !@points.empty?
+
+        last = @points.last
+        len = Vec.dist(@cursor, last)
+        dz = @cursor[2] - last[2]
+        txt = "#{@spec.size} #{@settings['service']}  L=#{len.round} mm"
+        txt += "  Δz=#{dz.round} mm" if dz.abs >= 1.0
+        sc = view.screen_coords(H.to_pt(@cursor))
+        view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
+      end
+    end
+  end
+end

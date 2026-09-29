@@ -1,0 +1,439 @@
+# frozen_string_literal: true
+
+require_relative 'vec'
+
+module ArtK
+  module PlantPipe
+    # Converts a centreline network (line segments, mm) into piping pieces:
+    # straight pipes, elbows, tees/crosses/laterals and mitre joints.
+    #
+    # How it works
+    # 1. Merge segment end points that are within +tol+ into nodes.
+    # 2. Classify each node by its number of arms (degree) and angles:
+    #      1 arm  → :end
+    #      2 arms → :pass (collinear, no fitting) or :elbow
+    #      3 arms → :tee (branch ≈ 90°) or :lateral (e.g. 45° wye)
+    #      4 arms → :cross,  >4 → :manifold (warned)
+    # 3. Merge segments through :pass nodes into straight "chains", so a
+    #    line drawn in several clicks becomes one pipe.
+    # 4. Each fitting consumes part of the adjoining chains:
+    #      elbow  – tangent length T = R·tan(θ/2)
+    #      tee    – centre-to-end C
+    #    If a chain is too short for the fittings at both ends, long-radius
+    #    elbows are first downgraded to short-radius, then to a mitre joint
+    #    (and a warning is issued) – the same decision a piping designer
+    #    makes on a tight run.
+    # 5. Emit pieces with full 3D geometry ready for rendering.
+    class Network
+      Piece = Struct.new(:type, :data)
+
+      STRAIGHT_TOL_DEG = 0.5   # deflection below this is treated as straight
+      FOLD_TOL_DEG     = 179.0 # deflection above this cannot be fitted
+
+      attr_reader :pieces, :warnings, :nodes
+
+      # spec: object/hash responding to od, elbow_radius_lr, elbow_radius_sr,
+      #       tee_c (mm).
+      def initialize(segments, spec, tol: 1.0, radius_type: :lr)
+        @segments = segments
+        @od = fetch(spec, :od)
+        @r_lr = fetch(spec, :elbow_radius_lr)
+        @r_sr = fetch(spec, :elbow_radius_sr)
+        @tee_c = fetch(spec, :tee_c)
+        @tol = tol
+        @radius_type = radius_type
+        @warnings = []
+        @pieces = []
+      end
+
+      # Split segments into connected groups (one piping run each).
+      def self.components(segments, tol: 1.0)
+        dummy = { od: 1.0, elbow_radius_lr: 1.0, elbow_radius_sr: 1.0, tee_c: 1.0 }
+        net = new(segments, dummy, tol: tol)
+        net.send(:build_graph)
+        net.send(:connected_segments)
+      end
+
+      def solve
+        build_graph
+        classify_nodes
+        build_chains
+        fit_fittings
+        emit
+        self
+      end
+
+      def pipes
+        @pieces.select { |p| p.type == :pipe }
+      end
+
+      def fittings
+        @pieces.reject { |p| p.type == :pipe || p.type == :end }
+      end
+
+      private
+
+      def fetch(spec, key)
+        v = spec.respond_to?(key) ? spec.public_send(key) : spec[key]
+        raise ArgumentError, "spec missing #{key}" if v.nil?
+
+        v.to_f
+      end
+
+      # ---------- 1. graph ----------
+
+      def build_graph
+        @nodes = []          # [{ pt:, arms: [edge ids] }]
+        @grid = {}
+        @edges = []          # [[i, j]]
+        seen = {}
+        @segments.each do |a, b|
+          i = node_for(a.map(&:to_f))
+          j = node_for(b.map(&:to_f))
+          next if i == j
+
+          key = [i, j].sort
+          next if seen[key]
+
+          seen[key] = true
+          id = @edges.size
+          @edges << [i, j]
+          @nodes[i][:arms] << id
+          @nodes[j][:arms] << id
+        end
+        raise ArgumentError, 'no valid segments' if @edges.empty?
+      end
+
+      def connected_segments
+        comp = Array.new(@nodes.size)
+        groups = []
+        @nodes.each_index do |start|
+          next if comp[start]
+
+          gid = groups.size
+          groups << []
+          stack = [start]
+          comp[start] = gid
+          until stack.empty?
+            n = stack.pop
+            @nodes[n][:arms].each do |e|
+              m = other(e, n)
+              next if comp[m]
+
+              comp[m] = gid
+              stack << m
+            end
+          end
+        end
+        @edges.each { |i, j| groups[comp[i]] << [@nodes[i][:pt], @nodes[j][:pt]] }
+        groups.reject(&:empty?)
+      end
+
+      def cell(pt)
+        pt.map { |c| (c / @tol).floor }
+      end
+
+      def node_for(pt)
+        cx, cy, cz = cell(pt)
+        [-1, 0, 1].each do |dx|
+          [-1, 0, 1].each do |dy|
+            [-1, 0, 1].each do |dz|
+              (@grid[[cx + dx, cy + dy, cz + dz]] || []).each do |n|
+                return n if Vec.dist(@nodes[n][:pt], pt) <= @tol
+              end
+            end
+          end
+        end
+        idx = @nodes.size
+        @nodes << { pt: pt, arms: [] }
+        (@grid[[cx, cy, cz]] ||= []) << idx
+        idx
+      end
+
+      def other(edge_id, node)
+        i, j = @edges[edge_id]
+        i == node ? j : i
+      end
+
+      # Unit direction from node along an edge.
+      def arm_dir(node, edge_id)
+        Vec.unit(Vec.sub(@nodes[other(edge_id, node)][:pt], @nodes[node][:pt]))
+      end
+
+      # ---------- 2. classify ----------
+
+      def classify_nodes
+        @nodes.each_with_index do |n, idx|
+          arms = n[:arms]
+          n[:kind] =
+            case arms.size
+            when 0 then :isolated
+            when 1 then :end
+            when 2 then classify_two(idx, arms)
+            when 3 then classify_three(idx, arms)
+            when 4 then :cross
+            else
+              warn_at(n[:pt], "จุดต่อ #{arms.size} ทาง ไม่มีข้อต่อมาตรฐาน – ใช้ header/manifold " \
+                              "(#{arms.size}-way junction, use a header)")
+              :manifold
+            end
+        end
+      end
+
+      def classify_two(idx, arms)
+        d1 = arm_dir(idx, arms[0])
+        d2 = arm_dir(idx, arms[1])
+        # deflection = angle between incoming and outgoing flow directions
+        defl = deg(Vec.angle(Vec.scale(d1, -1.0), d2))
+        n = @nodes[idx]
+        n[:deflection] = defl
+        if defl < STRAIGHT_TOL_DEG
+          :pass
+        elsif defl > FOLD_TOL_DEG
+          warn_at(n[:pt], 'ท่อพับกลับ 180° ไม่สามารถใส่ข้องอได้ (pipe folds back on itself)')
+          :mitre
+        else
+          :elbow
+        end
+      end
+
+      def classify_three(idx, arms)
+        dirs = arms.map { |e| arm_dir(idx, e) }
+        # Run = the most opposite pair of arms; branch = the remaining one.
+        best = nil
+        [[0, 1], [0, 2], [1, 2]].each do |a, b|
+          d = Vec.dot(dirs[a], dirs[b])
+          best = [a, b, d] if best.nil? || d < best[2]
+        end
+        a, b, dotp = best
+        br = ([0, 1, 2] - [a, b]).first
+        n = @nodes[idx]
+        n[:run] = [arms[a], arms[b]]
+        n[:branch] = arms[br]
+        run_defl = deg(Math.acos([[-dotp, 1.0].min, -1.0].max))
+        # Angle between the branch and the run axis (90° for a straight tee).
+        n[:branch_angle] = deg(Vec.angle(dirs[br], dirs[a]))
+        n[:branch_angle] = 180.0 - n[:branch_angle] if n[:branch_angle] > 90.0
+        if run_defl > 1.0
+          warn_at(n[:pt], "แนวท่อหลักที่ Tee ไม่ตรงกัน (#{run_defl.round(1)}°) " \
+                          '(tee run arms are not collinear)')
+        end
+        (n[:branch_angle] - 90.0).abs <= 1.0 ? :tee : :lateral
+      end
+
+      # ---------- 3. chains ----------
+
+      def build_chains
+        @chains = []
+        used = Array.new(@edges.size, false)
+        @nodes.each_with_index do |n, idx|
+          next if n[:kind] == :pass
+
+          n[:arms].each do |e|
+            next if used[e]
+
+            @chains << walk_chain(idx, e, used)
+          end
+        end
+        # Any edges left belong to a cycle made only of :pass nodes, which is
+        # geometrically impossible for straight lines – kept for safety.
+        @edges.each_index do |e|
+          next if used[e]
+
+          used[e] = true
+          i, j = @edges[e]
+          @chains << { a: i, b: j, edges: [e] }
+        end
+        @nodes.each { |n| n[:chains] = [] }
+        @chains.each_with_index do |c, ci|
+          @nodes[c[:a]][:chains] << [ci, :a]
+          @nodes[c[:b]][:chains] << [ci, :b]
+        end
+      end
+
+      def walk_chain(start, edge, used)
+        edges = []
+        node = start
+        e = edge
+        loop do
+          used[e] = true
+          edges << e
+          node = other(e, node)
+          n = @nodes[node]
+          break unless n[:kind] == :pass
+
+          e = (n[:arms] - [e]).first
+          break if e.nil? || used[e]
+        end
+        { a: start, b: node, edges: edges }
+      end
+
+      def chain_len(c)
+        Vec.dist(@nodes[c[:a]][:pt], @nodes[c[:b]][:pt])
+      end
+
+      # Direction of the chain leaving the node at end +which+.
+      def chain_dir(c, which)
+        from, to = which == :a ? [c[:a], c[:b]] : [c[:b], c[:a]]
+        Vec.unit(Vec.sub(@nodes[to][:pt], @nodes[from][:pt]))
+      end
+
+      # ---------- 4. fitting sizes ----------
+
+      def fit_fittings
+        @nodes.each do |n|
+          n[:radius_type] = @radius_type if n[:kind] == :elbow
+        end
+        # Each pass downgrades at most one elbow per offending chain, then
+        # re-checks – converges in a few passes (each elbow can only go
+        # LR → SR → mitre).
+        10.times do
+          changed = false
+          @chains.each do |c|
+            changed = true if !fits?(c) && downgrade_elbow(c)
+          end
+          break unless changed
+        end
+        # What still does not fit is caused by tees/crosses.
+        @chains.each do |c|
+          next if fits?(c)
+
+          c[:overlap] = true
+          warn_at(@nodes[c[:a]][:pt], "ท่อตรงระหว่างข้อต่อสั้นเกินไป (#{chain_len(c).round} mm) " \
+                                      '(pipe between fittings too short)')
+        end
+      end
+
+      def fits?(c)
+        trim(c[:a]) + trim(c[:b]) <= chain_len(c) + 1e-6
+      end
+
+      # Prefer LR → SR on either end before giving up an elbow to a mitre;
+      # when mitring, drop the elbow that consumes the most pipe.
+      def downgrade_elbow(c)
+        ends = [c[:a], c[:b]].uniq.select { |ni| @nodes[ni][:kind] == :elbow }
+        return false if ends.empty?
+
+        lr = ends.find { |ni| @nodes[ni][:radius_type] == :lr && @r_sr < @r_lr }
+        if lr
+          n = @nodes[lr]
+          n[:radius_type] = :sr
+          warn_at(n[:pt], 'ระยะท่อสั้นเกินไปสำหรับข้องอ Long Radius – เปลี่ยนเป็น Short Radius ' \
+                          '(run too short for LR elbow, using SR)')
+        else
+          n = @nodes[ends.max_by { |ni| trim(ni) }]
+          n[:kind] = :mitre
+          warn_at(n[:pt], 'ระยะท่อสั้นเกินไปสำหรับข้องอ – ใช้รอยต่อเฉียง (mitre) ' \
+                          'ควรเพิ่มระยะท่อตรง (run too short for any elbow, mitre used)')
+        end
+        true
+      end
+
+      def radius(n)
+        n[:radius_type] == :sr ? @r_sr : @r_lr
+      end
+
+      # Length of pipe consumed at a node by its fitting.
+      def trim(ni)
+        n = @nodes[ni]
+        case n[:kind]
+        when :elbow
+          radius(n) * Math.tan(rad(n[:deflection]) / 2.0)
+        when :tee, :lateral, :cross, :manifold
+          @tee_c
+        else
+          0.0
+        end
+      end
+
+      # ---------- 5. emit ----------
+
+      def emit
+        @chains.each do |c|
+          pa = @nodes[c[:a]][:pt]
+          pb = @nodes[c[:b]][:pt]
+          dir = Vec.unit(Vec.sub(pb, pa))
+          ta = trim(c[:a])
+          tb = trim(c[:b])
+          len = chain_len(c)
+          if c[:overlap]
+            # Split what is available proportionally so geometry stays valid.
+            scale = len / (ta + tb)
+            ta *= scale
+            tb *= scale
+          end
+          s = Vec.add(pa, Vec.scale(dir, ta))
+          e = Vec.sub(pb, Vec.scale(dir, tb))
+          plen = Vec.dist(s, e)
+          next if plen < 0.5
+
+          @pieces << Piece.new(:pipe, { from: s, to: e, length: plen, dir: dir })
+        end
+
+        @nodes.each_with_index do |n, idx|
+          case n[:kind]
+          when :elbow then @pieces << elbow_piece(idx)
+          when :tee, :lateral, :cross, :manifold then @pieces << branch_piece(idx)
+          when :mitre
+            @pieces << Piece.new(:mitre, { at: n[:pt], angle: (n[:deflection] || 0.0).round(1) })
+          when :end
+            @pieces << Piece.new(:end, { at: n[:pt], dir: Vec.scale(arm_dir(idx, n[:arms][0]), -1.0) })
+          end
+        end
+      end
+
+      def elbow_piece(idx)
+        n = @nodes[idx]
+        v = n[:pt]
+        d_in = Vec.scale(arm_dir(idx, n[:arms][0]), -1.0) # flow toward node
+        d_out = arm_dir(idx, n[:arms][1])                 # flow away from node
+        theta = rad(n[:deflection])
+        r = radius(n)
+        t = r * Math.tan(theta / 2.0)
+        t1 = Vec.sub(v, Vec.scale(d_in, t))
+        t2 = Vec.add(v, Vec.scale(d_out, t))
+        # In-plane normal from t1 toward the bend centre.
+        n1 = Vec.unit(Vec.sub(d_out, Vec.scale(d_in, Vec.dot(d_in, d_out))))
+        center = Vec.add(t1, Vec.scale(n1, r))
+        normal = Vec.unit(Vec.cross(d_in, d_out))
+        xaxis = Vec.unit(Vec.sub(t1, center))
+        Piece.new(:elbow, {
+                    vertex: v, start: t1, end: t2, center: center, radius: r,
+                    angle: theta, angle_deg: n[:deflection].round(2),
+                    normal: normal, xaxis: xaxis, dir_in: d_in, dir_out: d_out,
+                    radius_type: n[:radius_type], nominal_angle: nominal_angle(n[:deflection])
+                  })
+      end
+
+      def branch_piece(idx)
+        n = @nodes[idx]
+        dirs = n[:arms].map { |e| arm_dir(idx, e) }
+        data = { center: n[:pt], arms: dirs, c: @tee_c, kind: n[:kind] }
+        if n[:kind] == :tee || n[:kind] == :lateral
+          data[:run] = n[:run].map { |e| arm_dir(idx, e) }
+          data[:branch] = arm_dir(idx, n[:branch])
+          data[:branch_angle] = n[:branch_angle].round(1)
+        end
+        Piece.new(n[:kind], data)
+      end
+
+      # Standard elbow angle a fitting would be ordered as.
+      def nominal_angle(defl)
+        [90.0, 45.0, 22.5, 11.25].each { |a| return a if (defl - a).abs <= 1.0 }
+        nil
+      end
+
+      def warn_at(pt, msg)
+        @warnings << "#{msg} @ (#{pt.map { |c| c.round }.join(', ')}) mm"
+      end
+
+      def deg(r)
+        r * 180.0 / Math::PI
+      end
+
+      def rad(d)
+        d * Math::PI / 180.0
+      end
+    end
+  end
+end
