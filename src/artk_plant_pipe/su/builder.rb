@@ -477,7 +477,8 @@ module ArtK
         dir = Vec.unit(dir)
         up = stem_direction(dir)
         f = Mesh.frame(at, dir, Vec.cross(up, dir))
-        len = FittingsData.face_to_face(type, spec.od)
+        fam = ValveModels.family(ctx[:opts], metallic)
+        len = FittingsData.face_to_face(type, spec.od, fam)
         entry = Library.find(type, spec.size)
         if entry
           # A real model registered by the user: exact size at 1:1,
@@ -485,21 +486,26 @@ module ArtK
           defn = Library.load_definition(ctx[:model], entry)
           inst = ctx[:ents].add_instance(defn, Library.transform(entry, at, dir, up, entry['size'] ? nil : len))
           finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", nil,
-                       valve_attrs(type, info, metallic, spec, len, at, dir).merge('model' => entry['file']))
+                       valve_attrs(type, info, fam, spec, len, at, dir).merge('model' => entry['file']))
           return inst
         end
-        name = "PP Valve #{type} | #{spec_key(spec)} | #{lod_key(ctx)}"
-        recolor = metallic ? {} : { valve: :valve_plastic }
-        inst = place_part(ctx, name, f, recolor: recolor) { Parts.valve(type, ctx[:opts], metallic: metallic) }
+        name = "PP Valve #{type} #{fam} v2 | #{spec_key(spec)} | #{lod_key(ctx)}"
+        inst = place_part(ctx, name, f) { Parts.valve(type, ctx[:opts], metallic: metallic) }
         finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat],
-                     valve_attrs(type, info, metallic, spec, len, at, dir))
+                     valve_attrs(type, info, fam, spec, len, at, dir))
       end
 
-      def valve_attrs(type, info, metallic, spec, len, at, dir)
+      VALVE_ENDS = {
+        flanged: ['Flanged RF', 'Class 150'], socket_weld: ['Socket weld', 'Class 800'],
+        threaded: ['Threaded BSPT', 'PN16 / 200 WOG'], plastic: ['True union (socket)', nil]
+      }.freeze
+
+      def valve_attrs(type, info, fam, spec, len, at, dir)
         fr = FittingsData.flange(spec.od).od / 2.0
+        end_type, rating = VALVE_ENDS[fam]
         { 'type' => 'valve', 'valve_type' => type, 'valve_name' => info[:name],
-          'valve_rating' => metallic ? 'Class 150' : spec.rating,
-          'end_type' => metallic ? 'Flanged' : 'Socket / union',
+          'valve_rating' => rating || spec.rating, 'valve_family' => fam.to_s,
+          'end_type' => end_type,
           'face_to_face' => len, 'at' => JSON.generate(at), 'dir' => JSON.generate(dir),
           'geom' => JSON.generate('a' => Vec.sub(at, Vec.scale(dir, len / 2.0)),
                                   'b' => Vec.add(at, Vec.scale(dir, len / 2.0)), 'r' => fr) }

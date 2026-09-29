@@ -116,9 +116,27 @@ module ArtK
         end
       end
 
-      def face_to_face(type, od)
+      # Face-to-face / end-to-end length (mm) by construction family:
+      #   :flanged     – ASME B16.10 Class 150 (table above)
+      #   :socket_weld – forged Class 800 (≈ 2.6·OD + 20, e.g. 1" gate ≈ 107)
+      #   :threaded    – brass/bronze screwed (≈ 1.9·OD + 10, 1" gate ≈ 73)
+      #   :plastic     – PVC/PP true union (≈ 3.2·OD + 30, 2" ≈ 223)
+      # Butterfly valves are wafer (table) in every family.
+      FAMILY_LEN = {
+        socket_weld: { 'gate' => [2.6, 20], 'globe' => [2.7, 22], 'ball' => [2.8, 20], 'check' => [2.6, 20],
+                       'strainer' => [3.0, 20], 'prv' => [3.2, 30] },
+        threaded:    { 'gate' => [1.9, 10], 'globe' => [2.2, 12], 'ball' => [2.0, 16], 'check' => [2.1, 12],
+                       'strainer' => [2.3, 14], 'prv' => [2.8, 20] },
+        plastic:     { 'gate' => [3.2, 30], 'globe' => [3.2, 30], 'ball' => [3.2, 30], 'check' => [3.2, 30],
+                       'strainer' => [3.6, 40], 'prv' => [3.6, 40] }
+      }.freeze
+
+      def face_to_face(type, od, family = :flanged)
         ff = valve(type)[:ff]
         return 2.0 * flange_thickness(od) + 3.0 if ff.nil? # flange pair + gasket
+
+        k = (FAMILY_LEN[family] || {})[type]
+        return (k[0] * od + k[1]).round(1) if k
 
         interpolate(ff, od).round(1)
       end

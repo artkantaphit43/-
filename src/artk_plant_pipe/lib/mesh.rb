@@ -230,6 +230,23 @@ module ArtK
         solid
       end
 
+      # Non-uniform scale about a centre (oval cast bodies). Positive scale
+      # factors keep the solid closed and outward-oriented.
+      def scale(solid, center, sx, sy, sz)
+        Solid.new(solid.polys.map do |poly|
+          poly.map do |p|
+            [center[0] + (p[0] - center[0]) * sx, center[1] + (p[1] - center[1]) * sy,
+             center[2] + (p[2] - center[2]) * sz]
+          end
+        end)
+      end
+
+      # Lathe: profile [[u, r], ...] from the axis back to the axis
+      # (first and last r = 0) revolved about axis – bulbous bodies, bonnets.
+      def lathe(axis_o, axis, profile, steps: 16)
+        revolve([profile], axis_o: axis_o, axis: axis, steps: steps)
+      end
+
       # ---------- primitives ----------
 
       # Tube / rod from a to b. ri = inner radius (nil or 0 = solid).
@@ -319,101 +336,126 @@ module ArtK
 
       # Flat disc/annulus with a circle of bolt holes (flanges).
       # Front face at a, back face at a + axis*thickness.
-      # The face is triangulated sector by sector around each hole
-      # (each sector is star-shaped about its hole centre), so no polygon
-      # has holes and neighbouring sectors share identical boundary points.
+      #
+      # Construction (no polygon has holes, no T-junctions):
+      # * the annulus is split into one sector per bolt hole;
+      # * hole vertices sit symmetric about the sector centre line, and a ray
+      #   from the hole centre through every hole vertex is cast to the
+      #   sector boundary; the region between two neighbouring rays is a
+      #   convex wedge, fanned from its hole vertex;
+      # * neighbouring sectors are mirror images across their shared radial
+      #   edge, so their ray hits on that edge coincide exactly;
+      # * the rim and bore are built from the same boundary points.
       def holed_disc(a, axis, ro, ri, thickness, bolt_circle_r, holes, hole_r, steps: 24, hole_steps: 8, ref: nil)
         ax = Vec.unit(axis)
         ref = ref ? Vec.unit(Vec.sub(ref, Vec.scale(ax, Vec.dot(ax, ref)))) : Vec.perpendicular(ax)
         bin = Vec.cross(ax, ref)
-        steps = (steps.to_f / holes).ceil * holes # sector corners on the grid
-        per = steps / holes
-        p2 = lambda do |x, y, w|
-          Vec.add(Vec.add(a, Vec.scale(ax, w)), Vec.add(Vec.scale(ref, x), Vec.scale(bin, y)))
-        end
+        hs = [hole_steps, (steps.to_f / holes).ceil * 2, 8].max
+        hs += 1 if hs.odd?
+        p3 = ->(x, y, w) { Vec.add(Vec.add(a, Vec.scale(ax, w)), Vec.add(Vec.scale(ref, x), Vec.scale(bin, y))) }
         solid = Solid.new
-        faces2d = [] # [[outer boundary 2d], [hole 2d]] per sector
+        outer_pts = []
+        inner_pts = []
+        span = TWO_PI / holes
         holes.times do |k|
-          j0 = k * per
-          outer_arc = (0..per).map do |j|
-            t = TWO_PI * (j0 + j) / steps
-            [ro * Math.cos(t), ro * Math.sin(t)]
+          t0 = span * k
+          t1 = span * (k + 1)
+          tm = (t0 + t1) / 2.0
+          hc = [bolt_circle_r * Math.cos(tm), bolt_circle_r * Math.sin(tm)]
+          hole = (0...hs).map do |i|
+            ang = tm + TWO_PI * (i + 0.5) / hs
+            [hc[0] + hole_r * Math.cos(ang), hc[1] + hole_r * Math.sin(ang)]
           end
-          inner_arc = (0..per).map do |j|
-            t = TWO_PI * (j0 + per - j) / steps
-            [ri * Math.cos(t), ri * Math.sin(t)]
-          end
-          boundary = outer_arc + inner_arc # CCW
-          hc_t = TWO_PI * (j0 + per / 2.0) / steps
-          hc = [bolt_circle_r * Math.cos(hc_t), bolt_circle_r * Math.sin(hc_t)]
-          hole = circle2d(hc[0], hc[1], hole_r, hole_steps, hc_t)
-          faces2d << [boundary, hole, hc]
-        end
+          hits = hole.map { |v| sector_hit(hc, [v[0] - hc[0], v[1] - hc[1]], ro, ri, t0, t1) }
+          corners = [[ro, t0], [ro, t1], [ri, t1], [ri, t0]].map { |r, t| [r * Math.cos(t), r * Math.sin(t)] }
+          corners = corners.first(2) + [[0.0, 0.0]] if ri <= EPS # pie slice: apex at the centre
+          ang_h = ->(p) { Math.atan2(p[1] - hc[1], p[0] - hc[0]) }
+          d2 = ->(p, q) { Math.hypot(p[0] - q[0], p[1] - q[1]) }
+          hs.times do |i|
+            j = (i + 1) % hs
+            a0 = ang_h.call(hits[i])
+            sweep = (ang_h.call(hits[j]) - a0) % TWO_PI
+            inside = corners.select do |cr|
+              dd = (ang_h.call(cr) - a0) % TWO_PI
+              dd > 1e-9 && dd < sweep - 1e-9 && d2.call(cr, hits[i]) > 1e-7 && d2.call(cr, hits[j]) > 1e-7
+            end
+            inside.sort_by! { |cr| (ang_h.call(cr) - a0) % TWO_PI }
+            # wedge: hole[i] → hole[j] → hits[j] → corners (reverse) → hits[i]; fan from hole[i]
+            chain = [hole[j], hits[j]] + inside.reverse + [hits[i]]
+            chain.each_cons(2) do |p, q|
+              tri = [hole[i], p, q]
+              next if Vec.length(normal(tri.map { |x, y| [x, y, 0.0] })) < 1e-10
 
-        faces2d.each do |boundary, hole, hc|
-          tris = star_strip(boundary, hole, hc)
-          tris.each do |tri|
-            solid.add(orient(tri.map { |x, y| p2.call(x, y, 0.0) }, Vec.scale(ax, -1.0)))
-            solid.add(orient(tri.map { |x, y| p2.call(x, y, thickness) }, ax))
+              solid.add(orient(tri.map { |x, y| p3.call(x, y, 0.0) }, Vec.scale(ax, -1.0)))
+              solid.add(orient(tri.map { |x, y| p3.call(x, y, thickness) }, ax))
+            end
           end
-          # hole wall (outward from material = towards hole centre)
+          (hits + corners).each do |pt|
+            r = Math.hypot(pt[0], pt[1])
+            outer_pts << pt if (r - ro).abs < 1e-6
+            inner_pts << pt if ri > EPS && (r - ri).abs < 1e-6
+          end
           hole.each_index do |i|
-            q = hole[(i + 1) % hole.size]
-            pa = hole[i]
-            poly = [p2.call(pa[0], pa[1], 0.0), p2.call(q[0], q[1], 0.0),
-                    p2.call(q[0], q[1], thickness), p2.call(pa[0], pa[1], thickness)]
-            mid = [(pa[0] + q[0]) / 2.0, (pa[1] + q[1]) / 2.0]
+            p0 = hole[i]
+            q0 = hole[(i + 1) % hs]
+            poly = [p3.call(p0[0], p0[1], 0.0), p3.call(q0[0], q0[1], 0.0), p3.call(q0[0], q0[1], thickness),
+                    p3.call(p0[0], p0[1], thickness)]
+            mid = [(p0[0] + q0[0]) / 2.0, (p0[1] + q0[1]) / 2.0]
             inward = [hc[0] - mid[0], hc[1] - mid[1]]
             solid.add(orient(poly, Vec.add(Vec.scale(ref, inward[0]), Vec.scale(bin, inward[1]))))
           end
         end
-        # rim and bore
-        steps.times do |j|
-          t0 = TWO_PI * j / steps
-          t1 = TWO_PI * (j + 1) / steps
-          [[ro, 1.0], [ri, -1.0]].each do |r, sgn|
-            next if r < EPS
+        [[outer_pts, 1.0], [inner_pts, -1.0]].each do |pts, sgn|
+          next if pts.empty?
 
-            poly = [p2.call(r * Math.cos(t0), r * Math.sin(t0), 0.0), p2.call(r * Math.cos(t1), r * Math.sin(t1), 0.0),
-                    p2.call(r * Math.cos(t1), r * Math.sin(t1), thickness), p2.call(r * Math.cos(t0), r * Math.sin(t0), thickness)]
-            tm = (t0 + t1) / 2.0
-            solid.add(orient(poly, Vec.scale(Vec.add(Vec.scale(ref, Math.cos(tm)), Vec.scale(bin, Math.sin(tm))), sgn)))
+          ring = pts.uniq { |p| p.map { |c| c.round(6) } }.sort_by { |p| Math.atan2(p[1], p[0]) % TWO_PI }
+          ring.each_index do |i|
+            p0 = ring[i]
+            q0 = ring[(i + 1) % ring.size]
+            poly = [p3.call(p0[0], p0[1], 0.0), p3.call(q0[0], q0[1], 0.0), p3.call(q0[0], q0[1], thickness),
+                    p3.call(p0[0], p0[1], thickness)]
+            m = [(p0[0] + q0[0]) / 2.0, (p0[1] + q0[1]) / 2.0]
+            solid.add(orient(poly, Vec.scale(Vec.add(Vec.scale(ref, m[0]), Vec.scale(bin, m[1])), sgn)))
           end
         end
         solid
       end
 
-      # Triangulate the region between a star-shaped boundary and an inner
-      # loop around centre c by merging both loops by polar angle.
-      def star_strip(boundary, hole, c)
-        ang = ->(p) { Math.atan2(p[1] - c[1], p[0] - c[0]) % TWO_PI }
-        sort = lambda do |lp|
-          s = lp.each_with_index.min_by { |p, _| ang.call(p) }[1]
-          lp.rotate(s)
+      # First exit of the ray c + t·u (2D) from the annular sector
+      # {ri ≤ r ≤ ro, t0 ≤ θ ≤ t1}, c inside. Returns the exit point.
+      def sector_hit(c, u2, ro, ri, t0, t1)
+        l = Math.hypot(u2[0], u2[1])
+        u = [u2[0] / l, u2[1] / l]
+        cx, cy = c
+        best = nil
+        in_sector = lambda do |x, y|
+          ((Math.atan2(y, x) - t0) % TWO_PI) <= (t1 - t0) + 1e-9
         end
-        b = sort.call(boundary)
-        h = sort.call(hole)
-        ab = b.map { |p| ang.call(p) }
-        ah = h.map { |p| ang.call(p) }
-        tris = []
-        i = 0
-        j = 0
-        nb = b.size
-        nh = h.size
-        while i < nb || j < nh
-          bi = b[i % nb]
-          hj = h[j % nh]
-          next_b = i < nb ? (i + 1 < nb ? ab[i + 1] : ab[0] + TWO_PI) : Float::INFINITY
-          next_h = j < nh ? (j + 1 < nh ? ah[j + 1] : ah[0] + TWO_PI) : Float::INFINITY
-          if next_b <= next_h
-            tris << [bi, b[(i + 1) % nb], hj]
-            i += 1
-          else
-            tris << [bi, h[(j + 1) % nh], hj]
-            j += 1
+        bq = cx * u[0] + cy * u[1]
+        disc = bq * bq - (cx * cx + cy * cy - ro * ro)
+        if disc >= 0
+          t = -bq + Math.sqrt(disc)
+          best = t if t > 1e-9 && in_sector.call(cx + t * u[0], cy + t * u[1])
+        end
+        if ri > EPS
+          disc = bq * bq - (cx * cx + cy * cy - ri * ri)
+          if disc >= 0
+            t = -bq - Math.sqrt(disc)
+            best = t if t > 1e-9 && in_sector.call(cx + t * u[0], cy + t * u[1]) && (best.nil? || t < best)
           end
         end
-        tris
+        [t0, t1].each do |th|
+          e = [Math.cos(th), Math.sin(th)]
+          den = u[0] * e[1] - u[1] * e[0]
+          next if den.abs < 1e-12
+
+          t = (e[0] * cy - e[1] * cx) / den
+          sl = (u[0] * cy - u[1] * cx) / den
+          best = t if t > 1e-9 && sl >= ri - 1e-9 && sl <= ro + 1e-9 && (best.nil? || t < best)
+        end
+        raise 'ray does not leave the sector' unless best
+
+        [cx + best * u[0], cy + best * u[1]]
       end
 
       # ---------- checks (used by tests) ----------

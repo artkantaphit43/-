@@ -106,7 +106,7 @@ module ArtK
         return nil unless hit
 
         od = hit[:attrs]['od'].to_f
-        len = FittingsData.face_to_face(@type, od)
+        len = valve_length(hit[:attrs], od)
         name = FittingsData.valve(@type)[:name]
         if hit[:len] < len
           return { ok: false, hit: hit, at: hit[:proj], len: len,
@@ -117,6 +117,15 @@ module ArtK
         at = Vec.add(hit[:a], Vec.scale(hit[:dir], s))
         { ok: true, hit: hit, at: at, len: len,
           tip: "#{name} #{hit[:attrs]['size']} บน (on) #{hit[:run].name} – F-F #{len.round} mm" }
+      end
+
+      # Face-to-face of the valve family this pipe gets (flanged / forged /
+      # brass threaded / plastic true-union).
+      def valve_length(attrs, od)
+        spec = Catalog.spec(attrs['catalog'], attrs['size'], attrs['rating'])
+        Parts.valve_length(@type, Parts.opts(spec), metallic: spec.density > 5000)
+      rescue StandardError
+        FittingsData.face_to_face(@type, od)
       end
 
       def update_status

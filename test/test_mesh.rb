@@ -61,3 +61,27 @@ class TestMesh < Minitest::Test
     assert_solid(Mesh.ngon_prism([0, 0, 0], [0, 0, 10], 10, 6), 6 * (Math.sqrt(3) / 4 * 100) * 10, 1e-6, 'hex')
   end
 end
+
+class TestHoledDiscRobust < Minitest::Test
+  # Every flange-like combination must be a closed solid with the right volume.
+  def test_holed_disc_grid
+    count = 0
+    [3, 4, 5, 6, 8, 12, 16, 20].each do |n|
+      [6, 8, 10, 12, 16].each do |hs|
+        [16, 24, 32, 48].each do |st|
+          [[40.0, 8.0, 22.0, 5.0], [114.3, 51.1, 95.25, 9.55], [28.9, 6.4, 17.66, 6.42],
+           [407.5, 161.5, 374.65, 15.9], [60.0, 0.0, 40.0, 6.0]].each do |ro, ri, bc, hr|
+            next if hr >= bc * Math.sin(Math::PI / n) * 0.95
+
+            s = Mesh.holed_disc([0, 0, 0], [0, 0, 1], ro, ri, 3.0, bc, n, hr, steps: st, hole_steps: hs)
+            assert Mesh.closed?(s), "n=#{n} hs=#{hs} st=#{st} #{[ro, ri, bc, hr]}"
+            ideal = (Math::PI * (ro**2 - ri**2) - n * Math::PI * hr**2) * 3.0
+            assert_in_delta ideal, Mesh.volume(s), ideal * 0.08, "volume n=#{n} hs=#{hs}"
+            count += 1
+          end
+        end
+      end
+    end
+    assert count > 500
+  end
+end
