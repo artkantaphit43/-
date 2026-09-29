@@ -35,7 +35,7 @@
 ## การติดตั้ง
 
 1. ต้องใช้ **SketchUp 2021 ขึ้นไป** (Windows / macOS)
-2. ดาวน์โหลดไฟล์ `dist/artk_plant_pipe-1.1.1.rbz`
+2. ดาวน์โหลดไฟล์ `dist/artk_plant_pipe-1.1.2.rbz`
 3. SketchUp → **Extensions → Extension Manager → Install Extension** → เลือกไฟล์ `.rbz`
 4. จะมีเมนู **Extensions → Plant Piping TH** และ Toolbar "Plant Piping TH"
 

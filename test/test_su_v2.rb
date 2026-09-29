@@ -170,3 +170,30 @@ class TestDiagnostics < Minitest::Test
     assert_equal [:abort], model.ops.last
   end
 end
+
+class TestSettingsPersistence < Minitest::Test
+  H = ArtK::PlantPipe::ModelHelpers
+
+  # Simulate SketchUp mangling quotes in stored strings.
+  def test_settings_survive_quote_mangling_storage
+    orig = Sketchup.method(:write_default)
+    Sketchup.define_singleton_method(:write_default) { |sec, key, val| orig.call(sec, key, val.to_s.delete('"\\')) }
+    H.save_settings(Settings.sanitize('service' => 'FP', 'catalog' => 'CS_B36_10', 'size' => '6"', 'valve_type' => 'butterfly'))
+    H.reset_settings_cache! # as after restarting SketchUp
+    s = H.load_settings
+    assert_equal %w[FP 6" CS_B36_10 butterfly], s.values_at('service', 'size', 'catalog', 'valve_type')
+  ensure
+    Sketchup.define_singleton_method(:write_default, orig)
+  end
+
+  def test_each_new_run_uses_the_size_chosen_at_that_time
+    model = Sketchup::Model.new
+    Sketchup.active_model = model
+    runs = %w[1" 2" 4" 8"].each_with_index.map do |size, i|
+      H.save_settings(Settings.sanitize('service' => 'FP', 'catalog' => 'CS_B36_10', 'size' => size))
+      H.reset_settings_cache!
+      ArtK::PlantPipe::Builder.create_run(model, [[[0, i * 1000, 0], [2000, i * 1000, 0]]], H.load_settings).first
+    end
+    assert_equal ['1"-FP-001', '2"-FP-002', '4"-FP-003', '8"-FP-004'], runs.map(&:name)
+  end
+end

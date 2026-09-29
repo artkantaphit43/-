@@ -507,7 +507,14 @@ module ArtK
       end
 
       def draw_readout(view)
-        return unless @cursor && !@points.empty?
+        return unless @cursor
+
+        if @points.empty?
+          sc = view.screen_coords(H.to_pt(@cursor))
+          txt = "#{@spec.size} #{@settings['service']} · #{@spec.material} #{@spec.rating} – คลิกจุดเริ่ม (click start)"
+          view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
+          return
+        end
 
         last = @points.last
         len = Vec.dist(@cursor, last)

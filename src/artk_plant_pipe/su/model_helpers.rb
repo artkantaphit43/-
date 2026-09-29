@@ -91,12 +91,36 @@ module ArtK
 
       # ---------- settings persistence ----------
 
+      # Settings are stored base64-encoded. Pipe sizes contain a double
+      # quote (4"), and SketchUp's read/write_default does not round-trip
+      # quotes reliably – in v1.0/v1.1 the stored JSON came back broken and
+      # every new pipe silently fell back to the defaults (CW, PVC 1").
+      # Base64 is only letters/digits, so nothing can be mangled. The
+      # current session also keeps an in-memory copy.
       def load_settings
-        Settings.load(Sketchup.read_default(PREF, 'settings', ''))
+        @settings_cache ||= read_stored_settings
+        @settings_cache.dup
       end
 
       def save_settings(settings)
-        Sketchup.write_default(PREF, 'settings', Settings.dump(settings))
+        @settings_cache = Settings.sanitize(settings)
+        Sketchup.write_default(PREF, 'settings_b64', [JSON.generate(@settings_cache)].pack('m0'))
+        @settings_cache.dup
+      end
+
+      def read_stored_settings
+        raw = Sketchup.read_default(PREF, 'settings_b64', nil)
+        return Settings.sanitize({}) if raw.nil? || raw.to_s.empty?
+
+        json = raw.to_s.unpack1('m0').force_encoding('UTF-8')
+        Settings.sanitize(JSON.parse(json))
+      rescue StandardError => e
+        puts "Plant Piping: stored settings unreadable (#{e.message}) – using defaults"
+        Settings.sanitize({})
+      end
+
+      def reset_settings_cache!
+        @settings_cache = nil
       end
 
       # ---------- tags & materials ----------
