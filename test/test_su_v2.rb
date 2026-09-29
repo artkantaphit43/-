@@ -140,4 +140,33 @@ class TestSuV2 < Minitest::Test
     Builder.add_valve(m2, run2, 'gate', [2500, 0, 0], [1, 0, 0])
     assert $mesh_polys > 1.5 * light
   end
+
+  def test_failed_component_falls_back_to_group_not_a_gap
+    H.singleton_class.send(:alias_method, :orig_part_definition, :part_definition)
+    H.define_singleton_method(:part_definition) { |*_a, **_k| raise 'simulated SketchUp failure' }
+    run, warnings = Builder.create_run(@model, l_run, @fp)
+    elbow = children(run, 'elbow').first
+    refute_nil elbow, 'elbow must still exist'
+    assert_kind_of Sketchup::Group, elbow
+    assert(warnings.any? { |w| w.include?('simulated SketchUp failure') })
+    assert(H.get_json(run, 'warnings').any? { |w| w.include?('drawn as group') })
+  ensure
+    H.singleton_class.send(:alias_method, :part_definition, :orig_part_definition)
+  end
+end
+
+class TestDiagnostics < Minitest::Test
+  def test_diagnostics_runs_and_undoes
+    model = Sketchup::Model.new
+    Sketchup.active_active = nil if Sketchup.respond_to?(:active_active=)
+    Sketchup.active_model = model
+    def Sketchup.version = '26.0'
+    ArtK::PlantPipe::ModelHelpers.save_settings(Settings.sanitize('service' => 'FP', 'catalog' => 'CS_B36_10', 'size' => '4"'))
+    ArtK::PlantPipe::Commands.diagnostics
+    html = UI.last_html
+    assert_includes html, 'Self-test'
+    %w[pipe elbow tee valve].each { |t| assert_includes html, "<td>#{t}</td>" }
+    refute_includes html, 'NO FACES'
+    assert_equal [:abort], model.ops.last
+  end
 end

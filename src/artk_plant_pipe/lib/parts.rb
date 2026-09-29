@@ -161,6 +161,22 @@ module ArtK
         part
       end
 
+      # Concentric reducer / expander / adaptor from pipe +a+ (at x = 0) to
+      # pipe +b+ (at x = len) along +X. Transition cone in the middle third.
+      def reducer(len, a, b)
+        part = Mesh::Part.new
+        ra = body_radius(a)
+        rb = body_radius(b)
+        x1 = len / 3.0
+        x2 = 2.0 * len / 3.0
+        steps = [a.steps, b.steps].max
+        part.add(:fitting, M.cylinder([0, 0, 0], [x1, 0, 0], ra, ri: a.ri, steps: steps))
+        part.add(:fitting, M.frustum([x1, 0, 0], [x2, 0, 0], ra, rb, ri1: a.ri, ri2: b.ri, steps: steps))
+        part.add(:fitting, M.cylinder([x2, 0, 0], [len, 0, 0], rb, ri: b.ri, steps: steps))
+        joint_end(part, [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0], a)
+        joint_end(part, [len, 0.0, 0.0], [1.0, 0.0, 0.0], b)
+      end
+
       # Weld-neck flange (steel) or stub/adaptor flange (plastics):
       # mating face at x = 0 facing −X, hub towards +X.
       def flange(o, holes: true)

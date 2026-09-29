@@ -13,10 +13,10 @@ module ArtK
     # * joints    → estimated field joints (welds / solvent / fusion), for
     #               labour estimating
     module Bom
-      CATEGORY_ORDER = %w[pipe elbow tee valve flange mitre insulation support rod member].freeze
+      CATEGORY_ORDER = %w[pipe elbow tee reducer valve flange mitre insulation support rod member].freeze
 
       CATEGORY_TH = {
-        'pipe' => 'ท่อ', 'elbow' => 'ข้องอ', 'tee' => 'สามทาง', 'valve' => 'วาล์ว',
+        'pipe' => 'ท่อ', 'elbow' => 'ข้องอ', 'tee' => 'สามทาง', 'reducer' => 'ข้อลด', 'valve' => 'วาล์ว',
         'flange' => 'หน้าแปลน', 'mitre' => 'รอยต่อเฉียง', 'insulation' => 'ฉนวน',
         'support' => 'ซัพพอร์ต', 'rod' => 'เหล็กเส้นเกลียว', 'member' => 'เหล็กโครงสร้าง'
       }.freeze
@@ -86,6 +86,9 @@ module ArtK
           desc = tee_desc(r)
           bsize = r['branch_size'] && r['branch_size'] != size ? "#{size} x #{r['branch_size']}" : size
           [['tee', svc, mat, bsize, rating, desc], pcs('tee', desc, svc, mat, bsize, rating)]
+        when 'reducer'
+          desc = r['kind'] || 'Concentric Reducer'
+          [['reducer', svc, mat, size, desc], pcs('reducer', desc, svc, mat, size, rating)]
         when 'valve'
           desc = r['valve_name'] || r['valve_type'].to_s
           cat = r['valve_type'] == 'flange' ? 'flange' : 'valve'
@@ -188,7 +191,7 @@ module ArtK
           joints += case r['type']
                     when 'elbow' then 2
                     when 'tee' then r['kind'] == 'cross' ? 4 : 3
-                    when 'valve' then 2
+                    when 'valve', 'reducer' then 2
                     when 'mitre' then 1
                     when 'pipe'
                       stick = r['stick_m'].to_f

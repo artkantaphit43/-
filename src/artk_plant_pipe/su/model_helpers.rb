@@ -205,7 +205,15 @@ module ArtK
         d = defs.add(name)
         d.set_attribute(DICT, 'type', 'part')
         add_part(model, d.entities, yield, steps: steps, recolor: recolor)
+        unless faces?(d.entities)
+          defs.remove(d) if defs.respond_to?(:remove)
+          raise 'component has no faces'
+        end
         d
+      end
+
+      def faces?(ents)
+        ents.any? { |e| e.is_a?(Sketchup::Face) }
       end
 
       def frame_transform(f)

@@ -329,7 +329,12 @@ module ArtK
         return nil unless @hover
 
         if @hover[:kind] == :append
-          "ต่อท่อ (continue) #{@hover[:run].name}"
+          rs = Builder.run_settings(@hover[:run])
+          if same_spec?(rs)
+            "ต่อท่อ (continue) #{@hover[:run].name}"
+          else
+            "ต่อท่อ + Reducer #{rs['size']} → #{@spec.size} (new run)"
+          end
         else
           "แยกท่อด้วย Tee (branch from) #{@hover[:hit][:run].name}"
         end
@@ -338,11 +343,70 @@ module ArtK
       def start_run(pt)
         link = detect_link(pt)
         if link
+          # A different size/material selected → reducer + new run;
+          # the same spec → simply continue the existing run.
+          link[:kind] = :reduce if link[:kind] == :append && !same_spec?(Builder.run_settings(link[:run]))
           @start_link = link
           pt = link[:point]
           load_settings if link[:kind] == :append
         end
         @points << pt
+      end
+
+      def same_spec?(rs)
+        %w[catalog size rating].all? { |k| rs[k] == @settings[k] }
+      end
+
+      # Direction (world) in which run +run+ leaves its open end +p_world+.
+      def end_direction(run, tr, p_world)
+        inv = tr.inverse
+        pl = H.transform_mm(inv, p_world)
+        seg = H.get_json(run, 'cl', []).find { |a, b| Vec.dist(a, pl) <= 1.0 || Vec.dist(b, pl) <= 1.0 }
+        return nil unless seg
+
+        other = Vec.dist(seg[0], pl) <= 1.0 ? seg[1] : seg[0]
+        Vec.unit(H.from_vec(H.to_vec(Vec.sub(pl, other)).transform(tr)))
+      end
+
+      # Continue run A at another size: if the new line turns, A first gets a
+      # short leg in the new direction (so A's own elbow is made), then a
+      # reducer in line, then the new run.
+      def finish_with_reducer(segs)
+        run = @start_link[:run]
+        tr = @start_link[:tr]
+        p0 = segs.first[0]
+        d1 = Vec.unit(Vec.sub(segs.first[1], p0))
+        dir_a = end_direction(run, tr, p0) || d1
+        ang = Vec.angle(dir_a, d1)
+        raise 'ท่อย้อนกลับทางเดิม (line folds back)' if ang > 179.0 * Math::PI / 180
+
+        spec_a = Builder.run_spec(run)
+        q = p0
+        @model.start_operation('Plant Piping: Reducer + New Run', true)
+        warnings = []
+        if ang > 0.5 * Math::PI / 180
+          leg = spec_a.elbow_radius_lr * Math.tan(ang / 2.0) + 1.0
+          q = Vec.add(p0, Vec.scale(d1, leg))
+          inv_a = tr.inverse
+          warnings.concat(Builder.extend_run(@model, run, [[H.transform_mm(inv_a, p0), H.transform_mm(inv_a, q)]],
+                                             op: false))
+        end
+        segs = [[q, segs.first[1]]] + segs[1..]
+        len = Builder.join_length(spec_a, @spec)
+        raise "ช่วงแรกสั้นเกินไปสำหรับ Reducer (first segment shorter than #{len.round} mm)" if Vec.dist(*segs.first) <= len
+
+        inv = H.edit_transform(@model).inverse
+        a = H.attrs(run)
+        join = { 'at' => H.transform_mm(inv, q), 'dir' => Vec.unit(H.from_vec(H.to_vec(d1).transform(inv))),
+                 'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
+                 'main_service' => a['service'], 'main_pid' => run.persistent_id }
+        local = segs.map { |x, y| [H.transform_mm(inv, x), H.transform_mm(inv, y)] }
+        _new_run, w = Builder.create_run(@model, local, @settings, joins: [join], op: false)
+        @model.commit_operation
+        warnings + w
+      rescue StandardError
+        @model.abort_operation
+        raise
       end
 
       def tee_record(hit, at_world, inv)
@@ -368,6 +432,12 @@ module ArtK
         segs = @points.each_cons(2).map { |a, b| [a, b] }.reject { |a, b| Vec.dist(a, b) < 1.0 }
         if segs.empty?
           reset_state
+          return view.invalidate
+        end
+        if @start_link && @start_link[:kind] == :reduce
+          report(finish_with_reducer(segs))
+          reset_state
+          update_status
           return view.invalidate
         end
         warnings = []

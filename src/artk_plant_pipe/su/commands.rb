@@ -315,6 +315,57 @@ module ArtK
         model.commit_operation
       end
 
+      # ---------- diagnostics ----------
+
+      # Build a small test run (pipes, elbow, tee, valve, reducer) far from the
+      # model, check every piece really has faces, then undo it all. Also list
+      # the stored warnings of the selected (or all) runs. The report can be
+      # sent to the developer as a screenshot.
+      def diagnostics
+        model = Sketchup.active_model
+        rows = []
+        errors = []
+        model.start_operation('Plant Piping: Self-test', true)
+        begin
+          s = H.load_settings
+          o = [1_000_000.0, 1_000_000.0, 0.0]
+          seg = lambda { |a, b| [Vec.add(o, a), Vec.add(o, b)] }
+          segs = [seg.call([0, 0, 0], [3000, 0, 0]), seg.call([3000, 0, 0], [3000, 2000, 0]),
+                  seg.call([1500, 0, 0], [1500, 1500, 0])]
+          run, warns = Builder.create_run(model, segs, s, op: false)
+          errors.concat(warns)
+          Builder.place_valve(Builder.context(model, run, s, Settings.spec(s), Services.get(s['service']), run.name),
+                              'gate', Vec.add(o, [700, 0, 0]), [1, 0, 0])
+          run.entities.each do |e|
+            next unless H.instance?(e) && H.type_of(e) != 'centerline'
+
+            ents = e.respond_to?(:definition) ? e.definition.entities : e.entities
+            faces = ents.count { |x| x.is_a?(Sketchup::Face) }
+            rows << [H.type_of(e) || '-', e.class.name.split('::').last, e.name, faces, faces.positive? ? 'OK' : 'NO FACES']
+          end
+        rescue StandardError => e
+          errors << "#{e.class}: #{e.message} @ #{e.backtrace.to_a.first(3).join(' | ')}"
+        ensure
+          model.abort_operation
+        end
+
+        runs = H.selected_runs(model)
+        runs = Collector.all_runs(model).map(&:first) if runs.empty?
+        run_rows = runs.first(200).map do |r|
+          counts = Hash.new(0)
+          r.entities.each { |e| counts[H.type_of(e)] += 1 if H.instance?(e) }
+          [r.name, %w[pipe elbow tee reducer valve support].map { |t| "#{t}:#{counts[t]}" }.join(' '),
+           H.get_json(r, 'warnings', []).join(' | ')]
+        end
+
+        env = "Plant Piping #{VERSION} · SketchUp #{Sketchup.version} · Ruby #{RUBY_VERSION} · #{Sketchup.platform}"
+        body = "<p class='mut'>#{Reports.esc(env)}</p><h2>Self-test</h2>" +
+               Reports.table(%w[Type Class Name Faces Status], rows, row_class: ->(i) { rows[i][3].positive? ? 'ok' : 'bad' }) +
+               (errors.empty? ? '<p>ไม่พบข้อผิดพลาด (no errors)</p>' : "<ul>#{errors.map { |x| "<li>#{Reports.esc(x)}</li>" }.join}</ul>") +
+               '<h2>แนวท่อในโมเดล (runs)</h2>' + Reports.table(['Line', 'Pieces', 'Warnings'], run_rows)
+        Reports.show('Plant Piping – Diagnostics', body)
+      end
+
       # ---------- misc ----------
 
       def show_warnings(warnings, summary)

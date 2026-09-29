@@ -82,20 +82,46 @@ module ArtK
 
       # ---------- 1. graph ----------
 
+      # Split segments where another segment ends on their interior
+      # (T-junction drawn without splitting the through line, typical for
+      # imported CAD linework).
+      def split_at_junctions(segs)
+        segs = segs.map { |a, b| [a.map(&:to_f), b.map(&:to_f)] }
+        ends = segs.flatten(1)
+        segs.flat_map do |a, b|
+          ab = Vec.sub(b, a)
+          len = Vec.length(ab)
+          next [[a, b]] if len < 2 * @tol
+
+          ts = ends.map do |p|
+            t = Vec.dot(Vec.sub(p, a), ab) / (len * len)
+            next nil if t * len <= @tol || (1 - t) * len <= @tol
+
+            Vec.dist(Vec.add(a, Vec.scale(ab, t)), p) <= @tol ? t : nil
+          end.compact.uniq.sort
+          pts = [a] + ts.map { |t| Vec.add(a, Vec.scale(ab, t)) } + [b]
+          pts.each_cons(2).to_a
+        end
+      end
+
       def build_graph
         @nodes = []          # [{ pt:, arms: [edge ids] }]
         @grid = {}
         @edges = []          # [[i, j]]
         seen = {}
-        @segments.each do |a, b|
+        split_at_junctions(@segments).each do |a, b|
           i = node_for(a.map(&:to_f))
           j = node_for(b.map(&:to_f))
           next if i == j
 
           key = [i, j].sort
-          next if seen[key]
+          if seen[key]
+            warn_at(@nodes[i][:pt], 'ท่อซ้อนทับกัน / พับกลับ (overlapping or folded-back pipe)') if seen[key] == 1
+            seen[key] += 1
+            next
+          end
 
-          seen[key] = true
+          seen[key] = 1
           id = @edges.size
           @edges << [i, j]
           @nodes[i][:arms] << id

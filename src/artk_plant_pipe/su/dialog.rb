@@ -122,6 +122,7 @@ module ArtK
           when 'clear_support' then Commands.clear_supports
           when 'style' then Commands.technical_style
           when 'help' then Commands.help
+          when 'diag' then Commands.diagnostics
           end
         end
       end

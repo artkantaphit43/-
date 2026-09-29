@@ -140,3 +140,12 @@ class TestNetworkComponents < Minitest::Test
     assert_equal [2, 1], comps.map(&:size).sort.reverse
   end
 end
+
+class TestNetworkJunctionSplit < Minitest::Test
+  def test_branch_ending_mid_segment_makes_a_tee
+    spec = { od: 114.3, elbow_radius_lr: 152.4, elbow_radius_sr: 101.6, tee_c: 105.0 }
+    n = Network.new([[[0, 0, 0], [3000, 0, 0]], [[1500, 0, 0], [1500, 1500, 0]]], spec).solve
+    assert_equal 1, n.pieces.count { |p| p.type == :tee }
+    assert_equal 3, n.pipes.size
+  end
+end

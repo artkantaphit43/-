@@ -84,3 +84,18 @@ class TestParts < Minitest::Test
     assert_equal 0.0, Parts.insertion(Parts.opts(Catalog.spec('CS_B36_10', '2"')))
   end
 end
+
+class TestReducer < Minitest::Test
+  def test_reducers_closed_and_b16_9_length
+    [%w[CS_B36_10 4" 2"], %w[PVC_TIS17 2" 1"], ['PPR_DIN8077', '63 mm', '32 mm'], %w[GSP_BS1387 2" 1"]].each do |cat, big, small|
+      a = Catalog.spec(cat, big)
+      b = Catalog.spec(cat, small)
+      len = FittingsData.reducer_length(a.od, b.od, a.style)
+      [[a, b], [b, a]].each do |x, y|
+        part = Parts.reducer(len, Parts.opts(x), Parts.opts(y))
+        part.solids.each { |role, s| assert Mesh.closed?(s), "#{cat} #{role}" }
+      end
+    end
+    assert_in_delta 102.0, FittingsData.reducer_length(114.3, 60.3), 1e-9 # 4"x2" H = 102 mm
+  end
+end

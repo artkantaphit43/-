@@ -141,6 +141,23 @@ module ArtK
                    hole: col.call(5), raised_face: col.call(6), hub_length: col.call(7), hub_base: col.call(8))
       end
 
+      # ASME B16.9 concentric/eccentric reducer end-to-end length H by the
+      # large-end pipe OD (mm).
+      REDUCER_H = [[26.7, 38.0], [33.4, 51.0], [42.2, 51.0], [48.3, 64.0], [60.3, 76.0], [73.0, 89.0],
+                   [88.9, 89.0], [114.3, 102.0], [141.3, 127.0], [168.3, 140.0], [219.1, 152.0],
+                   [273.0, 178.0], [323.8, 203.0], [355.6, 330.0], [406.4, 356.0], [457.0, 381.0],
+                   [508.0, 508.0], [610.0, 508.0]].freeze
+
+      # Reducer length: B16.9 for butt-weld; for socket/threaded reducers
+      # (bushes) both socket depths plus a short transition.
+      def reducer_length(od_large, od_small, style = :butt_weld)
+        if %i[socket threaded].include?(style)
+          (socket_depth(od_large) + socket_depth(od_small) + 0.3 * od_large).round(1)
+        else
+          [interpolate(REDUCER_H, od_large), 1.2 * (od_large - od_small) + 20.0].max.round(1)
+        end
+      end
+
       # Socket depth for solvent-cement / fusion / solder sockets (≈ ISO 727
       # minimum 0.5·OD + 6 mm) and thread engagement for threaded fittings.
       def socket_depth(od)

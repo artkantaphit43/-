@@ -114,4 +114,54 @@ class TestPipeTool < Minitest::Test
     assert_equal 2, runs.size
     assert_equal 1, branch.entities.count { |e| H.type_of(e) == 'elbow' }
   end
+
+  def test_new_size_from_run_end_adds_reducer_and_new_run
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    first = runs.first
+    # the user now picks 2" and starts at the end of the 4" pipe
+    H.save_settings(Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"'))
+    t.resume(@view)
+    click(t, [3000, 0, 0])
+    click(t, [6000, 0, 0])
+    t.onReturn(@view)
+    assert_equal 2, runs.size
+    second = runs.find { |r| r != first }
+    assert_equal '2"', second.get_attribute(H::DICT, 'size')
+    red = second.entities.find { |e| H.type_of(e) == 'reducer' }
+    refute_nil red
+    assert_equal '4" x 2"', red.get_attribute(H::DICT, 'size')
+    pipe = second.entities.find { |e| H.type_of(e) == 'pipe' }
+    assert_in_delta 3000 - 102, pipe.get_attribute(H::DICT, 'length_mm'), 0.5 # B16.9 4"x2" H = 102
+  end
+
+  def test_new_size_with_turn_gives_old_run_an_elbow
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    first = runs.first
+    H.save_settings(Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"'))
+    t.resume(@view)
+    click(t, [3000, 0, 0])
+    click(t, [3000, 3000, 0])
+    t.onReturn(@view)
+    assert_equal 1, first.entities.count { |e| H.type_of(e) == 'elbow' }
+    second = runs.find { |r| r != first }
+    refute_nil second.entities.find { |e| H.type_of(e) == 'reducer' }
+  end
+
+  def test_same_size_from_run_end_continues_run
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    click(t, [3000, 0, 0])
+    click(t, [6000, 0, 0])
+    t.onReturn(@view)
+    assert_equal 1, runs.size
+    assert_equal 1, runs.first.entities.count { |e| H.type_of(e) == 'pipe' } # merged, no gap
+  end
 end

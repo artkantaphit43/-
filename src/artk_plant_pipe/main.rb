@@ -64,7 +64,8 @@ module ArtK
         clear_support: command('Clear Supports / ลบซัพพอร์ต', 'ลบซัพพอร์ตของแนวท่อที่เลือก') { Commands.clear_supports },
         style: command('Technical Line Style / ลายเส้นแบบเทคนิค', 'เส้นขอบดำคม + Profile แบบแบบก่อสร้าง',
                        'style') { Commands.technical_style },
-        help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help }
+        help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help },
+        diag: command('Diagnostics / ตรวจสอบระบบ', 'ทดสอบการสร้างข้อต่อในเครื่องนี้ และแสดงคำเตือนของแนวท่อ') { Commands.diagnostics }
       }
 
       menu = UI.menu('Extensions').add_submenu('Plant Piping TH')
@@ -83,6 +84,7 @@ module ArtK
       %i[rebuild flow hydraulic clash bom style].each { |k| menu.add_item(cmds[k]) }
       menu.add_separator
       menu.add_item(cmds[:help])
+      menu.add_item(cmds[:diag])
 
       tb = UI::Toolbar.new('Plant Piping TH')
       %i[settings draw valve convert auto_support support rebuild flow hydraulic clash bom style].each do |k|

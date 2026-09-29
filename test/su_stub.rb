@@ -266,6 +266,7 @@ module Sketchup
       $mesh_polys = ($mesh_polys || 0) + mesh.polygons.size
       blob = self << MeshBlob.new(mesh.polygons.size)
       blob.material = mat
+      self << Face.new unless mesh.polygons.empty?
       mesh.polygons.size
     end
 

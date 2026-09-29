@@ -33,13 +33,14 @@ module ArtK
 
       # Create a run from centreline segments in active-context coordinates.
       # op: false when the caller wraps several runs in one undo step.
-      def create_run(model, segs, settings, tees: [], op: true)
+      def create_run(model, segs, settings, tees: [], joins: [], op: true)
         settings = Settings.sanitize(settings)
         model.start_operation('Plant Piping: Draw Run', true) if op
         run = model.active_entities.add_group
         H.set_attrs(run, 'type' => 'run')
         H.set_json(run, 'cl', segs)
         H.set_json(run, 'tees', tees)
+        H.set_json(run, 'joins', joins)
         warnings = render(model, run, settings)
         model.commit_operation if op
         [run, warnings]
@@ -49,15 +50,15 @@ module ArtK
       end
 
       # Append segments (run-local coordinates) and rebuild.
-      def extend_run(model, run, segs, tees: [])
-        model.start_operation('Plant Piping: Extend Run', true)
+      def extend_run(model, run, segs, tees: [], op: true)
+        model.start_operation('Plant Piping: Extend Run', true) if op
         H.set_json(run, 'cl', H.get_json(run, 'cl', []) + segs)
         H.set_json(run, 'tees', H.get_json(run, 'tees', []) + tees)
         warnings = render(model, run, run_settings(run))
-        model.commit_operation
+        model.commit_operation if op
         warnings
       rescue StandardError
-        model.abort_operation
+        model.abort_operation if op
         raise
       end
 
@@ -87,21 +88,24 @@ module ArtK
         Collector.all_runs(model).each do |run, _tr|
           next if by_pid.key?(run.persistent_id)
 
-          tees = H.get_json(run, 'tees', [])
           changed = false
-          tees.each do |t|
-            main = by_pid[t['main_pid']]
-            next unless main
+          links = %w[tees joins].map do |key|
+            recs = H.get_json(run, key, [])
+            recs.each do |t|
+              main = by_pid[t['main_pid']]
+              next unless main
 
-            t['main_catalog'] = main.get_attribute(H::DICT, 'catalog')
-            t['main_size'] = main.get_attribute(H::DICT, 'size')
-            t['main_rating'] = main.get_attribute(H::DICT, 'rating')
-            t['main_service'] = main.get_attribute(H::DICT, 'service')
-            changed = true
+              t['main_catalog'] = main.get_attribute(H::DICT, 'catalog')
+              t['main_size'] = main.get_attribute(H::DICT, 'size')
+              t['main_rating'] = main.get_attribute(H::DICT, 'rating')
+              t['main_service'] = main.get_attribute(H::DICT, 'service')
+              changed = true
+            end
+            [key, recs]
           end
           next unless changed
 
-          H.set_json(run, 'tees', tees)
+          links.each { |key, recs| H.set_json(run, key, recs) }
           warnings.concat(render(model, run, run_settings(run)).map { |w| "#{run.name}: #{w}" })
         end
         warnings
@@ -138,16 +142,20 @@ module ArtK
 
         cl = H.get_json(run, 'cl', [])
         tees = H.get_json(run, 'tees', [])
+        joins = H.get_json(run, 'joins', [])
         warnings = []
 
         ents = run.entities
         valves = ents.select { |e| H.instance?(e) && H.type_of(e) == 'valve' }.map { |v| H.attrs(v) }
         ents.clear!
         segs = apply_branch_trims(cl, tees, warnings)
+        segs = apply_join_trims(segs, joins, spec, warnings)
 
         ctx = context(model, run, settings, spec, svc, line_no)
         ctx[:cl] = cl
-        ctx[:open_ends] = Collector.open_ends(cl).reject { |p| tees.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
+        ctx[:warnings] = warnings
+        links = tees + joins
+        ctx[:open_ends] = Collector.open_ends(cl).reject { |p| links.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
 
         extras = []
         unless segs.empty?
@@ -158,6 +166,7 @@ module ArtK
           add_label(ctx, net) if settings['labels']
         end
         tees.each { |t| render_branch_tee(ctx, t, warnings) }
+        joins.each { |j| render_join(ctx, j, warnings) }
         valves.each do |v|
           place_valve(ctx, v['valve_type'], JSON.parse(v['at']), JSON.parse(v['dir']))
         rescue StandardError => e
@@ -174,6 +183,7 @@ module ArtK
         H.set_attrs(run, ctx[:common].merge('type' => 'run', 'seq' => seq, 'joint' => spec.joint))
         H.set_json(run, 'settings', settings)
         H.set_json(run, 'extras', extras)
+        H.set_json(run, 'warnings', warnings.uniq.first(50))
         run.name = line_no
         run.layer = ctx[:tag]
         run.material = ctx[:mat]
@@ -234,6 +244,55 @@ module ArtK
         Catalog.spec('CS_B36_10', '2"')
       end
 
+      # Length of the reducer / adaptor joining the main run's pipe to ours.
+      def join_length(main, spec)
+        big, small = [main, spec].sort_by { |x| -x.od }
+        style = big.style == small.style ? big.style : :butt_weld
+        FittingsData.reducer_length(big.od, small.od, style)
+      end
+
+      # A run that continues another run at a different size/material starts
+      # (or ends) with a reducer: pull that segment end back by its length.
+      def apply_join_trims(segs, joins, spec, warnings)
+        joins.each do |j|
+          len = join_length(main_spec(j), spec)
+          segs.each_with_index do |(a, b), i|
+            if Vec.dist(a, j['at']) <= 1.0
+              next warnings << 'ท่อสั้นกว่า Reducer (pipe shorter than reducer)' if Vec.dist(a, b) <= len + 1.0
+
+              segs[i][0] = Vec.add(a, Vec.scale(Vec.unit(Vec.sub(b, a)), len))
+            elsif Vec.dist(b, j['at']) <= 1.0
+              next warnings << 'ท่อสั้นกว่า Reducer (pipe shorter than reducer)' if Vec.dist(a, b) <= len + 1.0
+
+              segs[i][1] = Vec.sub(b, Vec.scale(Vec.unit(Vec.sub(b, a)), len))
+            end
+          end
+        end
+        segs
+      end
+
+      # Reducer / expander / adaptor at a join: main size at 'at', our size
+      # at 'at' + dir × length.
+      def render_join(ctx, j, warnings)
+        main = main_spec(j)
+        spec = ctx[:spec]
+        dir = Vec.unit(j['dir'])
+        len = join_length(main, spec)
+        mo = Parts.opts(main, lod: ctx[:lod], steps: ctx[:steps])
+        kind = (main.od - spec.od).abs < 0.5 ? 'Adaptor' : (main.od > spec.od ? 'Concentric Reducer' : 'Concentric Expander')
+        name = "PP #{kind} #{len} | #{spec_key(main)} > #{spec_key(spec)} | #{lod_key(ctx)}"
+        inst = place_part(ctx, name, Mesh.frame(j['at'], dir)) { Parts.reducer(len, mo, ctx[:opts]) }
+        main_code = j['main_service'] || ctx[:common]['service']
+        big, small = [main, spec].sort_by { |x| -x.od }
+        finish_piece(ctx, inst, "#{kind} #{main.size} x #{spec.size}", ctx[:mat],
+                     'type' => 'reducer', 'kind' => kind, 'size' => "#{big.size} x #{small.size}",
+                     'service' => ctx[:common]['service'], 'main_service' => main_code,
+                     'geom' => JSON.generate('a' => j['at'], 'b' => Vec.add(j['at'], Vec.scale(dir, len)),
+                                             'r' => Parts.body_radius(main.od >= spec.od ? mo : ctx[:opts])))
+      rescue StandardError => e
+        warnings << "Reducer: #{e.message}"
+      end
+
       # ------------------------------------------------------------------
 
       # Any failure falls back to a recorded mitre joint instead of leaving
@@ -249,6 +308,21 @@ module ArtK
         end
       rescue StandardError => e
         warnings << "#{pc.type}: #{e.message}"
+      end
+
+      # Place a reusable part as a component instance. If the component
+      # cannot be created or ends up without faces, the same geometry is drawn
+      # as a plain group instead – a fitting is never silently missing.
+      def place_part(ctx, name, frame, recolor: {}, &build)
+        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps], recolor: recolor, &build)
+        ctx[:ents].add_instance(defn, H.frame_transform(frame))
+      rescue StandardError => e
+        (ctx[:warnings] ||= []) << "#{name.split(' | ').first}: component failed (#{e.message}) – drawn as group"
+        g = H.add_part_group(ctx[:model], ctx[:ents], build.call, steps: ctx[:steps], recolor: recolor)
+        g.transformation = H.frame_transform(frame)
+        raise "#{name.split(' | ').first}: no faces could be created" unless H.faces?(g.entities)
+
+        g
       end
 
       def spec_key(spec)
@@ -292,10 +366,8 @@ module ArtK
         o = ctx[:opts]
         ang = d[:angle]
         name = "PP Elbow #{d[:angle_deg].round(1)}° #{d[:radius_type].to_s.upcase} | #{spec_key(spec)} | #{lod_key(ctx)}"
-        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) { Parts.elbow(ang, d[:radius], o) }
         n1 = Vec.unit(Vec.sub(d[:center], d[:start]))
-        tr = H.frame_transform(Mesh.frame(d[:start], d[:dir_in], n1))
-        inst = ctx[:ents].add_instance(defn, tr)
+        inst = place_part(ctx, name, Mesh.frame(d[:start], d[:dir_in], n1)) { Parts.elbow(ang, d[:radius], o) }
         attrs = {
           'type' => 'elbow', 'angle' => d[:angle_deg], 'radius_type' => d[:radius_type].to_s,
           'radius_mm' => d[:radius].round(1),
@@ -341,8 +413,7 @@ module ArtK
         loc = local_dirs(f, d[:arms])
         sig = loc.map { |u| u.map { |v| v.round(3) }.join(',') }.join(' / ')
         name = "PP #{kind.to_s.capitalize} #{sig} | #{spec_key(spec)} | #{lod_key(ctx)}"
-        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) { Parts.branch(loc.map { |u| [u, c, o] }) }
-        inst = ctx[:ents].add_instance(defn, H.frame_transform(f))
+        inst = place_part(ctx, name, f) { Parts.branch(loc.map { |u| [u, c, o] }) }
         attrs = { 'type' => 'tee', 'kind' => kind.to_s, 'role' => 'run',
                   'geom' => JSON.generate('center' => d[:center], 'arms' => d[:arms], 'c' => c) }
         attrs['branch_angle'] = d[:branch_angle] if d[:branch_angle]
@@ -374,10 +445,7 @@ module ArtK
         angle = 180.0 - angle if angle > 90.0
         kind = (angle - 90.0).abs <= 1.0 ? 'tee' : 'lateral'
         name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}"
-        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) do
-          Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]])
-        end
-        inst = ctx[:ents].add_instance(defn, H.frame_transform(f))
+        inst = place_part(ctx, name, f) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
         main_code = t['main_service'] || ctx[:common]['service']
         mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'])
         finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{spec.size}", mat,
@@ -411,10 +479,7 @@ module ArtK
         f = Mesh.frame(at, dir, Vec.cross(up, dir))
         name = "PP Valve #{type} | #{spec_key(spec)} | #{lod_key(ctx)}"
         recolor = metallic ? {} : { valve: :fitting }
-        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps], recolor: recolor) do
-          Parts.valve(type, ctx[:opts], metallic: metallic)
-        end
-        inst = ctx[:ents].add_instance(defn, H.frame_transform(f))
+        inst = place_part(ctx, name, f, recolor: recolor) { Parts.valve(type, ctx[:opts], metallic: metallic) }
         len = FittingsData.face_to_face(type, spec.od)
         fr = FittingsData.flange(spec.od).od / 2.0
         finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat],

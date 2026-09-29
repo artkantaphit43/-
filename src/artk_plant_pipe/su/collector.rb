@@ -5,7 +5,7 @@ module ArtK
     # Reads piping data back out of the model (BOM, hydraulic check, clash).
     module Collector
       H = ModelHelpers
-      ITEM_TYPES = %w[pipe elbow tee valve insulation support].freeze
+      ITEM_TYPES = %w[pipe elbow tee reducer valve insulation support].freeze
 
       module_function
 
@@ -78,7 +78,7 @@ module ArtK
         ends = []
         all_runs(model).each do |run, tr|
           od = run.get_attribute(H::DICT, 'od').to_f
-          H.get_json(run, 'tees', []).each do |t|
+          (H.get_json(run, 'tees', []) + H.get_json(run, 'joins', [])).each do |t|
             spec = Builder.main_spec(t)
             zones << { owner: run.persistent_id, point: H.transform_mm(tr, t['at']),
                        radius: spec.tee_c + spec.od + od }
