@@ -141,6 +141,7 @@ module ArtK
           when 'diag' then Commands.diagnostics
           when 'register' then Sketchup.active_model.select_tool(RegisterModelTool.new)
           when 'library' then SettingsDialog.library
+          when 'parts' then RefBrowser.show
           end
         end
       end

@@ -105,6 +105,7 @@ module ArtK
       # Real material colours (default scheme). Keyed by catalogue family.
       MATERIAL_COLORS = {
         'PVC'  => [34, 128, 206],   # Thai PVC-U pressure pipe – blue
+        'PVCS40' => [236, 236, 230], # PVC Sch40 DWV – white
         'PPR'  => [52, 138, 62],    # PP-R – green
         'HDPE' => [48, 50, 54],     # PE100 – black
         'CS'   => [66, 70, 76],     # black steel (primed / painted)

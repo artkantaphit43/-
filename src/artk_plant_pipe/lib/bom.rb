@@ -13,10 +13,10 @@ module ArtK
     # * joints    → estimated field joints (welds / solvent / fusion), for
     #               labour estimating
     module Bom
-      CATEGORY_ORDER = %w[pipe elbow tee reducer valve flange mitre insulation support rod member].freeze
+      CATEGORY_ORDER = %w[pipe elbow tee reducer fitting valve flange mitre insulation support rod member].freeze
 
       CATEGORY_TH = {
-        'pipe' => 'ท่อ', 'elbow' => 'ข้องอ', 'tee' => 'สามทาง', 'reducer' => 'ข้อลด', 'valve' => 'วาล์ว',
+        'pipe' => 'ท่อ', 'elbow' => 'ข้องอ', 'tee' => 'สามทาง', 'reducer' => 'ข้อลด', 'fitting' => 'ข้อต่ออื่น ๆ', 'valve' => 'วาล์ว',
         'flange' => 'หน้าแปลน', 'mitre' => 'รอยต่อเฉียง', 'insulation' => 'ฉนวน',
         'support' => 'ซัพพอร์ต', 'rod' => 'เหล็กเส้นเกลียว', 'member' => 'เหล็กโครงสร้าง'
       }.freeze
@@ -91,8 +91,16 @@ module ArtK
           [['reducer', svc, mat, size, desc], pcs('reducer', desc, svc, mat, size, rating)]
         when 'valve'
           desc = r['valve_name'] || r['valve_type'].to_s
-          cat = r['valve_type'] == 'flange' ? 'flange' : 'valve'
+          cat = inline_category(r['valve_type'])
           [[cat, svc, mat, size, desc], pcs(cat, desc, svc, mat, size, r['valve_rating'] || 'Class 150')]
+        when 'flange'
+          desc = r['kind'] == 'companion' ? 'Companion flange (slip-on)' : "Flange #{r['kind']}".strip
+          [['flange', svc, mat, size, desc, rating], pcs('flange', desc, svc, mat, size, rating)]
+        when 'component'
+          # item inserted from the reference library on its own
+          desc = r['name_desc'].to_s
+          cat = r['category'].to_s
+          [[cat, svc, mat, size, desc], pcs(cat, desc, svc, r['material'] || mat, size, rating)]
         when 'mitre'
           desc = "Mitre joint #{fmt_angle(r['angle'])}°"
           [['mitre', svc, mat, size, desc], pcs('mitre', desc, svc, mat, size, rating)]
@@ -131,6 +139,15 @@ module ArtK
           out << { 'type' => 'member', 'member_name' => r['member_name'], 'length_mm' => r['member_length_mm'] }
         end
         out
+      end
+
+      # BOM category of an in-line item placed with the valve tool / library.
+      def inline_category(type)
+        case type.to_s
+        when 'flange', 'flange_wn', 'blind' then 'flange'
+        when 'union', 'coupling', 'hex_nipple', 'nipple', 'hose', 'reducer', 'cap', 'flowmeter', 'gauge' then 'fitting'
+        else 'valve'
+        end
       end
 
       def pcs(cat, desc, svc, mat, size, rating)

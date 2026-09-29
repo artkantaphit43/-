@@ -10,7 +10,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers builder support_builder collector picker reports library commands valve_tool support_tool
+%w[model_helpers builder ref_models ref_builder support_builder collector picker reports library commands valve_tool support_tool
    pipe_tool].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
@@ -71,9 +71,9 @@ class TestLibrary < Minitest::Test
     assert_equal e['file'], v.get_attribute(H::DICT, 'model')
     a = apply(v.transformation, entry['inlet'])
     assert Vec.near?(a, [2500 - 114.5, 0, 0], 1e-6), a.inspect
-    # other types keep the built-in model; BOM still counts the valve
+    # other types use the reference library, not the user's gate model
     b = Builder.add_valve(@model, run, 'globe', [1000.0, 0, 0], [1.0, 0, 0])
-    assert_nil b.get_attribute(H::DICT, 'model')
+    refute_equal e['file'], b.get_attribute(H::DICT, 'model')
     assert(Bom.aggregate(Collector.records(@model)).any? { |r| r.description == 'Gate Valve' })
   end
 
@@ -96,10 +96,18 @@ class TestLibrary < Minitest::Test
   end
 
   def test_plastic_valves_are_grey_not_pipe_blue
-    pvc = Settings.sanitize('service' => 'CW', 'catalog' => 'PVC_TIS17', 'size' => '2"')
+    pvc = Settings.sanitize('service' => 'CW', 'catalog' => 'PVC_TIS17', 'size' => '2"', 'lod' => 'light')
     run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], pvc)
     v = Builder.add_valve(@model, run, 'ball', [1500.0, 0, 0], [1.0, 0, 0])
     mats = v.definition.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }.compact
     assert_includes mats, 'PP_Valve_PVC'
+  end
+
+  def test_plastic_reference_valve_keeps_its_own_colour
+    pvc = Settings.sanitize('service' => 'CW', 'catalog' => 'PVC_TIS17', 'size' => '2"')
+    run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], pvc)
+    v = Builder.add_valve(@model, run, 'ball', [1500.0, 0, 0], [1.0, 0, 0])
+    assert_match(/pl_union/, v.get_attribute(H::DICT, 'model'))
+    refute_match(/\APP_CW_/, v.material.name)
   end
 end

@@ -34,7 +34,10 @@ module ArtK
 
       # spec: object/hash responding to od, elbow_radius_lr, elbow_radius_sr,
       #       tee_c (mm).
-      def initialize(segments, spec, tol: 1.0, radius_type: :lr)
+      # takes: optional take-outs of real fittings (reference models):
+      #   elbow: ->(deflection_deg, radius_type) { mm or nil }
+      #   tee_run / tee_branch: centre-to-end of the equal tee (mm)
+      def initialize(segments, spec, tol: 1.0, radius_type: :lr, takes: nil)
         @segments = segments
         @od = fetch(spec, :od)
         @r_lr = fetch(spec, :elbow_radius_lr)
@@ -42,6 +45,7 @@ module ArtK
         @tee_c = fetch(spec, :tee_c)
         @tol = tol
         @radius_type = radius_type
+        @takes = takes || {}
         @warnings = []
         @pieces = []
       end
@@ -331,7 +335,7 @@ module ArtK
       end
 
       def fits?(c)
-        trim(c[:a]) + trim(c[:b]) <= chain_len(c) + 1e-6
+        trim(c[:a], c[:edges].first) + trim(c[:b], c[:edges].last) <= chain_len(c) + 1e-6
       end
 
       # Prefer LR → SR on either end before giving up an elbow to a mitre;
@@ -340,7 +344,7 @@ module ArtK
         ends = [c[:a], c[:b]].uniq.select { |ni| @nodes[ni][:kind] == :elbow }
         return false if ends.empty?
 
-        lr = ends.find { |ni| @nodes[ni][:radius_type] == :lr && @r_sr < @r_lr }
+        lr = ends.find { |ni| @nodes[ni][:radius_type] == :lr && sr_shorter?(@nodes[ni]) }
         if lr
           n = @nodes[lr]
           n[:radius_type] = :sr
@@ -355,17 +359,43 @@ module ArtK
         true
       end
 
+      def sr_shorter?(n)
+        lr = trim_for(n, :lr)
+        sr = trim_for(n, :sr)
+        sr < lr - 1e-6
+      end
+
+      def trim_for(n, type)
+        old = n[:radius_type]
+        n[:radius_type] = type
+        elbow_take(n) || radius(n) * Math.tan(rad(n[:deflection]) / 2.0)
+      ensure
+        n[:radius_type] = old
+      end
+
       def radius(n)
         n[:radius_type] == :sr ? @r_sr : @r_lr
       end
 
-      # Length of pipe consumed at a node by its fitting.
-      def trim(ni)
+      # Take-out of a real elbow for this node, if one is available.
+      def elbow_take(n)
+        f = @takes[:elbow]
+        f && f.call(n[:deflection], n[:radius_type])
+      end
+
+      # Length of pipe consumed at a node by its fitting (on arm +edge+).
+      def trim(ni, edge = nil)
         n = @nodes[ni]
         case n[:kind]
         when :elbow
-          radius(n) * Math.tan(rad(n[:deflection]) / 2.0)
-        when :tee, :lateral, :cross, :manifold
+          elbow_take(n) || radius(n) * Math.tan(rad(n[:deflection]) / 2.0)
+        when :tee
+          if @takes[:tee_run] && edge
+            n[:branch] == edge ? @takes[:tee_branch] : @takes[:tee_run]
+          else
+            @tee_c
+          end
+        when :lateral, :cross, :manifold
           @tee_c
         else
           0.0
@@ -379,8 +409,8 @@ module ArtK
           pa = @nodes[c[:a]][:pt]
           pb = @nodes[c[:b]][:pt]
           dir = Vec.unit(Vec.sub(pb, pa))
-          ta = trim(c[:a])
-          tb = trim(c[:b])
+          ta = trim(c[:a], c[:edges].first)
+          tb = trim(c[:b], c[:edges].last)
           len = chain_len(c)
           if c[:overlap]
             # Split what is available proportionally so geometry stays valid.
@@ -414,8 +444,9 @@ module ArtK
         d_in = Vec.scale(arm_dir(idx, n[:arms][0]), -1.0) # flow toward node
         d_out = arm_dir(idx, n[:arms][1])                 # flow away from node
         theta = rad(n[:deflection])
-        r = radius(n)
-        t = r * Math.tan(theta / 2.0)
+        take = elbow_take(n)
+        r = take ? take / Math.tan(theta / 2.0) : radius(n)
+        t = take || r * Math.tan(theta / 2.0)
         t1 = Vec.sub(v, Vec.scale(d_in, t))
         t2 = Vec.add(v, Vec.scale(d_out, t))
         # In-plane normal from t1 toward the bend centre.
@@ -435,6 +466,10 @@ module ArtK
         n = @nodes[idx]
         dirs = n[:arms].map { |e| arm_dir(idx, e) }
         data = { center: n[:pt], arms: dirs, c: @tee_c, kind: n[:kind] }
+        if n[:kind] == :tee && @takes[:tee_run]
+          data[:c] = @takes[:tee_run]
+          data[:c_branch] = @takes[:tee_branch]
+        end
         if n[:kind] == :tee || n[:kind] == :lateral
           data[:run] = n[:run].map { |e| arm_dir(idx, e) }
           data[:branch] = arm_dir(idx, n[:branch])

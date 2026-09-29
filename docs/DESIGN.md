@@ -109,3 +109,33 @@ v1.1 สร้างทุกชิ้นเป็น polygon mesh จากแ�
 5. **Hydraulic network solver** – คำนวณการกระจายการไหลในระบบวงแหวน (loop) เช่น fire ring main (Hardy Cross)
 6. **Slope annotation และ invert level** อัตโนมัติสำหรับท่อระบาย
 7. **เชื่อมกับ P&ID** – นำเข้ารายการ Line list (CSV) เพื่อกำหนดขนาด/ระบบให้แต่ละแนวท่อ
+
+## v1.4 – Reference library copied from the user's .skp files
+
+**Why:** generated valves never matched the user's reference models ("butterfly always wrong,
+gate not pretty"). The models they sent are the ground truth, so they are now used directly.
+
+**How the geometry is obtained.** A SketchUp 2021+ `.skp` is a UTF-16 header + ZIP. `model.dat`
+inside is a tree of `u16 tag, u32 length, payload` records. `tools/refs/skp_reader.rb` decodes
+definitions, vertices (inches), edges (soft flag), faces (outer + inner loops), component instances
+(3 axis vectors + origin, stored row-major) and materials – verified by re-rendering every definition
+against the thumbnails embedded in the same files.
+
+**Ports are found from geometry, not from names.** A port is an annular planar face whose outward
+side has no material within its outer radius (internals inside the bore – an open butterfly disc,
+a ball – are ignored). Type-specific pairing: in-line = collinear opposite pair (butterflies prefer the
+full-bore pair), elbow = two ports whose axes intersect at the nominal angle, tee = collinear run pair +
+branch whose axis meets the run axis. Socket depth = nearest coaxial inward shoulder. Sanity rules drop
+ports when the bore is < 55 % of nominal or an "in-line" item is longer than 4·NPS + 250 mm (spool
+assemblies in the source), so they are never auto-inserted.
+
+**Canonical frame** (so placement is one `Mesh.frame`): in-line X = port0→port1, Y = stem; elbows origin
+= axis intersection, port0 at −X, port1 in +Y; tees run on X, branch +Y. The stem is found by voting over
+circles coaxial on a line through the centre perpendicular to the bore, then checked against where the
+operator's mass is (actuators, levers); Y-strainers/steam traps get the opposite (basket down).
+
+**Take-outs flow into the network solver** (`Network takes:`), so pipe cut lengths come from the real
+fitting (e.g. B16.9 4" LR A = 152.4 mm), and pipes run to the measured socket bottom.
+
+**Checked against standards:** BW LR 2" A 76.2, tee C 63.5 (B16.9); SW elbow 2" A 53.8 (B16.11);
+gate 2" F-F 177.8, globe 203.2 (B16.10); lug butterfly 4" 50.8, 8" 63.5 (API 609).

@@ -148,27 +148,31 @@ module ArtK
         ents = run.entities
         valves = ents.select { |e| H.instance?(e) && H.type_of(e) == 'valve' }.map { |v| H.attrs(v) }
         ents.clear!
-        segs = apply_branch_trims(cl, tees, warnings)
+        ctx = context(model, run, settings, spec, svc, line_no)
+        segs = apply_branch_trims(cl, tees, warnings, ctx)
         segs = apply_join_trims(segs, joins, spec, warnings)
 
-        ctx = context(model, run, settings, spec, svc, line_no)
         ctx[:cl] = cl
         ctx[:warnings] = warnings
         links = tees + joins
         ctx[:open_ends] = Collector.open_ends(cl).reject { |p| links.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
 
         extras = []
+        tees.each { |t| premark_branch(ctx, t) }
         unless segs.empty?
-          net = Network.new(segs, spec, tol: 1.0, radius_type: settings['elbow_type'].to_sym).solve
+          net = Network.new(segs, spec, tol: 1.0, radius_type: settings['elbow_type'].to_sym,
+                                        takes: ctx[:refs] ? ref_takes(spec) : nil).solve
           warnings.concat(net.warnings)
           ctx[:mitres] = net.pieces.select { |pc| pc.type == :mitre }.map { |pc| pc.data[:at] }
-          net.pieces.each { |pc| render_piece(ctx, pc, extras, warnings) }
+          # fittings first: real fittings record their socket depths, which
+          # the pipes then run into
+          net.pieces.sort_by { |pc| pc.type == :pipe ? 1 : 0 }.each { |pc| render_piece(ctx, pc, extras, warnings) }
           add_label(ctx, net) if settings['labels']
         end
         tees.each { |t| render_branch_tee(ctx, t, warnings) }
         joins.each { |j| render_join(ctx, j, warnings) }
         valves.each do |v|
-          place_valve(ctx, v['valve_type'], JSON.parse(v['at']), JSON.parse(v['dir']))
+          place_valve(ctx, v['valve_type'], JSON.parse(v['at']), JSON.parse(v['dir']), model: v['model'])
         rescue StandardError => e
           warnings << "Valve could not be rebuilt: #{e.message}"
         end
@@ -196,6 +200,7 @@ module ArtK
           model: model, run: run, ents: run.entities, spec: spec, settings: settings, svc: svc,
           line_no: line_no, steps: steps, ins: settings['insulation_mm'].to_f,
           lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps),
+          refs: refs_enabled?(settings), ext: {},
           tag: H.service_tag(model, svc[:code]),
           mat: H.pipe_material(model, svc[:code], spec.family, settings['color_scheme']),
           open_ends: [], mitres: [], cl: [],
@@ -210,11 +215,11 @@ module ArtK
       # Branch connections start/end at the centre of a tee on another run:
       # pull the segment end back by the tee's centre-to-end so the new pipe
       # starts at the tee outlet.
-      def apply_branch_trims(cl, tees, warnings)
+      def apply_branch_trims(cl, tees, warnings, ctx)
         segs = cl.map { |a, b| [a.dup, b.dup] }
         tees.each do |t|
           at = t['at']
-          c = main_spec(t).tee_c
+          c = branch_c(t, ctx)
           hits = []
           segs.each_with_index do |(a, b), i|
             hits << [i, 0] if Vec.dist(a, at) <= 1.0
@@ -236,6 +241,23 @@ module ArtK
           end
         end
         segs
+      end
+
+      # Centre-to-branch-end of the tee on the main line: the real tee when
+      # it is an equal tee from the reference library, else the standard C.
+      def branch_c(t, ctx)
+        item = branch_ref_tee(t, ctx)
+        item ? Vec.length(item['ports'][2]['p']) : main_spec(t).tee_c
+      end
+
+      def branch_ref_tee(t, ctx)
+        return nil unless ctx[:refs]
+
+        main = main_spec(t)
+        spec = ctx[:spec]
+        return nil unless main.catalog_key == spec.catalog_key && main.size == spec.size
+
+        ref_tee(main)
       end
 
       def main_spec(t)
@@ -342,8 +364,8 @@ module ArtK
         ins = Parts.insertion(o)
         # Pipe continues into sockets / threads of the fittings at each end
         # (not at open ends or mitre joints) – that is the real cut length.
-        ea = joined?(ctx, a) ? ins : 0.0
-        eb = joined?(ctx, b) ? ins : 0.0
+        ea = pipe_ext(ctx, a) || (joined?(ctx, a) ? ins : 0.0)
+        eb = pipe_ext(ctx, b) || (joined?(ctx, b) ? ins : 0.0)
         pa = Vec.sub(a, Vec.scale(dir, ea))
         pb = Vec.add(b, Vec.scale(dir, eb))
         part = Mesh::Part.new.add(:pipe, Mesh.cylinder(pa, pb, o.ro, ri: o.ri, steps: ctx[:steps]))
@@ -367,7 +389,10 @@ module ArtK
         ang = d[:angle]
         name = "PP Elbow #{d[:angle_deg].round(1)}° #{d[:radius_type].to_s.upcase} | #{spec_key(spec)} | #{lod_key(ctx)}"
         n1 = Vec.unit(Vec.sub(d[:center], d[:start]))
-        inst = place_part(ctx, name, Mesh.frame(d[:start], d[:dir_in], n1)) { Parts.elbow(ang, d[:radius], o) }
+        item = ctx[:refs] && ref_elbow(spec, d[:angle_deg], d[:radius_type])
+        inst = item && ref_or_nil(ctx, item) { render_ref_elbow(ctx, d, item) }
+        item = nil unless inst
+        inst ||= place_part(ctx, name, Mesh.frame(d[:start], d[:dir_in], n1)) { Parts.elbow(ang, d[:radius], o) }
         attrs = {
           'type' => 'elbow', 'angle' => d[:angle_deg], 'radius_type' => d[:radius_type].to_s,
           'radius_mm' => d[:radius].round(1),
@@ -376,6 +401,7 @@ module ArtK
                                   'start' => d[:start], 'end' => d[:end])
         }
         attrs['nominal_angle'] = d[:nominal_angle] if d[:nominal_angle]
+        attrs.merge!(ref_attrs(item)) if item
         finish_piece(ctx, inst, "Elbow #{d[:angle_deg].round}° #{spec.size}", ctx[:mat], attrs)
         return unless ctx[:ins].positive?
 
@@ -413,9 +439,13 @@ module ArtK
         loc = local_dirs(f, d[:arms])
         sig = loc.map { |u| u.map { |v| v.round(3) }.join(',') }.join(' / ')
         name = "PP #{kind.to_s.capitalize} #{sig} | #{spec_key(spec)} | #{lod_key(ctx)}"
-        inst = place_part(ctx, name, f) { Parts.branch(loc.map { |u| [u, c, o] }) }
+        item = kind == :tee && ctx[:refs] && d[:run] && ref_tee(spec)
+        inst = item && ref_or_nil(ctx, item) { render_ref_tee(ctx, d, item) }
+        item = nil unless inst
+        inst ||= place_part(ctx, name, f) { Parts.branch(loc.map { |u| [u, c, o] }) }
         attrs = { 'type' => 'tee', 'kind' => kind.to_s, 'role' => 'run',
                   'geom' => JSON.generate('center' => d[:center], 'arms' => d[:arms], 'c' => c) }
+        attrs.merge!(ref_attrs(item)) if item
         attrs['branch_angle'] = d[:branch_angle] if d[:branch_angle]
         label = { cross: 'Cross', lateral: 'Lateral' }.fetch(kind, 'Tee')
         finish_piece(ctx, inst, "#{label} #{spec.size}", ctx[:mat], attrs)
@@ -425,17 +455,32 @@ module ArtK
         end
       end
 
+      # [centre, main direction, branch direction] of a branch tee.
+      def branch_geometry(ctx, t)
+        at = t['at']
+        seg = ctx[:cl].find { |a, b| Vec.dist(a, at) <= 1.0 || Vec.dist(b, at) <= 1.0 }
+        return nil unless seg
+
+        other = Vec.dist(seg[0], at) <= 1.0 ? seg[1] : seg[0]
+        [at, Vec.unit(t['main_dir']), Vec.unit(Vec.sub(other, at))]
+      end
+
+      # Socket depth at the branch outlet of a real tee (before the pipes).
+      def premark_branch(ctx, t)
+        item = branch_ref_tee(t, ctx) or return
+        at, main_dir, bdir = branch_geometry(ctx, t)
+        return unless at && (Vec.angle(main_dir, bdir) * 180.0 / Math::PI - 90.0).abs <= 1.0
+
+        mark_ext(ctx, Vec.add(at, Vec.scale(bdir, Vec.length(item['ports'][2]['p']))), item['ports'][2])
+      end
+
       # Tee placed on another run's pipe where this run branches off.
       def render_branch_tee(ctx, t, warnings)
         main = main_spec(t)
         spec = ctx[:spec]
-        at = t['at']
-        main_dir = Vec.unit(t['main_dir'])
-        seg = ctx[:cl].find { |a, b| Vec.dist(a, at) <= 1.0 || Vec.dist(b, at) <= 1.0 }
-        return warnings << 'Branch tee: centreline not found' unless seg
+        at, main_dir, bdir = branch_geometry(ctx, t)
+        return warnings << 'Branch tee: centreline not found' unless at
 
-        other = Vec.dist(seg[0], at) <= 1.0 ? seg[1] : seg[0]
-        bdir = Vec.unit(Vec.sub(other, at))
         c = main.tee_c
         mo = Parts.opts(main, lod: ctx[:lod], steps: ctx[:steps])
         arms = [main_dir, Vec.scale(main_dir, -1.0), bdir]
@@ -445,15 +490,20 @@ module ArtK
         angle = 180.0 - angle if angle > 90.0
         kind = (angle - 90.0).abs <= 1.0 ? 'tee' : 'lateral'
         name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}"
-        inst = place_part(ctx, name, f) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
         main_code = t['main_service'] || ctx[:common]['service']
         mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'])
+        item = kind == 'tee' && branch_ref_tee(t, ctx)
+        inst = item && ref_or_nil(ctx, item) { place_ref(ctx, item, Mesh.frame(at, main_dir, bdir), mat) }
+        item = nil unless inst
+        inst ||= place_part(ctx, name, f) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
         finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{spec.size}", mat,
                      'type' => 'tee', 'kind' => kind, 'role' => 'branch', 'branch_angle' => angle.round(1),
                      'size' => main.size, 'branch_size' => spec.size, 'rating' => main.rating,
                      'service' => main_code, 'catalog_name' => main.catalog_name, 'material' => main.material,
                      'od' => main.od,
-                     'geom' => JSON.generate('center' => at, 'arms' => arms, 'c' => c))
+                     'geom' => JSON.generate('center' => at, 'arms' => arms, 'c' => c)).tap do |e|
+          H.set_attrs(e, ref_attrs(item)) if item
+        end
       rescue StandardError => e
         warnings << "Branch tee: #{e.message}"
       end
@@ -470,12 +520,18 @@ module ArtK
         Vec.length(u) < 0.2 ? Vec.perpendicular(dir) : Vec.unit(u)
       end
 
-      def place_valve(ctx, type, at, dir)
+      # model: a reference-library key chosen by the user (kept on rebuild).
+      def place_valve(ctx, type, at, dir, model: nil)
         spec = ctx[:spec]
-        info = FittingsData.valve(type)
-        metallic = spec.density > 5000
+        chosen = model && Refs.get(model)
         dir = Vec.unit(dir)
         up = stem_direction(dir)
+        if chosen # picked by the user from the reference library
+          inst = ref_or_nil(ctx, chosen) { place_ref_valve(ctx, type, chosen, at, dir, up) }
+          return inst if inst
+        end
+        info = FittingsData.valve(type)
+        metallic = spec.density > 5000
         f = Mesh.frame(at, dir, Vec.cross(up, dir))
         fam = ValveModels.family(ctx[:opts], metallic)
         len = FittingsData.face_to_face(type, spec.od, fam)
@@ -489,6 +545,12 @@ module ArtK
                        valve_attrs(type, info, fam, spec, len, at, dir).merge('model' => entry['file']))
           return inst
         end
+        item = ref_valve(ctx, type)
+        if item
+          inst = ref_or_nil(ctx, item) { place_ref_valve(ctx, type, item, at, dir, up) }
+          return inst if inst
+        end
+
         name = "PP Valve #{type} #{fam} v2 | #{spec_key(spec)} | #{lod_key(ctx)}"
         inst = place_part(ctx, name, f) { Parts.valve(type, ctx[:opts], metallic: metallic) }
         finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat],
@@ -512,13 +574,13 @@ module ArtK
       end
 
       # Insert a valve into a run (run-local coordinates).
-      def add_valve(model, run, type, at, dir)
+      def add_valve(model, run, type, at, dir, model_key: nil)
         settings = run_settings(run)
         spec = Settings.spec(settings)
         svc = Services.get(settings['service'])
         model.start_operation('Plant Piping: Insert Valve', true)
         ctx = context(model, run, settings, spec, svc, run.name)
-        inst = place_valve(ctx, type, at, dir)
+        inst = place_valve(ctx, type, at, dir, model: model_key)
         model.commit_operation
         inst
       rescue StandardError

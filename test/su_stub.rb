@@ -91,8 +91,8 @@ module Geom
       Transformation.new([tt[0] + t[0], tt[1] + t[1], tt[2] + t[2]], cols)
     end
 
-    def self.scaling(k)
-      new([0, 0, 0], [[k.to_f, 0.0, 0.0], [0.0, k.to_f, 0.0], [0.0, 0.0, k.to_f]])
+    def self.scaling(kx, ky = kx, kz = kx)
+      new([0, 0, 0], [[kx.to_f, 0.0, 0.0], [0.0, ky.to_f, 0.0], [0.0, 0.0, kz.to_f]])
     end
 
     def self.translation(v)
@@ -217,6 +217,8 @@ module Sketchup
   end
 
   class Face < Entity
+    attr_accessor :back_material
+
     def followme(path)
       $followme_calls = ($followme_calls || 0) + 1
       !path.empty?
@@ -312,6 +314,7 @@ module Sketchup
   class Definition
     include Attributable
     attr_reader :entities, :instances, :name
+    attr_accessor :description
 
     def initialize(inst = nil, name = nil)
       @entities = Entities.new(self)

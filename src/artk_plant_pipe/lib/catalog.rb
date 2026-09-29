@@ -244,6 +244,20 @@ module ArtK
           end
         }
 
+        # White PVC-U Schedule 40 (drain / waste / vent): same OD and wall as
+        # steel Sch40 (ASTM D1785); fittings are the DWV patterns of the
+        # reference library (sanitary tee, wye, long-sweep elbows).
+        cats['PVCS40_ASTM'] = {
+          name: 'PVC-U Schedule 40 – ASTM D1785 / D2665 (DWV)',
+          name_th: 'ท่อพีวีซี Sch40 (สีขาว, ASTM)',
+          material: 'PVC-U', joint: 'Solvent cement',
+          hw_c: 150, roughness_mm: 0.0015, density: 1400,
+          elbow_factor: 1.3, elbow_sr_factor: 1.0, tee_c_factor: 1.2,
+          fitting_od_factor: 1.2, stick_length_m: 6.0,
+          style: :socket, default_rating: 'SCH40',
+          sizes: steel_sizes.call('SCH40' => CS_WALLS['SCH40']).first(9)
+        }
+
         cats['PPR_DIN8077'] = {
           name: 'PP-R – DIN 8077 / ISO 15874',
           name_th: 'ท่อพีพีอาร์ (PP-R)',

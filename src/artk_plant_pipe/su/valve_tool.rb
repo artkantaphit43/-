@@ -106,7 +106,7 @@ module ArtK
         return nil unless hit
 
         od = hit[:attrs]['od'].to_f
-        len = valve_length(hit[:attrs], od)
+        len = valve_length(hit, od)
         name = FittingsData.valve(@type)[:name]
         if hit[:len] < len
           return { ok: false, hit: hit, at: hit[:proj], len: len,
@@ -119,18 +119,19 @@ module ArtK
           tip: "#{name} #{hit[:attrs]['size']} บน (on) #{hit[:run].name} – F-F #{len.round} mm" }
       end
 
-      # Face-to-face of the valve family this pipe gets (flanged / forged /
-      # brass threaded / plastic true-union).
-      def valve_length(attrs, od)
+      # Length the valve occupies on the pipe: the real library valve plus
+      # its companion flanges, or the generated valve's face-to-face.
+      def valve_length(hit, od)
+        attrs = hit[:attrs]
         spec = Catalog.spec(attrs['catalog'], attrs['size'], attrs['rating'])
-        Parts.valve_length(@type, Parts.opts(spec), metallic: spec.density > 5000)
+        Builder.valve_length(@type, spec, Builder.run_settings(hit[:run]))
       rescue StandardError
         FittingsData.face_to_face(@type, od)
       end
 
       def update_status
         info = FittingsData.valve(@type)
-        src = Library.find(@type, nil) ? 'โมเดลจากไลบรารี' : 'โมเดลในตัว'
+        src = Library.find(@type, nil) ? 'โมเดลที่ลงทะเบียนเอง' : 'โมเดลจริงจากไลบรารีอ้างอิง (ถ้ามีขนาดนั้น)'
         Sketchup.status_text = "ใส่ #{info[:th]} (#{src}) – คลิกบนท่อตรง | Tab = เปลี่ยนชนิดวาล์ว (cycle type)"
       end
     end

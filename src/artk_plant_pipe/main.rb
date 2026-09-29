@@ -9,12 +9,12 @@ module ArtK
 
     # Pure engineering core (no SketchUp API – unit tested outside SketchUp)
     %w[vec catalog services fittings_data hydraulics network bom supports settings profile run_check clash
-       mesh valve_models parts].each do |f|
+       mesh valve_models parts refs].each do |f|
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
     # SketchUp integration
-    %w[model_helpers builder support_builder collector picker pipe_tool valve_tool support_tool reports
-       library commands dialog].each do |f|
+    %w[model_helpers builder ref_models ref_builder support_builder collector picker pipe_tool valve_tool support_tool reports
+       library commands dialog ref_browser].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
 
@@ -51,6 +51,8 @@ module ArtK
         settings: command('Settings & Sizing / ตั้งค่า', 'เลือกระบบ วัสดุ ขนาด และคำนวณขนาดท่อ', 'settings') { SettingsDialog.show },
         draw: command('Draw Pipe / วาดท่อ', 'วาดแนวท่อพร้อมข้องอ/Tee อัตโนมัติ', 'draw') { Commands.draw_pipe },
         valve: command('Insert Valve / ใส่วาล์ว', 'คลิกบนท่อตรงเพื่อใส่วาล์ว (Tab เปลี่ยนชนิด)', 'valve') { Commands.insert_valve },
+        parts: command('Reference Library / คลังอุปกรณ์จริง',
+                       'อุปกรณ์ทั้งหมดที่คัดลอกจากไฟล์ตัวอย่าง (GI, เหล็ก, PVC, วาล์ว) – คลิกเพื่อวาง', 'library') { RefBrowser.show },
         convert: command('Convert Edges to Pipe / แปลงเส้นเป็นท่อ', 'แปลงเส้นที่เลือกเป็นท่อ', 'convert') { Commands.convert_selection },
         rebuild: command('Rebuild Selected Runs / ปรับท่อที่เลือก', 'เปลี่ยนขนาด/วัสดุ/ระบบ ของท่อที่เลือก', 'rebuild') { Commands.rebuild_selection },
         flow: command('Set Design Flow / กำหนดอัตราไหล', 'กำหนดอัตราการไหลออกแบบให้ท่อที่เลือก', 'flow') { Commands.set_design_flow },
@@ -67,12 +69,12 @@ module ArtK
         help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help },
         register: command('Register Valve Model / ใช้โมเดลวาล์วของฉัน',
                           'เลือก Component วาล์ว แล้วคลิกศูนย์กลางขาเข้า-ขาออก') { Commands.register_model },
-        library: command('Valve Model Library / รายการโมเดลวาล์ว', 'ดูโมเดลวาล์วที่ลงทะเบียนไว้') { SettingsDialog.library },
+        library: command('My Registered Valves / โมเดลวาล์วที่ลงทะเบียนเอง', 'ดูโมเดลวาล์วที่ลงทะเบียนไว้') { SettingsDialog.library },
         diag: command('Diagnostics / ตรวจสอบระบบ', 'ทดสอบการสร้างข้อต่อในเครื่องนี้ และแสดงคำเตือนของแนวท่อ') { Commands.diagnostics }
       }
 
       menu = UI.menu('Extensions').add_submenu('Plant Piping TH')
-      %i[settings draw valve convert].each { |k| menu.add_item(cmds[k]) }
+      %i[settings draw valve parts convert].each { |k| menu.add_item(cmds[k]) }
       valves = menu.add_submenu('Insert Valve Type / ชนิดวาล์ว')
       FittingsData::VALVES.each do |type, info|
         valves.add_item("#{info[:name]} – #{info[:th]}") { Commands.insert_valve(type) }
@@ -91,7 +93,7 @@ module ArtK
       menu.add_item(cmds[:diag])
 
       tb = UI::Toolbar.new('Plant Piping TH')
-      %i[settings draw valve convert auto_support support rebuild flow hydraulic clash bom style].each do |k|
+      %i[settings draw valve parts convert auto_support support rebuild flow hydraulic clash bom style].each do |k|
         tb.add_item(cmds[k])
       end
       tb.get_last_state == TB_NEVER_SHOWN ? tb.show : tb.restore
