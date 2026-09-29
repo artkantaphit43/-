@@ -102,7 +102,21 @@ module ArtK
         fire:  [200, 16, 46]      # 赤 red (fire)
       }.freeze
 
+      # Real material colours (default scheme). Keyed by catalogue family.
+      MATERIAL_COLORS = {
+        'PVC'  => [34, 128, 206],   # Thai PVC-U pressure pipe – blue
+        'PPR'  => [52, 138, 62],    # PP-R – green
+        'HDPE' => [48, 50, 54],     # PE100 – black
+        'CS'   => [66, 70, 76],     # black steel (primed / painted)
+        'SS'   => [196, 200, 205],  # stainless – bright metal
+        'GSP'  => [168, 173, 178],  # hot-dip galvanised
+        'CU'   => [184, 115, 51]    # copper
+      }.freeze
+      # Services that are painted a code colour whatever the material.
+      PAINTED = { 'FP' => [200, 30, 36], 'NG' => [232, 190, 40] }.freeze
+
       SCHEMES = {
+        'material' => 'สีตามวัสดุจริง (Material)',
         'distinct' => 'แยกสีตามระบบ (Distinct)',
         'asme'     => 'ASME A13.1',
         'jis'      => 'JIS Z 9102'
@@ -122,9 +136,11 @@ module ArtK
         LIST.find { |s| s[:code] == code } or raise ArgumentError, "Unknown service: #{code}"
       end
 
-      def color(code, scheme = 'distinct')
+      def color(code, scheme = 'material', family = nil)
         s = get(code)
         case scheme
+        when 'material'
+          PAINTED[code] || MATERIAL_COLORS[(family || s[:catalog].split('_').first).to_s] || s[:rgb]
         when 'asme' then ASME_A13_1[s[:asme]] || ASME_A13_1[:other]
         when 'jis'  then JIS_Z9102[s[:jis]] || JIS_Z9102[:water]
         else s[:rgb]

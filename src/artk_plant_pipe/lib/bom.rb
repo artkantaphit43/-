@@ -13,11 +13,12 @@ module ArtK
     # * joints    → estimated field joints (welds / solvent / fusion), for
     #               labour estimating
     module Bom
-      CATEGORY_ORDER = %w[pipe elbow tee valve flange mitre insulation].freeze
+      CATEGORY_ORDER = %w[pipe elbow tee valve flange mitre insulation support rod member].freeze
 
       CATEGORY_TH = {
         'pipe' => 'ท่อ', 'elbow' => 'ข้องอ', 'tee' => 'สามทาง', 'valve' => 'วาล์ว',
-        'flange' => 'หน้าแปลน', 'mitre' => 'รอยต่อเฉียง', 'insulation' => 'ฉนวน'
+        'flange' => 'หน้าแปลน', 'mitre' => 'รอยต่อเฉียง', 'insulation' => 'ฉนวน',
+        'support' => 'ซัพพอร์ต', 'rod' => 'เหล็กเส้นเกลียว', 'member' => 'เหล็กโครงสร้าง'
       }.freeze
 
       HEADER = ['No.', 'Category', 'Description', 'Service', 'Material / Standard', 'Size',
@@ -31,7 +32,7 @@ module ArtK
       # waste: cutting allowance fraction added before counting stock lengths.
       def aggregate(records, waste: 0.05)
         groups = {}
-        records.each do |r|
+        records.flat_map { |r| expand(r) }.each do |r|
           key, row = classify(r)
           next unless key
 
@@ -92,6 +93,19 @@ module ArtK
         when 'mitre'
           desc = "Mitre joint #{fmt_angle(r['angle'])}°"
           [['mitre', svc, mat, size, desc], pcs('mitre', desc, svc, mat, size, rating)]
+        when 'support'
+          desc = r['support_name'] || r['support_type'].to_s
+          [['support', svc, r['pipe_size'], desc], pcs('support', desc, svc, 'Galvanised / steel', r['pipe_size'].to_s, '')]
+        when 'rod'
+          desc = "Threaded rod #{r['rod_label']}"
+          row = Row.new(category: 'rod', description: desc, service: '', material: 'Galvanised steel', size: r['rod_label'].to_s,
+                        rating: '', qty: r['length_mm'].to_f / 1000.0, unit: 'm', sticks: nil, weight: nil, remark: nil)
+          [['rod', desc], row]
+        when 'member'
+          desc = r['member_name'].to_s
+          row = Row.new(category: 'member', description: desc, service: '', material: 'Steel', size: '',
+                        rating: '', qty: r['length_mm'].to_f / 1000.0, unit: 'm', sticks: nil, weight: nil, remark: nil)
+          [['member', desc], row]
         when 'insulation'
           len_m = r['length_mm'].to_f / 1000.0
           desc = "Insulation #{r['thickness'].to_f.round} mm thk"
@@ -99,6 +113,21 @@ module ArtK
                         size: size, rating: '', qty: len_m, unit: 'm', sticks: nil, weight: nil, remark: nil)
           [['insulation', svc, size, desc], row]
         end
+      end
+
+      # A support also consumes threaded rod and steel members, bought by
+      # the metre – split them into their own purchasing lines.
+      def expand(r)
+        return [r] unless r['type'] == 'support'
+
+        out = [r]
+        if r['rod_length_mm'].to_f.positive?
+          out << { 'type' => 'rod', 'rod_label' => r['rod_label'], 'length_mm' => r['rod_length_mm'] }
+        end
+        if r['member_length_mm'].to_f.positive?
+          out << { 'type' => 'member', 'member_name' => r['member_name'], 'length_mm' => r['member_length_mm'] }
+        end
+        out
       end
 
       def pcs(cat, desc, svc, mat, size, rating)

@@ -8,11 +8,13 @@ module ArtK
     PLUGIN_ROOT = File.dirname(__FILE__) unless defined?(PLUGIN_ROOT)
 
     # Pure engineering core (no SketchUp API – unit tested outside SketchUp)
-    %w[vec catalog services fittings_data hydraulics network bom settings profile run_check clash].each do |f|
+    %w[vec catalog services fittings_data hydraulics network bom supports settings profile run_check clash
+       mesh parts].each do |f|
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
     # SketchUp integration
-    %w[model_helpers builder valves collector picker pipe_tool valve_tool reports commands dialog].each do |f|
+    %w[model_helpers builder support_builder collector picker pipe_tool valve_tool support_tool reports
+       commands dialog].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
 
@@ -55,6 +57,13 @@ module ArtK
         hydraulic: command('Hydraulic Check / ตรวจไฮดรอลิก', 'ตรวจความเร็ว แรงเสียดทาน ความลาด จุดสูง/ต่ำ', 'hydraulic') { Commands.hydraulic_report },
         clash: command('Clash Check / ตรวจการชนกัน', 'ตรวจระยะห่างระหว่างแนวท่อ (รวมฉนวน)', 'clash') { Commands.clash_check },
         bom: command('Bill of Materials / ถอดวัสดุ', 'สรุปรายการวัสดุ ส่งออก CSV', 'bom') { Commands.bom },
+        auto_support: command('Auto Supports / วางซัพพอร์ตอัตโนมัติ', 'วางซัพพอร์ตตามระยะห่างสูงสุดของท่อที่เลือก',
+                              'auto_support') { Commands.auto_supports },
+        support: command('Support Tool / วางซัพพอร์ต', 'คลิกบนท่อเพื่อวางซัพพอร์ต (Tab เปลี่ยนชนิด)',
+                         'support') { Commands.support_tool },
+        clear_support: command('Clear Supports / ลบซัพพอร์ต', 'ลบซัพพอร์ตของแนวท่อที่เลือก') { Commands.clear_supports },
+        style: command('Technical Line Style / ลายเส้นแบบเทคนิค', 'เส้นขอบดำคม + Profile แบบแบบก่อสร้าง',
+                       'style') { Commands.technical_style },
         help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help }
       }
 
@@ -65,12 +74,20 @@ module ArtK
         valves.add_item("#{info[:name]} – #{info[:th]}") { Commands.insert_valve(type) }
       end
       menu.add_separator
-      %i[rebuild flow hydraulic clash bom].each { |k| menu.add_item(cmds[k]) }
+      %i[auto_support support clear_support].each { |k| menu.add_item(cmds[k]) }
+      sups = menu.add_submenu('Support Type / ชนิดซัพพอร์ต')
+      Supports::TYPES.each do |type, info|
+        sups.add_item("#{info[:name]} – #{info[:th]}") { Commands.support_tool(type) }
+      end
+      menu.add_separator
+      %i[rebuild flow hydraulic clash bom style].each { |k| menu.add_item(cmds[k]) }
       menu.add_separator
       menu.add_item(cmds[:help])
 
       tb = UI::Toolbar.new('Plant Piping TH')
-      %i[settings draw valve convert rebuild flow hydraulic clash bom].each { |k| tb.add_item(cmds[k]) }
+      %i[settings draw valve convert auto_support support rebuild flow hydraulic clash bom style].each do |k|
+        tb.add_item(cmds[k])
+      end
       tb.get_last_state == TB_NEVER_SHOWN ? tb.show : tb.restore
 
       UI.add_context_menu_handler do |ctx|
@@ -82,7 +99,7 @@ module ArtK
         sub = ctx.add_submenu('Plant Piping')
         sub.add_item(cmds[:convert]) unless edges.empty?
         unless runs.empty?
-          %i[rebuild flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
+          %i[rebuild auto_support clear_support flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
         end
       end
 

@@ -101,6 +101,9 @@
   <fieldset>
     <legend>การแสดงผล / BOM</legend>
     <label>สีท่อ (Colours)<select id="color_scheme"></select></label>
+    <label>ระดับรายละเอียด<select id="lod">
+      <option value="detailed">ละเอียด – รูน็อต, ซี่พวงมาลัย, บ่าข้อต่อ</option>
+      <option value="light">เบา – สำหรับโมเดลโรงงานขนาดใหญ่</option></select></label>
     <label>ความละเอียดท่อ<select id="segments">
       <option value="12">12 – เร็ว (fast)</option><option value="16">16 – ปกติ</option>
       <option value="24">24 – ละเอียด</option><option value="32">32 – นำเสนอ (render)</option></select></label>
@@ -117,9 +120,20 @@
     <button class="btn sec" data-cmd="hydraulic">ตรวจไฮดรอลิก<small>Hydraulic Check</small></button>
     <button class="btn sec" data-cmd="clash">ตรวจการชนกัน<small>Clash Check</small></button>
     <button class="btn sec" data-cmd="bom">ถอดวัสดุ (BOM)<small>Bill of Materials</small></button>
+    <button class="btn sec" data-cmd="style">ลายเส้นเทคนิค<small>Technical line style</small></button>
     <button class="btn sec" data-cmd="help">วิธีใช้<small>Help / Shortcuts</small></button>
   </div>
   <fieldset style="margin-top:12px">
+    <legend>ซัพพอร์ต (Pipe supports)</legend>
+    <label>ชนิด<select id="support_type"></select></label>
+    <div class="grid2" style="margin-top:6px">
+      <button class="btn" data-cmd="auto_support">วางอัตโนมัติ<small>Auto (แนวท่อที่เลือก)</small></button>
+      <button class="btn sec" data-cmd="support">วางทีละจุด<small>Support tool</small></button>
+    </div>
+    <div class="info" id="supinfo">ยึดกับพื้น/ฝ้า/คาน/ผนังที่ตรวจพบในโมเดลอัตโนมัติ · ระยะห่างตาม MSS SP-69 / ค่าผู้ผลิตท่อพลาสติก</div>
+    <button class="btn sec" data-cmd="clear_support" style="margin-top:6px">ลบซัพพอร์ตของแนวท่อที่เลือก</button>
+  </fieldset>
+  <fieldset>
     <legend>วาล์ว (Valves)</legend>
     <div class="row"><select id="valve_type"></select>
       <button class="btn" data-cmd="valve" style="flex:none">ใส่วาล์ว</button></div>
@@ -174,6 +188,8 @@ const PP = (() => {
     fill($('rating'), Object.keys(sizeRec().walls).map((r) => [r, r]), S.rating);
     fill($('color_scheme'), Object.entries(D.schemes), S.color_scheme);
     fill($('valve_type'), D.valves.map((v) => [v.type, `${v.th}`]), S.valve_type);
+    fill($('support_type'), D.supports.map((v) => [v.type, v.th + (v.multi ? ' – หลายท่อ' : '')]), S.support_type);
+    $('lod').value = S.lod;
     ['insulation_mm', 'slope_pct', 'waste_pct'].forEach((k) => { $(k).value = S[k]; });
     ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
     $('segments').value = String(S.segments);
@@ -205,7 +221,10 @@ const PP = (() => {
         ? `⚠ ความลาดต่ำกว่าขั้นต่ำสำหรับ ${S.size} (${need}%) ตาม IPC 704.1`
         : `ความลาดขั้นต่ำสำหรับ ${S.size}: ${need}% (IPC 704.1)`;
     }
-    const rgb = s.colors[S.color_scheme] || s.colors.distinct;
+    const fam = S.catalog.split('_')[0];
+    const rgb = S.color_scheme === 'material'
+      ? (D.painted[S.service] || D.material_colors[fam] || s.colors.distinct)
+      : (s.colors[S.color_scheme] || s.colors.distinct);
     $('swatch').style.background = `rgb(${rgb.join(',')})`;
   }
 

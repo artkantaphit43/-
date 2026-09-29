@@ -131,93 +131,106 @@ module ArtK
         mat
       end
 
-      def service_material(model, code, scheme, fitting: false)
-        rgb = Services.color(code, scheme)
-        if fitting
-          rgb = rgb.map { |c| (c * 0.75).round }
-          material(model, "PP_#{code}_Fitting", rgb)
-        else
-          material(model, "PP_#{code}", rgb)
-        end
+      # Pipe/fitting colour: one material per service + material family, so
+      # a scheme change is just a recolour of these few materials.
+      def pipe_material(model, code, family, scheme)
+        material(model, "PP_#{code}_#{family}", Services.color(code, scheme, family))
       end
 
       def insulation_material(model)
         material(model, 'PP_Insulation', [225, 225, 215], 0.35)
       end
 
-      def valve_material(model)
-        material(model, 'PP_Valve', [70, 74, 84])
+      # Fixed-colour material roles used inside part definitions. Roles not
+      # listed (:pipe, :fitting, :flange) are left unpainted so they take the
+      # colour of the instance – one definition serves every service colour.
+      FIXED_ROLES = {
+        valve:    ['PP_Valve_Body', [92, 96, 104]],
+        handle:   ['PP_Handwheel', [196, 36, 36]],
+        bolt:     ['PP_Bolt', [178, 180, 184]],
+        galv:     ['PP_Galvanised', [186, 190, 194]],
+        steel:    ['PP_Support_Steel', [96, 102, 112]],
+        concrete: ['PP_Concrete', [192, 188, 178]],
+        weld:     ['PP_Weld', [72, 72, 72]],
+        gasket:   ['PP_Gasket', [38, 38, 38]]
+      }.freeze
+
+      def role_material(model, role)
+        name, rgb = FIXED_ROLES[role]
+        name ? material(model, name, rgb) : nil
       end
 
-      def handwheel_material(model)
-        material(model, 'PP_Handwheel', [200, 35, 35])
-      end
-
-      # Re-colour every service material for a colour scheme. Because all
-      # piping geometry references these materials, this is instant even on
-      # large models – no entity traversal needed.
+      # Re-colour every pipe material for a colour scheme (instant – no
+      # entity traversal).
       def apply_color_scheme(model, scheme)
-        Services.codes.each do |code|
-          next unless model.materials["PP_#{code}"] || model.materials["PP_#{code}_Fitting"]
+        model.materials.to_a.each do |m|
+          next unless m.name =~ /\APP_([A-Z]+)_([A-Z]+)\z/ && Services.codes.include?(Regexp.last_match(1))
 
-          service_material(model, code, scheme)
-          service_material(model, code, scheme, fitting: true)
+          m.color = Sketchup::Color.new(*Services.color(Regexp.last_match(1), scheme, Regexp.last_match(2)))
         end
       end
 
-      # ---------- geometry primitives ----------
+      # ---------- geometry output ----------
 
-      # Sweep a circular section of +radius_mm+ along a straight line or an
-      # arc (Network elbow data). Each sweep lives in its own group so
-      # overlapping solids (tee arms, valve parts) never merge geometry.
-      def sweep(parent_ents, radius_mm, segs, line: nil, arc: nil, arc_segs: nil)
-        grp = parent_ents.add_group
-        ents = grp.entities
-        if arc
-          path = ents.add_arc(to_pt(arc[:center]), to_vec(arc[:xaxis]), to_vec(arc[:normal]),
-                              mm(arc[:radius]), 0.0, arc[:angle], arc_segs || 8)
-          start = to_pt(arc[:start])
-          dir = to_vec(arc[:dir_in])
-        else
-          a, b = line
-          start = to_pt(a)
-          edge = ents.add_line(start, to_pt(b))
-          raise 'segment too short to model' unless edge
+      # Write a Mesh::Part into +ents+ as faces (one PolygonMesh per role).
+      # +recolor+ maps roles to other roles (e.g. plastic valve bodies take
+      # the pipe colour: { valve: :fitting }).
+      def add_part(model, ents, part, steps: 16, recolor: {})
+        part.bodies.each do |role, solid|
+          next if solid.polys.empty?
 
-          path = [edge]
-          dir = to_vec(Vec.sub(b, a))
+          mesh = Geom::PolygonMesh.new(solid.polys.size * 4, solid.polys.size)
+          solid.polys.each { |poly| mesh.add_polygon(*poly.map { |p| to_pt(p) }) }
+          mat = role_material(model, recolor.fetch(role, role))
+          ents.add_faces_from_mesh(mesh, 0, mat, mat)
         end
-        circle = ents.add_circle(start, dir, mm(radius_mm), segs)
-        face = ents.add_face(circle)
-        raise 'could not create pipe section face' unless face
-        raise 'Follow Me failed' unless face.followme(path)
-
-        # Make the solid face outward: the profile face stays as the start
-        # cap, whose outward normal must point against the sweep direction.
-        if face.valid?
-          face.reverse! if face.normal.dot(dir) > 0
-          face.orient_connected_faces
-        end
-        leftovers = path.select { |e| e.valid? && e.faces.empty? }
-        ents.erase_entities(leftovers) unless leftovers.empty?
-        soften(ents)
-        grp
+        soften(ents, steps)
+        ents
       end
 
-      # Solid disc (flanges, handwheels, butterfly discs).
-      def disc(parent_ents, center, dir, radius_mm, thickness_mm, segs)
-        a = Vec.sub(center, Vec.scale(dir, thickness_mm / 2.0))
-        b = Vec.add(center, Vec.scale(dir, thickness_mm / 2.0))
-        sweep(parent_ents, radius_mm, segs, line: [a, b])
+      # Unique geometry (pipes, insulation, supports) as a group.
+      def add_part_group(model, ents, part, steps: 16, recolor: {})
+        g = ents.add_group
+        add_part(model, g.entities, part, steps: steps, recolor: recolor)
+        g
       end
 
-      def soften(ents)
-        limit = 50.0 * Math::PI / 180.0
+      # Reusable geometry (fittings, valves, flanges) as a component: built
+      # once per name, then instanced – keeps detailed models light.
+      def part_definition(model, name, steps: 16, recolor: {})
+        defs = model.definitions
+        d = defs[name]
+        return d if d && d.get_attribute(DICT, 'type') == 'part'
+
+        d = defs.add(name)
+        d.set_attribute(DICT, 'type', 'part')
+        add_part(model, d.entities, yield, steps: steps, recolor: recolor)
+        d
+      end
+
+      def frame_transform(f)
+        Geom::Transformation.axes(to_pt(f[:o]), to_vec(f[:x]), to_vec(f[:y]), to_vec(f[:z]))
+      end
+
+      # Remove our part definitions no longer used (after a rebuild).
+      def purge_parts(model)
+        defs = model.definitions
+        return unless defs.respond_to?(:remove)
+
+        defs.to_a.each do |d|
+          defs.remove(d) if d.get_attribute(DICT, 'type') == 'part' && d.count_instances.zero?
+        end
+      end
+
+      # Soften edges between faces meeting at less than one facet angle
+      # (round surfaces look smooth, real corners keep their black line –
+      # the technical look of the reference drawings).
+      def soften(ents, steps = 16)
+        limit = [(360.0 / steps) + 6.0, 26.0].max * Math::PI / 180.0
         ents.grep(Sketchup::Edge).each do |e|
-          next unless e.faces.size == 2
-
-          n1, n2 = e.faces.map(&:normal)
-          next unless n1.angle_between(n2) < limit
+          faces = e.faces
+          next unless faces.size == 2
+          next unless faces[0].normal.angle_between(faces[1].normal) < limit
 
           e.soft = true
           e.smooth = true

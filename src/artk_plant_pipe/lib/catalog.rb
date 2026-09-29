@@ -9,7 +9,7 @@ module ArtK
       :catalog_key, :catalog_name, :material, :joint, :size, :rating,
       :od, :wall, :nps_in, :hw_c, :roughness_mm, :density,
       :elbow_radius_lr, :elbow_radius_sr, :tee_c, :fitting_od, :stick_length_m,
-      :estimated,
+      :estimated, :style, :family,
       keyword_init: true
     ) do
       def id
@@ -204,7 +204,7 @@ module ArtK
           material: 'Carbon Steel', joint: 'Butt weld / Grooved',
           hw_c: 120, roughness_mm: 0.045, density: 7850,
           elbow: :b16_9, fitting_od_factor: 1.0, stick_length_m: 6.0,
-          default_rating: 'SCH40',
+          style: :butt_weld, default_rating: 'SCH40',
           sizes: steel_sizes.call(CS_WALLS)
         }
 
@@ -214,7 +214,7 @@ module ArtK
           material: 'Stainless Steel 304/316L', joint: 'Butt weld (orbital) / Flanged',
           hw_c: 140, roughness_mm: 0.015, density: 7930,
           elbow: :b16_9, fitting_od_factor: 1.0, stick_length_m: 6.0,
-          default_rating: '10S',
+          style: :butt_weld, default_rating: '10S',
           sizes: steel_sizes.call(SS_WALLS)
         }
 
@@ -225,7 +225,7 @@ module ArtK
           hw_c: 120, roughness_mm: 0.15, density: 7850,
           elbow_factor: 1.0, elbow_sr_factor: 0.75, tee_c_factor: 0.9,
           fitting_od_factor: 1.25, stick_length_m: 6.0,
-          default_rating: 'Medium',
+          style: :threaded, default_rating: 'Medium',
           sizes: GSP_MEDIUM.map { |s, (nps, od, w)| { size: s, nps: nps, od: od, walls: { 'Medium' => w } } }
         }
 
@@ -236,7 +236,7 @@ module ArtK
           hw_c: 150, roughness_mm: 0.0015, density: 1400,
           elbow_factor: 1.0, elbow_sr_factor: 0.75, tee_c_factor: 0.8,
           fitting_od_factor: 1.2, stick_length_m: 4.0,
-          default_rating: 'Class 13.5', estimated: true,
+          style: :socket, default_rating: 'Class 13.5', estimated: true,
           sizes: PVC_OD.map do |s, (nps, od)|
             walls = {}
             PVC_CLASSES.each { |rating, p| walls[rating] = pvc_wall(od, p) }
@@ -251,7 +251,7 @@ module ArtK
           hw_c: 150, roughness_mm: 0.007, density: 900,
           elbow_factor: 1.0, elbow_sr_factor: 0.75, tee_c_factor: 0.8,
           fitting_od_factor: 1.3, stick_length_m: 4.0,
-          default_rating: 'PN20',
+          style: :socket, default_rating: 'PN20',
           sizes: PPR.map { |od, walls| { size: "#{od} mm", nps: nil, od: od.to_f, walls: walls } }
         }
 
@@ -262,7 +262,7 @@ module ArtK
           hw_c: 150, roughness_mm: 0.007, density: 955,
           elbow_factor: 1.5, elbow_sr_factor: 1.0, tee_c_factor: 1.0,
           fitting_od_factor: 1.0, stick_length_m: 6.0,
-          default_rating: 'SDR11 PN16',
+          style: :fusion, default_rating: 'SDR11 PN16',
           sizes: HDPE.map { |od, walls| { size: "#{od} mm", nps: nil, od: od.to_f, walls: walls } }
         }
 
@@ -273,7 +273,7 @@ module ArtK
           hw_c: 140, roughness_mm: 0.0015, density: 8940,
           elbow_factor: 1.0, elbow_sr_factor: 0.75, tee_c_factor: 0.8,
           fitting_od_factor: 1.1, stick_length_m: 5.8,
-          default_rating: 'Type L',
+          style: :socket, default_rating: 'Type L',
           sizes: COPPER_L.map { |s, (nps, od, w)| { size: s, nps: nps, od: od, walls: { 'Type L' => w } } }
         }
 
@@ -339,7 +339,8 @@ module ArtK
             elbow_radius_lr: lr, elbow_radius_sr: sr, tee_c: tee_c,
             fitting_od: od * (cat[:fitting_od_factor] || 1.0),
             stick_length_m: cat[:stick_length_m] || 6.0,
-            estimated: cat[:estimated] ? true : false
+            estimated: cat[:estimated] ? true : false,
+            style: cat[:style] || :butt_weld, family: key.split('_').first
           )
         end
 
@@ -386,6 +387,7 @@ module ArtK
               tee_c_factor: (c['tee_c_factor'] || 0.8).to_f,
               fitting_od_factor: (c['fitting_od_factor'] || 1.0).to_f,
               stick_length_m: (c['stick_length_m'] || 6.0).to_f,
+              style: (c['style'] || 'butt_weld').to_sym,
               default_rating: c['default_rating'] || sizes.first[:walls].keys.first,
               sizes: sizes
             }

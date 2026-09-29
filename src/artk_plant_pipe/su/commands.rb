@@ -225,6 +225,96 @@ module ArtK
                                    row_class: ->(i) { clashes[i][:gap].negative? ? 'bad' : nil }))
       end
 
+      # ---------- supports ----------
+
+      def support_tool(type = nil)
+        Sketchup.active_model.select_tool(SupportTool.new(type))
+      end
+
+      # Place supports along the selected runs at the maximum span for their
+      # material & size, near fittings and next to valves.
+      def auto_supports
+        model = Sketchup.active_model
+        runs = H.selected_runs(model)
+        if runs.empty?
+          UI.messagebox('เลือกแนวท่อที่ต้องการใส่ซัพพอร์ตก่อน (select pipe runs first)')
+          return
+        end
+        type = H.load_settings['support_type']
+        if Supports::TYPES[type][:multi]
+          UI.messagebox("#{Supports::TYPES[type][:th]} รองรับหลายท่อ – ใช้เครื่องมือวางซัพพอร์ต (Support tool) " \
+                        'คลิกที่ตำแหน่งที่ต้องการ (use the Support tool for multi-pipe supports)')
+          return
+        end
+        world = H.edit_transform(model)
+        notes = []
+        total = 0
+        risers = 0
+        model.start_operation('Plant Piping: Auto Supports', true)
+        runs.each do |run|
+          tr = world * run.transformation
+          spec = Builder.run_spec(run)
+          svc = Services.get(Builder.run_settings(run)['service'])
+          span = Supports.max_span_m(spec, hot: %i[hot_water steam].include?(svc[:fluid])) * 1000.0
+          pipes = Collector.pieces(run, 'pipe').map do |p|
+            g = H.get_json(p, 'geom')
+            { from: g['a'], to: g['b'] }
+          end
+          loads = Collector.pieces(run, 'valve').map { |v| JSON.parse(v.get_attribute(H::DICT, 'at')) }
+          res = Supports.place(pipes, span, loads: loads)
+          risers += res[:risers]
+          recs = res[:supports].map do |s|
+            rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir])
+            notes << "#{run.name}: #{note}" if note
+            rec
+          end.compact
+          total += recs.size
+          H.set_json(run, 'supports', recs)
+          notes.concat(Builder.render(model, run, Builder.run_settings(run)).map { |w| "#{run.name}: #{w}" })
+          notes << "#{run.name}: ระยะห่างสูงสุด #{(span / 1000.0).round(2)} m (#{spec.size} #{spec.material})"
+        end
+        model.commit_operation
+        summary = "วางซัพพอร์ต #{total} จุด (placed #{total} supports)"
+        summary += " · ท่อแนวตั้ง #{risers} ช่วง ต้องใช้ riser clamp ที่ระดับพื้น" if risers.positive?
+        show_warnings(notes, summary)
+      rescue StandardError => e
+        model.abort_operation
+        UI.messagebox("Plant Piping: วางซัพพอร์ตไม่สำเร็จ\n#{e.message}")
+      end
+
+      def clear_supports
+        model = Sketchup.active_model
+        runs = H.selected_runs(model)
+        return if runs.empty?
+
+        model.start_operation('Plant Piping: Clear Supports', true)
+        runs.each do |run|
+          H.set_json(run, 'supports', [])
+          Builder.render(model, run, Builder.run_settings(run))
+        end
+        model.commit_operation
+      end
+
+      # ---------- display ----------
+
+      # Technical line style like the reference drawings: black edges,
+      # profiles, no depth cue. Only rendering options are changed – undoable.
+      def technical_style
+        model = Sketchup.active_model
+        ro = model.rendering_options
+        model.start_operation('Plant Piping: Technical Style', true)
+        {
+          'EdgeColorMode' => 0, 'ForegroundColor' => Sketchup::Color.new(20, 20, 20),
+          'DrawSilhouettes' => true, 'SilhouetteWidth' => 2, 'DrawDepthQue' => false,
+          'ExtendLines' => false, 'DrawLineEnds' => false, 'DrawEdges' => true
+        }.each do |k, v|
+          ro[k] = v
+        rescue StandardError
+          nil
+        end
+        model.commit_operation
+      end
+
       # ---------- misc ----------
 
       def show_warnings(warnings, summary)
@@ -248,6 +338,10 @@ module ArtK
           Insert Valve: คลิกบนท่อตรง | Tab = เปลี่ยนชนิดวาล์ว
           Convert Edges: วาดเส้นด้วย Line tool แล้วแปลงเป็นท่อ (รองรับ Tee/Cross)
           Rebuild: เปลี่ยนขนาด/วัสดุ/ระบบของท่อที่เลือก ตามค่าในหน้าต่าง Settings
+
+          Supports: เลือกแนวท่อ → Auto Supports วางตามระยะห่างสูงสุดของวัสดุ/ขนาด
+          Support tool: คลิกบนท่อ | Tab = เปลี่ยนชนิด | Trapeze/H-frame คลุมทุกท่อที่ขนานกันตรงจุดคลิก
+          ซัพพอร์ตยึดกับโครงสร้างที่ตรวจพบในโมเดล (พื้น/ฝ้า/คาน/ผนัง) อัตโนมัติ
         TXT
       end
     end

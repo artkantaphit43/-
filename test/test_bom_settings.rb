@@ -76,3 +76,21 @@ class TestBomSettings < Minitest::Test
     end
   end
 end
+
+class TestBomSupports < Minitest::Test
+  def test_supports_expand_into_rod_and_members
+    recs = [
+      { 'type' => 'support', 'support_type' => 'clevis', 'support_name' => 'Clevis hanger + threaded rod',
+        'pipe_size' => '4"', 'service' => 'FP', 'rod_label' => '5/8" (M16)', 'rod_length_mm' => 800 },
+      { 'type' => 'support', 'support_type' => 'clevis', 'support_name' => 'Clevis hanger + threaded rod',
+        'pipe_size' => '4"', 'service' => 'FP', 'rod_label' => '5/8" (M16)', 'rod_length_mm' => 700 },
+      { 'type' => 'support', 'support_type' => 'trapeze', 'support_name' => 'Trapeze', 'pipe_size' => '3 pipes',
+        'service' => 'multi', 'member_name' => 'Strut channel 41×41', 'member_length_mm' => 900,
+        'rod_label' => '1/2" (M12)', 'rod_length_mm' => 1400 }
+    ]
+    rows = Bom.aggregate(recs)
+    assert_equal 2, rows.find { |r| r.category == 'support' && r.size == '4"' }.qty
+    assert_in_delta 1.5, rows.find { |r| r.description == 'Threaded rod 5/8" (M16)' }.qty, 1e-9
+    assert_in_delta 0.9, rows.find { |r| r.category == 'member' }.qty, 1e-9
+  end
+end

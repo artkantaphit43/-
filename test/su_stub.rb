@@ -58,29 +58,57 @@ module Geom
     end
   end
 
-  # Translation-only transformation (sufficient for the tests).
+  # Rigid transformation: rotation (columns x, y, z) + translation.
   class Transformation
-    attr_reader :t
+    attr_reader :r, :t
 
-    def initialize(t = [0, 0, 0])
+    def initialize(t = [0, 0, 0], r = nil)
       t = t.to_a if t.is_a?(Point3d) || t.is_a?(Vector3d)
       @t = t.map(&:to_f)
+      @r = r || [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] # columns
+    end
+
+    def self.axes(o, x, y, z)
+      new(o.to_a, [x.to_a, y.to_a, z.to_a].map { |c| c.map(&:to_f) })
+    end
+
+    def rot(v)
+      [0, 1, 2].map { |i| @r[0][i] * v[0] + @r[1][i] * v[1] + @r[2][i] * v[2] }
     end
 
     def apply(p)
-      Point3d.new(p.x + t[0], p.y + t[1], p.z + t[2])
+      q = rot(p.to_a)
+      Point3d.new(q[0] + t[0], q[1] + t[1], q[2] + t[2])
     end
 
     def apply_vec(v)
-      Vector3d.new(v.x, v.y, v.z)
+      Vector3d.new(*rot(v.to_a))
     end
 
     def *(other)
-      Transformation.new([t[0] + other.t[0], t[1] + other.t[1], t[2] + other.t[2]])
+      cols = other.r.map { |c| rot(c) }
+      tt = rot(other.t)
+      Transformation.new([tt[0] + t[0], tt[1] + t[1], tt[2] + t[2]], cols)
     end
 
     def inverse
-      Transformation.new(t.map(&:-@))
+      # R⁻¹ = Rᵀ: its column i is row i of R
+      inv_cols = [0, 1, 2].map { |i| [0, 1, 2].map { |j| @r[j][i] } }
+      tmp = Transformation.new([0, 0, 0], inv_cols)
+      nt = tmp.rot(t).map(&:-@)
+      Transformation.new(nt, inv_cols)
+    end
+  end
+
+  class PolygonMesh
+    attr_reader :polygons
+
+    def initialize(*_a)
+      @polygons = []
+    end
+
+    def add_polygon(*pts)
+      @polygons << pts.flatten
     end
   end
 
@@ -234,6 +262,19 @@ module Sketchup
       self << Face.new
     end
 
+    def add_faces_from_mesh(mesh, _flags = 0, mat = nil, _back = nil)
+      $mesh_polys = ($mesh_polys || 0) + mesh.polygons.size
+      blob = self << MeshBlob.new(mesh.polygons.size)
+      blob.material = mat
+      mesh.polygons.size
+    end
+
+    def add_instance(defn, tr)
+      inst = ComponentInstance.new(defn, tr)
+      defn.instances << inst
+      self << inst
+    end
+
     def add_text(_s, _p, _v = nil)
       self << Text.new
     end
@@ -253,11 +294,50 @@ module Sketchup
   end
 
   class Definition
-    attr_reader :entities, :instances
+    include Attributable
+    attr_reader :entities, :instances, :name
 
-    def initialize(inst)
+    def initialize(inst = nil, name = nil)
       @entities = Entities.new(self)
-      @instances = [inst]
+      @instances = inst ? [inst] : []
+      @name = name
+    end
+
+    def count_instances
+      @instances.count(&:valid?)
+    end
+  end
+
+  class DefinitionList
+    include Enumerable
+
+    def initialize
+      @h = {}
+    end
+
+    def [](n)
+      @h[n]
+    end
+
+    def add(n)
+      @h[n] = Definition.new(nil, n)
+    end
+
+    def each(&block)
+      @h.values.each(&block)
+    end
+
+    def remove(d)
+      @h.delete(d.name)
+    end
+  end
+
+  class MeshBlob < Entity
+    attr_reader :count
+
+    def initialize(n)
+      super()
+      @count = n
     end
   end
 
@@ -289,7 +369,13 @@ module Sketchup
     end
   end
 
-  class ComponentInstance < Group; end
+  class ComponentInstance < Group
+    def initialize(defn = nil, tr = nil)
+      super()
+      @definition = defn if defn
+      @transformation = tr if tr
+    end
+  end
 
   class Layer
     attr_reader :name
@@ -314,6 +400,8 @@ module Sketchup
   end
 
   class Color
+    attr_reader :rgb
+
     def initialize(*rgb)
       @rgb = rgb
     end
@@ -328,8 +416,14 @@ module Sketchup
   end
 
   class Materials
+    include Enumerable
+
     def initialize
       @h = {}
+    end
+
+    def each(&block)
+      @h.values.each(&block)
     end
 
     def [](n)
@@ -362,6 +456,25 @@ module Sketchup
 
     def edit_transform
       Geom::Transformation.new
+    end
+
+    attr_accessor :ray_hits
+
+    def definitions
+      @definitions ||= DefinitionList.new
+    end
+
+    def rendering_options
+      @rendering_options ||= {}
+    end
+
+    # ray_hits: lambda(point_mm_array, dir_array) → [hit_point_mm, path] or nil
+    def raytest(ray, _wysiwyg = true)
+      return nil unless @ray_hits
+
+      pt, vec = ray
+      hit = @ray_hits.call(pt.to_a.map { |c| c * 25.4 }, vec.to_a)
+      hit && [Geom::Point3d.new(*hit[0].map { |c| c / 25.4 }), hit[1] || []]
     end
 
     def title

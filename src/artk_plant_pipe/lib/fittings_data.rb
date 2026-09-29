@@ -59,6 +59,34 @@ module ArtK
                    [168.3, 280], [219.1, 345], [273.0, 405], [323.8, 485], [355.6, 535],
                    [406.4, 595], [457.0, 635], [508.0, 700], [610.0, 815]].freeze
 
+      # ASME B16.5 Class 150 weld-neck flange, keyed by pipe OD (mm):
+      #   [pipe OD, flange OD, thickness, bolt circle, bolts, hole Ø,
+      #    raised-face Ø, length through hub Y, hub Ø at base X]
+      FLANGE150 = [
+        [21.3,   90.0,  9.6,  60.3,  4, 15.9,  34.9,  47.6,  30.2],
+        [26.7,  100.0, 11.2,  69.9,  4, 15.9,  42.9,  52.4,  38.1],
+        [33.4,  110.0, 12.7,  79.4,  4, 15.9,  50.8,  55.6,  49.2],
+        [42.2,  115.0, 14.3,  88.9,  4, 15.9,  63.5,  57.2,  58.7],
+        [48.3,  125.0, 15.9,  98.4,  4, 15.9,  73.0,  61.9,  65.1],
+        [60.3,  150.0, 17.5, 120.7,  4, 19.1,  92.1,  63.5,  77.8],
+        [73.0,  180.0, 20.7, 139.7,  4, 19.1, 104.8,  69.9,  90.5],
+        [88.9,  190.0, 22.3, 152.4,  4, 19.1, 127.0,  69.9, 108.0],
+        [114.3, 230.0, 22.3, 190.5,  8, 19.1, 157.2,  76.2, 134.9],
+        [141.3, 255.0, 22.3, 215.9,  8, 22.2, 185.7,  88.9, 163.5],
+        [168.3, 280.0, 23.9, 241.3,  8, 22.2, 215.9,  88.9, 192.1],
+        [219.1, 345.0, 27.0, 298.5,  8, 22.2, 269.9, 101.6, 246.1],
+        [273.0, 405.0, 28.6, 362.0, 12, 25.4, 323.8, 101.6, 304.8],
+        [323.8, 485.0, 30.2, 431.8, 12, 25.4, 381.0, 114.3, 365.1],
+        [355.6, 535.0, 33.4, 476.3, 12, 28.6, 412.8, 127.0, 400.1],
+        [406.4, 595.0, 35.0, 539.8, 16, 28.6, 469.9, 127.0, 457.2],
+        [457.0, 635.0, 38.1, 577.9, 16, 31.8, 533.4, 139.7, 505.0],
+        [508.0, 700.0, 41.3, 635.0, 20, 31.8, 584.2, 144.5, 558.8],
+        [610.0, 815.0, 46.1, 749.3, 20, 35.1, 692.2, 152.4, 663.4]
+      ].freeze
+
+      Flange = Struct.new(:od, :thickness, :bolt_circle, :bolts, :hole, :raised_face, :hub_length, :hub_base,
+                          keyword_init: true)
+
       # Typical resistance coefficients for fittings (fully turbulent flow).
       K_FITTINGS = {
         elbow90_lr: 0.3, elbow90_sr: 0.5, elbow45: 0.2,
@@ -96,12 +124,31 @@ module ArtK
       end
 
       def flange_od(od)
-        interpolate(FLANGE_OD, od).round(1)
+        flange(od).od
       end
 
-      # Class 150 flange thickness approximation (≈ 11–30 mm over 1/2"–24").
       def flange_thickness(od)
-        [[0.045 * od + 10.0, 11.0].max, 40.0].min.round(1)
+        flange(od).thickness
+      end
+
+      # Class 150 flange for a pipe OD. Tabulated sizes are exact; other ODs
+      # (metric plastic pipe with flange adaptors) are interpolated and take
+      # the bolt count of the nearest tabulated size.
+      def flange(od)
+        col = ->(i) { interpolate(FLANGE150.map { |r| [r[0], r[i]] }, od).round(1) }
+        nearest = FLANGE150.min_by { |r| (r[0] - od).abs }
+        Flange.new(od: col.call(1), thickness: col.call(2), bolt_circle: col.call(3), bolts: nearest[4],
+                   hole: col.call(5), raised_face: col.call(6), hub_length: col.call(7), hub_base: col.call(8))
+      end
+
+      # Socket depth for solvent-cement / fusion / solder sockets (≈ ISO 727
+      # minimum 0.5·OD + 6 mm) and thread engagement for threaded fittings.
+      def socket_depth(od)
+        [0.5 * od + 6.0, 14.0].max.round(1)
+      end
+
+      def thread_engagement(od)
+        [0.35 * od, 10.0].max.round(1)
       end
 
       # K for an elbow of a given angle / radius type.

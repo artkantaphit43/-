@@ -58,6 +58,8 @@ module ArtK
                       end }]
             end.to_h,
             schemes: Services::SCHEMES,
+            material_colors: Services::MATERIAL_COLORS, painted: Services::PAINTED,
+            supports: Supports::TYPES.map { |k, v| { type: k, th: v[:th], name: v[:name], multi: v[:multi] ? true : false } },
             valves: FittingsData::VALVES.map { |k, v| { type: k, th: v[:th], name: v[:name] } }
           }
         end
@@ -115,6 +117,10 @@ module ArtK
           when 'hydraulic' then Commands.hydraulic_report
           when 'bom' then Commands.bom
           when 'clash' then Commands.clash_check
+          when 'auto_support' then Commands.auto_supports
+          when 'support' then Commands.support_tool
+          when 'clear_support' then Commands.clear_supports
+          when 'style' then Commands.technical_style
           when 'help' then Commands.help
           end
         end

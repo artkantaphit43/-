@@ -4,6 +4,7 @@ require 'json'
 require_relative 'catalog'
 require_relative 'services'
 require_relative 'fittings_data'
+require_relative 'supports'
 
 module ArtK
   module PlantPipe
@@ -23,7 +24,9 @@ module ArtK
         'snap45'        => true,    # snap plan directions to 45° increments
         'centerline'    => true,    # keep centreline edges on their own tag
         'labels'        => false,   # add line-number text labels
-        'color_scheme'  => 'distinct',
+        'color_scheme'  => 'material',
+        'lod'           => 'detailed', # detailed | light
+        'support_type'  => 'clevis',
         'waste_pct'     => 5.0,
         'valve_type'    => 'gate'
       }.freeze
@@ -48,7 +51,9 @@ module ArtK
         s['segments'] = clamp(s['segments'].to_i, 8, 48)
         s['segments'] += 1 if s['segments'].odd? # even count keeps sections symmetric
         %w[snap45 centerline labels].each { |k| s[k] = truthy(s[k]) }
-        s['color_scheme'] = Services::SCHEMES.key?(s['color_scheme']) ? s['color_scheme'] : 'distinct'
+        s['color_scheme'] = Services::SCHEMES.key?(s['color_scheme']) ? s['color_scheme'] : 'material'
+        s['lod'] = %w[detailed light].include?(s['lod']) ? s['lod'] : 'detailed'
+        s['support_type'] = 'clevis' unless Supports::TYPES.key?(s['support_type'])
         s['waste_pct'] = clamp(s['waste_pct'].to_f, 0.0, 50.0)
         s['valve_type'] = 'gate' unless FittingsData::VALVES.key?(s['valve_type'])
         s.select { |k, _| DEFAULTS.key?(k) }

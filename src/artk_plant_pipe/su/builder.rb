@@ -6,18 +6,28 @@ module ArtK
     #
     # Model structure
     #   Run group  (type=run, name = line number, tag = service)
-    #     ├─ Pipe / Elbow / Tee groups  (type=pipe|elbow|tee, one per piece)
-    #     ├─ Insulation groups          (type=insulation, tag PP-Insulation)
-    #     ├─ Valve groups               (type=valve)
-    #     ├─ Centerline group           (type=centerline, tag PP-Centerline)
-    #     └─ Line-number label          (tag PP-Labels)
+    #     ├─ Pipe groups        – hollow tube meshes (type=pipe)
+    #     ├─ Elbow / Tee        – component instances (type=elbow|tee)
+    #     ├─ Valve              – component instances (type=valve)
+    #     ├─ Insulation groups  (type=insulation, tag PP-Insulation)
+    #     ├─ Support groups     (type=support, tag PP-Supports)
+    #     ├─ Centerline group   (type=centerline, tag PP-Centerline)
+    #     └─ Line-number label  (tag PP-Labels)
     #
-    # The run stores its centreline ('cl'), branch connections ('tees') and
-    # settings as attributes. Every piece is regenerated from that data, so a
-    # run can be resized, re-materialled or extended at any time without
-    # redrawing – the way piping design actually iterates.
+    # The run stores its centreline ('cl'), branch connections ('tees'),
+    # supports ('supports') and settings as attributes. Every piece is
+    # regenerated from that data, so a run can be resized, re-materialled or
+    # extended at any time without redrawing – and its valves and supports
+    # follow the new size.
+    #
+    # Fittings and valves are ComponentDefinitions built once per
+    # type/size/material/detail level and instanced, so a plant model with
+    # hundreds of detailed valves stays light. Their pipe-coloured faces are
+    # unpainted and take the instance material, so one definition serves
+    # every service colour.
     module Builder
       H = ModelHelpers
+      TAG_SUPPORTS = 'PP-Supports'
 
       module_function
 
@@ -60,6 +70,7 @@ module ArtK
           warnings.concat(render(model, run, merged).map { |w| "#{run.name}: #{w}" })
         end
         warnings.concat(refresh_branches(model, runs))
+        H.purge_parts(model)
         model.commit_operation
         warnings
       rescue StandardError
@@ -99,7 +110,7 @@ module ArtK
       # Keys that a rebuild applies from the current settings.
       def settings_for_rebuild(settings)
         settings.select do |k, _|
-          %w[service catalog size rating insulation_mm elbow_type segments centerline labels].include?(k)
+          %w[service catalog size rating insulation_mm elbow_type segments centerline labels lod].include?(k)
         end
       end
 
@@ -113,7 +124,7 @@ module ArtK
 
       # ------------------------------------------------------------------
 
-      # (Re)generate all geometry of +run+ from its stored centreline.
+      # (Re)generate all geometry of +run+ from its stored data.
       # Returns an array of warning strings.
       def render(model, run, settings)
         settings = Settings.sanitize(settings)
@@ -134,43 +145,56 @@ module ArtK
         ents.clear!
         segs = apply_branch_trims(cl, tees, warnings)
 
-        ctx = {
-          model: model, ents: ents, spec: spec, settings: settings, svc: svc, line_no: line_no,
-          segs: settings['segments'], ins: settings['insulation_mm'].to_f, cl: cl,
-          tag: H.service_tag(model, code),
-          mat: H.service_material(model, code, settings['color_scheme']),
-          fit_mat: H.service_material(model, code, settings['color_scheme'], fitting: true),
-          common: {
-            'service' => code, 'catalog' => spec.catalog_key, 'catalog_name' => spec.catalog_name,
-            'material' => spec.material, 'size' => spec.size, 'rating' => spec.rating,
-            'od' => spec.od, 'wall' => spec.wall, 'line_no' => line_no
-          }
-        }
+        ctx = context(model, run, settings, spec, svc, line_no)
+        ctx[:cl] = cl
+        ctx[:open_ends] = Collector.open_ends(cl).reject { |p| tees.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
 
         extras = []
         unless segs.empty?
           net = Network.new(segs, spec, tol: 1.0, radius_type: settings['elbow_type'].to_sym).solve
           warnings.concat(net.warnings)
+          ctx[:mitres] = net.pieces.select { |pc| pc.type == :mitre }.map { |pc| pc.data[:at] }
           net.pieces.each { |pc| render_piece(ctx, pc, extras, warnings) }
           add_label(ctx, net) if settings['labels']
         end
         tees.each { |t| render_branch_tee(ctx, t, warnings) }
         valves.each do |v|
-          Valves.build(ctx, v['valve_type'], JSON.parse(v['at']), JSON.parse(v['dir']))
+          place_valve(ctx, v['valve_type'], JSON.parse(v['at']), JSON.parse(v['dir']))
         rescue StandardError => e
           warnings << "Valve could not be rebuilt: #{e.message}"
         end
+        H.get_json(run, 'supports', []).each do |rec|
+          SupportBuilder.render(ctx, rec)
+        rescue StandardError => e
+          warnings << "Support: #{e.message}"
+        end
         add_centerline(ctx, cl) if settings['centerline']
 
-        if spec.estimated
-          extras.each { |x| x['remark'] ||= 'wall thickness estimated' }
-        end
+        extras.each { |x| x['remark'] ||= 'wall thickness estimated' } if spec.estimated
         H.set_attrs(run, ctx[:common].merge('type' => 'run', 'seq' => seq, 'joint' => spec.joint))
         H.set_json(run, 'settings', settings)
         H.set_json(run, 'extras', extras)
         run.name = line_no
         run.layer = ctx[:tag]
+        run.material = ctx[:mat]
         warnings
+      end
+
+      def context(model, run, settings, spec, svc, line_no)
+        steps = settings['segments']
+        {
+          model: model, run: run, ents: run.entities, spec: spec, settings: settings, svc: svc,
+          line_no: line_no, steps: steps, ins: settings['insulation_mm'].to_f,
+          lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps),
+          tag: H.service_tag(model, svc[:code]),
+          mat: H.pipe_material(model, svc[:code], spec.family, settings['color_scheme']),
+          open_ends: [], mitres: [], cl: [],
+          common: {
+            'service' => svc[:code], 'catalog' => spec.catalog_key, 'catalog_name' => spec.catalog_name,
+            'material' => spec.material, 'size' => spec.size, 'rating' => spec.rating,
+            'od' => spec.od, 'wall' => spec.wall, 'line_no' => line_no
+          }
+        }
       end
 
       # Branch connections start/end at the centre of a tee on another run:
@@ -212,6 +236,8 @@ module ArtK
 
       # ------------------------------------------------------------------
 
+      # Any failure falls back to a recorded mitre joint instead of leaving
+      # a hole in the model, and is reported.
       def render_piece(ctx, pc, extras, warnings)
         d = pc.data
         case pc.type
@@ -225,24 +251,51 @@ module ArtK
         warnings << "#{pc.type}: #{e.message}"
       end
 
+      def spec_key(spec)
+        "#{spec.catalog_key} #{spec.size} #{spec.rating}"
+      end
+
+      def lod_key(ctx)
+        "#{ctx[:lod] == :detailed ? 'D' : 'L'}#{ctx[:steps]}"
+      end
+
       def render_pipe(ctx, d)
         spec = ctx[:spec]
-        g = H.sweep(ctx[:ents], spec.od / 2.0, ctx[:segs], line: [d[:from], d[:to]])
-        finish_piece(ctx, g, "Pipe #{spec.size}", ctx[:mat],
-                     'type' => 'pipe', 'length_mm' => d[:length].round(1),
+        o = ctx[:opts]
+        a = d[:from]
+        b = d[:to]
+        dir = Vec.unit(Vec.sub(b, a))
+        ins = Parts.insertion(o)
+        # Pipe continues into sockets / threads of the fittings at each end
+        # (not at open ends or mitre joints) – that is the real cut length.
+        ea = joined?(ctx, a) ? ins : 0.0
+        eb = joined?(ctx, b) ? ins : 0.0
+        pa = Vec.sub(a, Vec.scale(dir, ea))
+        pb = Vec.add(b, Vec.scale(dir, eb))
+        part = Mesh::Part.new.add(:pipe, Mesh.cylinder(pa, pb, o.ro, ri: o.ri, steps: ctx[:steps]))
+        g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: ctx[:steps])
+        cut = Vec.dist(pa, pb)
+        finish_piece(ctx, g, "Pipe #{spec.size} L=#{cut.round}", ctx[:mat],
+                     'type' => 'pipe', 'length_mm' => cut.round(1),
                      'weight_kg_m' => spec.weight_kg_m.round(3), 'stick_m' => spec.stick_length_m,
-                     'geom' => JSON.generate('a' => d[:from], 'b' => d[:to]),
+                     'geom' => JSON.generate('a' => a, 'b' => b),
                      'remark' => spec.estimated ? 'wall thickness estimated' : nil)
-        return unless ctx[:ins].positive?
+        insulate(ctx, Mesh.cylinder(a, b, o.ro + ctx[:ins], ri: o.ro + 0.5, steps: ctx[:steps]), d[:length])
+      end
 
-        gi = H.sweep(ctx[:ents], spec.od / 2.0 + ctx[:ins], ctx[:segs], line: [d[:from], d[:to]])
-        insulation(ctx, gi, d[:length])
+      def joined?(ctx, pt)
+        ctx[:open_ends].none? { |p| Vec.dist(p, pt) <= 1.0 } && ctx[:mitres].none? { |p| Vec.dist(p, pt) <= 1.0 }
       end
 
       def render_elbow(ctx, d, extras)
         spec = ctx[:spec]
-        arc_segs = [((d[:angle_deg] / 90.0) * (ctx[:segs] / 2)).ceil, 2].max
-        g = H.sweep(ctx[:ents], spec.fitting_od / 2.0, ctx[:segs], arc: d, arc_segs: arc_segs)
+        o = ctx[:opts]
+        ang = d[:angle]
+        name = "PP Elbow #{d[:angle_deg].round(1)}° #{d[:radius_type].to_s.upcase} | #{spec_key(spec)} | #{lod_key(ctx)}"
+        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) { Parts.elbow(ang, d[:radius], o) }
+        n1 = Vec.unit(Vec.sub(d[:center], d[:start]))
+        tr = H.frame_transform(Mesh.frame(d[:start], d[:dir_in], n1))
+        inst = ctx[:ents].add_instance(defn, tr)
         attrs = {
           'type' => 'elbow', 'angle' => d[:angle_deg], 'radius_type' => d[:radius_type].to_s,
           'radius_mm' => d[:radius].round(1),
@@ -251,44 +304,53 @@ module ArtK
                                   'start' => d[:start], 'end' => d[:end])
         }
         attrs['nominal_angle'] = d[:nominal_angle] if d[:nominal_angle]
-        finish_piece(ctx, g, "Elbow #{d[:angle_deg].round}° #{spec.size}", ctx[:fit_mat], attrs)
+        finish_piece(ctx, inst, "Elbow #{d[:angle_deg].round}° #{spec.size}", ctx[:mat], attrs)
         return unless ctx[:ins].positive?
 
-        arc_len = d[:radius] * d[:angle]
-        r_ins = spec.fitting_od / 2.0 + ctx[:ins]
+        arc_len = d[:radius] * ang
+        r_ins = Parts.body_radius(o) + ctx[:ins]
         if r_ins < 0.95 * d[:radius]
-          gi = H.sweep(ctx[:ents], r_ins, ctx[:segs], arc: d, arc_segs: arc_segs)
-          insulation(ctx, gi, arc_len)
+          arc_steps = [(ang / (Math::PI / 2) * (ctx[:steps] / 2)).ceil, 2].max
+          insulate(ctx, Mesh.bend(d[:center], d[:xaxis], d[:normal], d[:radius], ang, r_ins, Parts.body_radius(o) + 0.5,
+                                  steps: ctx[:steps], arc_steps: arc_steps), arc_len)
         else
-          # Insulation thicker than the bend radius cannot be swept as a solid;
-          # still count it in the BOM.
+          # Insulation thicker than the bend radius cannot be modelled as a
+          # solid; still count it in the BOM.
           extras << ctx[:common].merge('type' => 'insulation', 'thickness' => ctx[:ins],
                                        'length_mm' => arc_len.round(1))
         end
       end
 
+      # Local frame for a junction: x = first arm, y = the most
+      # perpendicular other arm, z = x × y.
+      def junction_frame(center, arms)
+        x = arms[0]
+        other = arms[1..].max_by { |u| Vec.length(Vec.cross(x, u)) }
+        Mesh.frame(center, x, other)
+      end
+
+      def local_dirs(f, arms)
+        arms.map { |u| [Vec.dot(u, f[:x]), Vec.dot(u, f[:y]), Vec.dot(u, f[:z])].map { |c| c.round(6) } }
+      end
+
       def render_tee(ctx, kind, d)
         spec = ctx[:spec]
-        fg = ctx[:ents].add_group
-        r = spec.fitting_od / 2.0
+        o = ctx[:opts]
         c = d[:c]
-        arm = ->(a, b) { H.sweep(fg.entities, r, ctx[:segs], line: [a, b]) }
-        if d[:run]
-          arm.call(Vec.add(d[:center], Vec.scale(d[:run][0], c)), Vec.add(d[:center], Vec.scale(d[:run][1], c)))
-          arm.call(d[:center], Vec.add(d[:center], Vec.scale(d[:branch], c)))
-        else
-          d[:arms].each { |u| arm.call(d[:center], Vec.add(d[:center], Vec.scale(u, c))) }
-        end
+        f = junction_frame(d[:center], d[:arms])
+        loc = local_dirs(f, d[:arms])
+        sig = loc.map { |u| u.map { |v| v.round(3) }.join(',') }.join(' / ')
+        name = "PP #{kind.to_s.capitalize} #{sig} | #{spec_key(spec)} | #{lod_key(ctx)}"
+        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) { Parts.branch(loc.map { |u| [u, c, o] }) }
+        inst = ctx[:ents].add_instance(defn, H.frame_transform(f))
         attrs = { 'type' => 'tee', 'kind' => kind.to_s, 'role' => 'run',
                   'geom' => JSON.generate('center' => d[:center], 'arms' => d[:arms], 'c' => c) }
         attrs['branch_angle'] = d[:branch_angle] if d[:branch_angle]
-        name = kind == :cross ? 'Cross' : kind == :lateral ? 'Lateral' : 'Tee'
-        finish_piece(ctx, fg, "#{name} #{spec.size}", ctx[:fit_mat], attrs)
-        return unless ctx[:ins].positive?
-
+        label = { cross: 'Cross', lateral: 'Lateral' }.fetch(kind, 'Tee')
+        finish_piece(ctx, inst, "#{label} #{spec.size}", ctx[:mat], attrs)
         d[:arms].each do |u|
-          gi = H.sweep(ctx[:ents], r + ctx[:ins], ctx[:segs], line: [d[:center], Vec.add(d[:center], Vec.scale(u, c))])
-          insulation(ctx, gi, c)
+          insulate(ctx, Mesh.cylinder(d[:center], Vec.add(d[:center], Vec.scale(u, c)), Parts.body_radius(o) + ctx[:ins],
+                                      ri: Parts.body_radius(o) + 0.5, steps: ctx[:steps]), c)
         end
       end
 
@@ -298,50 +360,107 @@ module ArtK
         spec = ctx[:spec]
         at = t['at']
         main_dir = Vec.unit(t['main_dir'])
-        seg = ctx[:cl].find do |a, b|
-          Vec.dist(a, at) <= 1.0 || Vec.dist(b, at) <= 1.0
-        end
+        seg = ctx[:cl].find { |a, b| Vec.dist(a, at) <= 1.0 || Vec.dist(b, at) <= 1.0 }
         return warnings << 'Branch tee: centreline not found' unless seg
 
         other = Vec.dist(seg[0], at) <= 1.0 ? seg[1] : seg[0]
         bdir = Vec.unit(Vec.sub(other, at))
         c = main.tee_c
-        fg = ctx[:ents].add_group
-        H.sweep(fg.entities, main.fitting_od / 2.0, ctx[:segs],
-                line: [Vec.sub(at, Vec.scale(main_dir, c)), Vec.add(at, Vec.scale(main_dir, c))])
-        H.sweep(fg.entities, spec.fitting_od / 2.0, ctx[:segs], line: [at, Vec.add(at, Vec.scale(bdir, c))])
+        mo = Parts.opts(main, lod: ctx[:lod], steps: ctx[:steps])
+        arms = [main_dir, Vec.scale(main_dir, -1.0), bdir]
+        f = junction_frame(at, arms)
+        loc = local_dirs(f, arms)
         angle = Vec.angle(bdir, main_dir) * 180.0 / Math::PI
         angle = 180.0 - angle if angle > 90.0
         kind = (angle - 90.0).abs <= 1.0 ? 'tee' : 'lateral'
-        fg.material = ctx[:fit_mat]
-        fg.layer = ctx[:tag]
-        fg.name = "Branch #{kind} #{main.size} x #{spec.size}"
-        H.set_attrs(fg, ctx[:common].merge(
-          'type' => 'tee', 'kind' => kind, 'role' => 'branch', 'branch_angle' => angle.round(1),
-          'size' => main.size, 'branch_size' => spec.size, 'rating' => main.rating,
-          'service' => t['main_service'] || ctx[:common]['service'],
-          'catalog_name' => main.catalog_name, 'material' => main.material, 'od' => main.od,
-          'geom' => JSON.generate('center' => at, 'arms' => [main_dir, Vec.scale(main_dir, -1.0), bdir], 'c' => c)
-        ))
+        name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}"
+        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) do
+          Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]])
+        end
+        inst = ctx[:ents].add_instance(defn, H.frame_transform(f))
+        main_code = t['main_service'] || ctx[:common]['service']
+        mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'])
+        finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{spec.size}", mat,
+                     'type' => 'tee', 'kind' => kind, 'role' => 'branch', 'branch_angle' => angle.round(1),
+                     'size' => main.size, 'branch_size' => spec.size, 'rating' => main.rating,
+                     'service' => main_code, 'catalog_name' => main.catalog_name, 'material' => main.material,
+                     'od' => main.od,
+                     'geom' => JSON.generate('center' => at, 'arms' => arms, 'c' => c))
       rescue StandardError => e
         warnings << "Branch tee: #{e.message}"
       end
 
-      def finish_piece(ctx, grp, name, mat, attrs)
-        grp.name = name
-        grp.material = mat
-        grp.layer = ctx[:tag]
-        H.set_attrs(grp, ctx[:common].merge(attrs).reject { |_, v| v.nil? })
-        grp
+      # ------------------------------------------------------------------
+      # Valves
+      # ------------------------------------------------------------------
+
+      # Stem up on horizontal lines (never down: packing leaks onto the
+      # operator and dirt collects in the bonnet); horizontal on risers.
+      def stem_direction(dir)
+        z = [0.0, 0.0, 1.0]
+        u = Vec.sub(z, Vec.scale(dir, Vec.dot(dir, z)))
+        Vec.length(u) < 0.2 ? Vec.perpendicular(dir) : Vec.unit(u)
       end
 
-      def insulation(ctx, grp, length_mm)
-        grp.name = "Insulation #{ctx[:ins].round} mm"
-        grp.material = H.insulation_material(ctx[:model])
-        grp.layer = H.tag(ctx[:model], H::TAG_INSULATION)
-        H.set_attrs(grp, ctx[:common].merge('type' => 'insulation', 'thickness' => ctx[:ins],
-                                            'length_mm' => length_mm.round(1),
-                                            'insulation_material' => insulation_material_name(ctx)))
+      def place_valve(ctx, type, at, dir)
+        spec = ctx[:spec]
+        info = FittingsData.valve(type)
+        metallic = spec.density > 5000
+        dir = Vec.unit(dir)
+        up = stem_direction(dir)
+        f = Mesh.frame(at, dir, Vec.cross(up, dir))
+        name = "PP Valve #{type} | #{spec_key(spec)} | #{lod_key(ctx)}"
+        recolor = metallic ? {} : { valve: :fitting }
+        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps], recolor: recolor) do
+          Parts.valve(type, ctx[:opts], metallic: metallic)
+        end
+        inst = ctx[:ents].add_instance(defn, H.frame_transform(f))
+        len = FittingsData.face_to_face(type, spec.od)
+        fr = FittingsData.flange(spec.od).od / 2.0
+        finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat],
+                     'type' => 'valve', 'valve_type' => type, 'valve_name' => info[:name],
+                     'valve_rating' => metallic ? 'Class 150' : spec.rating,
+                     'end_type' => metallic ? 'Flanged' : 'Socket / union',
+                     'face_to_face' => len, 'at' => JSON.generate(at), 'dir' => JSON.generate(dir),
+                     'geom' => JSON.generate('a' => Vec.sub(at, Vec.scale(dir, len / 2.0)),
+                                             'b' => Vec.add(at, Vec.scale(dir, len / 2.0)), 'r' => fr))
+      end
+
+      # Insert a valve into a run (run-local coordinates).
+      def add_valve(model, run, type, at, dir)
+        settings = run_settings(run)
+        spec = Settings.spec(settings)
+        svc = Services.get(settings['service'])
+        model.start_operation('Plant Piping: Insert Valve', true)
+        ctx = context(model, run, settings, spec, svc, run.name)
+        inst = place_valve(ctx, type, at, dir)
+        model.commit_operation
+        inst
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
+      # ------------------------------------------------------------------
+
+      def finish_piece(ctx, ent, name, mat, attrs)
+        ent.name = name
+        ent.material = mat
+        ent.layer = ctx[:tag]
+        H.set_attrs(ent, ctx[:common].merge(attrs).reject { |_, v| v.nil? })
+        ent
+      end
+
+      def insulate(ctx, solid, length_mm)
+        return unless ctx[:ins].positive?
+
+        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:insulation, solid), steps: ctx[:steps])
+        g.name = "Insulation #{ctx[:ins].round} mm"
+        g.material = H.insulation_material(ctx[:model])
+        g.layer = H.tag(ctx[:model], H::TAG_INSULATION)
+        H.set_attrs(g, ctx[:common].merge('type' => 'insulation', 'thickness' => ctx[:ins],
+                                          'length_mm' => length_mm.round(1),
+                                          'insulation_material' => insulation_material_name(ctx)))
       end
 
       # Typical insulation by service – shown in the BOM for purchasing.
@@ -374,29 +493,6 @@ module ArtK
         txt = ctx[:ents].add_text("#{ctx[:line_no]}  #{ctx[:spec].material}", H.to_pt(mid),
                                   Geom::Vector3d.new(0, 0, H.mm(lift)))
         txt.layer = H.tag(ctx[:model], H::TAG_LABELS)
-      end
-
-      # Insert a valve into a run (run-local coordinates).
-      def add_valve(model, run, type, at, dir)
-        settings = run_settings(run)
-        spec = Settings.spec(settings)
-        svc = Services.get(settings['service'])
-        model.start_operation('Plant Piping: Insert Valve', true)
-        ctx = {
-          model: model, ents: run.entities, spec: spec, settings: settings, svc: svc,
-          segs: settings['segments'], tag: H.service_tag(model, svc[:code]),
-          common: {
-            'service' => svc[:code], 'catalog' => spec.catalog_key, 'catalog_name' => spec.catalog_name,
-            'material' => spec.material, 'size' => spec.size, 'rating' => spec.rating,
-            'od' => spec.od, 'wall' => spec.wall, 'line_no' => run.name
-          }
-        }
-        g = Valves.build(ctx, type, at, dir)
-        model.commit_operation
-        g
-      rescue StandardError
-        model.abort_operation
-        raise
       end
     end
   end
