@@ -1,0 +1,13 @@
+{
+  "name": "line-punch-list",
+  "version": "1.0.0",
+  "description": "LINE bot สำหรับทำ punch list หน้างาน: ส่งรูป + พิมพ์รายละเอียดในไลน์ แล้วบอทจัดหน้ารายงานให้",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT"
+}
