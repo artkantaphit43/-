@@ -1,0 +1,1684 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>PE Project Control Flow</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-recv" viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M7.5 9.5 12 14l4.5-4.5"/><path d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M6 11V4h8l4 4v3"/><path d="M14 4v4h4"/><path d="M2.5 13.5h19"/><path d="M6 16.5V20h12v-3.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5"/><path d="M12 17.2v.3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M13.5 7.5l3 3"/></symbol>
+  <symbol id="i-stamp" viewBox="0 0 24 24"><path d="M10 4.5a2 2 0 0 1 4 0c0 2-1.5 3-1.5 6h-1c0-3-1.5-4-1.5-6z"/><path d="M5 13h14v3.5H5z"/><path d="M6 20h12"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></symbol>
+  <symbol id="i-tip" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/></symbol>
+  <symbol id="i-money" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></symbol>
+</svg>
+
+<!-- =====================================================================
+     PAGE 1 — OVERVIEW
+===================================================================== -->
+<section class="page" id="pg-overview">
+  <header class="ph">
+    <div class="ph-num sm">PE</div>
+    <div>
+      <div class="kicker">คู่มือ PE หน้าใหม่ · Project Control Flow</div>
+      <h1>ภาพรวม: ควบคุมโครงการตั้งแต่ทำสัญญา จนส่งมอบงานและคืนหลักประกัน</h1>
+      <p>ทำเอกสารอะไร · ทำ/ยื่นเมื่อไร · ยื่นใคร · ได้อะไรกลับ · ตรวจลายเซ็น–ตราอย่างไร · สแกนเก็บที่ไหน</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow ov" style="grid-template-columns:1fr 24mm;column-gap:6mm;row-gap:4.2mm">
+      <div class="n se" id="o-s" style="grid-area:1/1"><div class="t">ได้รับหนังสือแจ้งผล / เชิญทำสัญญา / ใบสั่งจ้าง</div><div class="d">จุดเริ่มงานของ PE</div></div>
+
+      <div class="n pe phc" id="o-1" style="grid-area:2/1">
+        <div class="pn">1</div>
+        <div>
+          <div class="hd"><div class="t">ทำสัญญา <span class="muted">(Contract)</span></div><div class="who">หน้า 2</div></div>
+          <div class="d"><b>เมื่อไร:</b> ทันทีที่ได้หนังสือเชิญ → ก่อนวันนัดลงนาม</div>
+          <div class="chips"><span class="chip">ร่างสัญญา</span><span class="chip">หลักประกันสัญญา (LG)</span><span class="chip">หนังสือรับรองบริษัท</span><span class="chip">หนังสือมอบอำนาจ</span><span class="chip">อากรแสตมป์</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: สัญญาลงนามครบ 2 ฝ่าย + สแกนแล้ว + ทำสรุปสัญญา 1 หน้า</div>
+        </div>
+      </div>
+
+      <div class="n pe phc" id="o-2" style="grid-area:3/1">
+        <div class="pn">2</div>
+        <div>
+          <div class="hd"><div class="t">เตรียมเริ่มงาน <span class="muted">(Mobilization)</span></div><div class="who">หน้า 3</div></div>
+          <div class="d"><b>เมื่อไร:</b> หลังลงนามสัญญา → ก่อนเข้าพื้นที่ (ตามกำหนดวันในสัญญา)</div>
+          <div class="chips"><span class="chip">แผนงาน / S-Curve</span><span class="chip">ผังองค์กร + ใบ กว.</span><span class="chip">ประกันภัย CAR</span><span class="chip">แผนความปลอดภัย</span><span class="chip">หนังสือให้เริ่มงาน</span><span class="chip">บันทึกส่งมอบพื้นที่</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: ได้หนังสือให้เริ่มงาน + รับมอบพื้นที่เป็นลายลักษณ์อักษร</div>
+        </div>
+      </div>
+
+      <div class="n pe phc" id="o-3" style="grid-area:4/1">
+        <div class="pn">3</div>
+        <div>
+          <div class="hd"><div class="t">ขออนุมัติก่อนทำ <span class="muted">(Submittal)</span></div><div class="who">หน้า 4</div></div>
+          <div class="d"><b>เมื่อไร:</b> ก่อนสั่งของ/ก่อนเริ่มงานแต่ละส่วน ล่วงหน้า 2–4 สัปดาห์ (ทำซ้ำตลอดโครงการ)</div>
+          <div class="chips"><span class="chip">Shop Drawing</span><span class="chip">Material Approval</span><span class="chip">Method Statement</span><span class="chip">RFI</span><span class="chip">Transmittal</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: ได้สถานะ A หรือ B เท่านั้น จึงใช้หน้างาน/สั่งซื้อได้</div>
+        </div>
+      </div>
+
+      <div class="n pe phc" id="o-4" style="grid-area:5/1">
+        <div class="pn">4</div>
+        <div>
+          <div class="hd"><div class="t">ควบคุมงานก่อสร้าง <span class="muted">(Construction)</span></div><div class="who">หน้า 5</div></div>
+          <div class="d"><b>เมื่อไร:</b> ทุกวัน / ทุกสัปดาห์ / ทุกเดือน + เมื่อมีเหตุการณ์</div>
+          <div class="chips"><span class="chip">Daily Report</span><span class="chip">ใบขอตรวจงาน</span><span class="chip">ผลทดสอบวัสดุ</span><span class="chip">รายงานการประชุม (MOM)</span><span class="chip">Monthly Report</span><span class="chip">งานเพิ่ม-ลด / ขยายเวลา</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: เนื้องานครบตามงวด + ผลทดสอบผ่าน + เอกสารครบ</div>
+        </div>
+      </div>
+
+      <div class="n pe phc" id="o-5" style="grid-area:6/1">
+        <div class="pn">5</div>
+        <div>
+          <div class="hd"><div class="t">ส่งงานงวด & เบิกเงิน <span class="muted">(Progress Billing)</span></div><div class="who">หน้า 6</div></div>
+          <div class="d"><b>เมื่อไร:</b> เมื่อทำงานครบเนื้องานของแต่ละงวดตามสัญญา</div>
+          <div class="chips"><span class="chip">หนังสือส่งมอบงานงวด</span><span class="chip">ใบตรวจรับงาน</span><span class="chip">ใบแจ้งหนี้ / ใบกำกับภาษี</span><span class="chip">50 ทวิ</span><span class="chip">ใบเสร็จ</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: ได้ใบตรวจรับงวด + ได้รับเงิน → วนงวดถัดไป</div>
+        </div>
+      </div>
+
+      <div class="n pe phc" id="o-6" style="grid-area:7/1">
+        <div class="pn">6</div>
+        <div>
+          <div class="hd"><div class="t">ส่งมอบงาน & ปิดโครงการ <span class="muted">(Handover)</span></div><div class="who">หน้า 7</div></div>
+          <div class="d"><b>เมื่อไร:</b> งานเสร็จ ~90–95% → ทดสอบระบบ → ส่งงวดสุดท้าย</div>
+          <div class="chips"><span class="chip">Punch List</span><span class="chip">ผลทดสอบระบบ (T&amp;C)</span><span class="chip">As-built Drawing</span><span class="chip">คู่มือ O&amp;M</span><span class="chip">ใบรับประกัน</span><span class="chip">หนังสือรับมอบงาน</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: ได้ใบตรวจรับงวดสุดท้าย = วันเริ่มนับระยะรับประกัน</div>
+        </div>
+      </div>
+
+      <div class="n pe phc" id="o-7" style="grid-area:8/1">
+        <div class="pn">7</div>
+        <div>
+          <div class="hd"><div class="t">ระยะรับประกัน & คืนหลักประกัน <span class="muted">(DLP)</span></div><div class="who">หน้า 8</div></div>
+          <div class="d"><b>เมื่อไร:</b> ตลอดระยะรับประกันตามสัญญา (เช่น 1–2 ปี)</div>
+          <div class="chips"><span class="chip">ทะเบียนแจ้งซ่อม</span><span class="chip">บันทึกการซ่อม</span><span class="chip">หนังสือขอคืนหลักประกัน</span><span class="chip">หนังสือรับรองผลงาน</span></div>
+          <div class="gate"><svg class="ic s"><use href="#i-check"/></svg>ผ่านด่านเมื่อ: ได้หลักประกันคืน + ยกเลิก LG กับธนาคาร</div>
+        </div>
+      </div>
+
+      <div class="n se" id="o-e" style="grid-area:9/1"><div class="t">ปิดแฟ้มโครงการ (Archive)</div></div>
+
+      <div class="n loopnote" id="o-lp" style="grid-area:4/2 / 7/2">
+        <svg class="ic"><use href="#i-loop"/></svg>
+        <div><b>วนซ้ำทุกงวด</b><br>Phase 3 → 4 → 5<br>จนถึงงวดสุดท้าย</div>
+      </div>
+
+      <script type="application/json" class="edges">[
+        ["o-s","o-1"],["o-1","o-2"],["o-2","o-3"],["o-3","o-4"],["o-4","o-5"],["o-5","o-6","b-t","งวดสุดท้าย"],["o-6","o-7"],["o-7","o-e"],
+        ["o-5","o-3","r-r","งวดถัดไป","loop",{"off":12,"lx":6,"ly":2}]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box">
+        <h3>ใครเป็นใคร (สีของกล่อง)</h3>
+        <div class="legend">
+          <div class="lg pe"><b>PE / ทีมหน้างาน (เรา)</b>จัดทำ ตรวจ ยื่น ติดตาม สแกน</div>
+          <div class="lg co"><b>บริษัท (ผู้บริหาร · บัญชี · การเงิน)</b>ลงนามผู้มีอำนาจ ประทับตรา ออกเอกสารการเงิน</div>
+          <div class="lg ow"><b>ผู้ว่าจ้าง / ที่ปรึกษา (CM) / ผู้ควบคุมงาน / กก.ตรวจรับ</b>พิจารณา อนุมัติ ตรวจรับ จ่ายเงิน</div>
+          <div class="lg ex"><b>ภายนอก</b>ธนาคาร · บริษัทประกัน · สรรพากร · การไฟฟ้า/ประปา · ท้องถิ่น · แล็บทดสอบ</div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>สัญลักษณ์ใน Flow</h3>
+        <div class="sym">
+          <div class="sy"><span class="s-se">เริ่ม / จบ</span></div><div class="sx">จุดเริ่ม–จุดจบของขั้นตอน</div>
+          <div class="sy"><span class="s-box">1.2</span></div><div class="sx">ขั้นตอนงาน (มีเลขข้อ)</div>
+          <div class="sy"><svg viewBox="0 0 40 18" class="s-dec"><polygon points="20,1 39,9 20,17 1,9"/></svg></div><div class="sx">จุดตรวจ/ตัดสินใจ (ผ่าน/ไม่ผ่าน)</div>
+          <div class="sy"><span class="s-scan"></span></div><div class="sx">สแกน + จัดเก็บ (ระบุ Folder)</div>
+          <div class="sy"><span class="s-fix">แก้ไข</span></div><div class="sx">ไม่ผ่าน → แก้ไข แล้ววนกลับ</div>
+          <div class="sy"><span class="s-grp"></span></div><div class="sx">ทำพร้อมกันได้ (Parallel)</div>
+          <div class="sy"><svg viewBox="0 0 40 10" class="s-ln"><path d="M1 5h34" stroke="#6b7385" stroke-width="1.3"/><path d="M33 1.5 39 5 33 8.5z" fill="#6b7385"/></svg></div><div class="sx">ลำดับงานปกติ</div>
+          <div class="sy"><svg viewBox="0 0 40 10" class="s-ln"><path d="M1 5h34" stroke="#cf2f2f" stroke-width="1.3" stroke-dasharray="3.5 2.4"/><path d="M33 1.5 39 5 33 8.5z" fill="#cf2f2f"/></svg></div><div class="sx">เส้นทาง “ไม่ผ่าน”</div>
+        </div>
+        <div class="sub" style="margin-top:1.6mm">ป้ายกำกับ</div>
+        <div class="tags">
+          <span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ส่งออก ต้องได้ลายเซ็นรับ<br>
+          <span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ได้เอกสารคืน ต้องตรวจก่อนเก็บ<br>
+          <span class="act sign"><svg class="ic s"><use href="#i-pen"/></svg>ลงนาม/ตรา</span> ต้องมีผู้มีอำนาจเซ็น<br>
+          <span class="tag gov">ภาครัฐ</span> ขั้นตอนเฉพาะงานราชการ / e-GP
+        </div>
+      </div>
+
+      <div class="box tip">
+        <h3><svg class="ic"><use href="#i-loop"/></svg>วงจรเอกสาร 1 ฉบับ (ใช้กับทุกเอกสาร)</h3>
+        <ol class="mini">
+          <li>เตรียม + ใส่เลขที่จาก Register</li>
+          <li>ตรวจภายใน → ผู้มีอำนาจลงนาม/ประทับตรา</li>
+          <li>สแกนฉบับที่ส่ง → ยื่นพร้อมใบนำส่ง</li>
+          <li>ให้ผู้รับเซ็นรับ + วันที่/เวลา (หรือตรารับ)</li>
+          <li>ติดตามจนได้คำตอบ</li>
+          <li>รับกลับ → ตรวจลายเซ็น/ตรา/วันที่/ครบหน้า</li>
+          <li>สแกน → ตั้งชื่อ → เก็บ Folder → อัปเดต Register</li>
+        </ol>
+        <p class="small">รายละเอียด: หน้า 9 (วงจรเอกสาร) · หน้า 10 (ตรวจลายเซ็น/ตรา) · หน้า 11 (สแกน/จัดเก็บ)</p>
+      </div>
+
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-list"/></svg>สารบัญ</h3>
+        <table class="toc">
+          <tr><td>1</td><td>ภาพรวม (หน้านี้)</td></tr>
+          <tr><td>2–8</td><td>Flow ละเอียด Phase 1–7</td></tr>
+          <tr><td>9</td><td>วงจรเอกสารขาออก / ขาเข้า</td></tr>
+          <tr><td>10</td><td>ตรวจลายเซ็น ตราประทับ ความถูกต้อง</td></tr>
+          <tr><td>11</td><td>มาตรฐานสแกน ตั้งชื่อไฟล์ จัดเก็บ</td></tr>
+          <tr><td>12–13</td><td>ตารางสรุปเอกสารทั้งหมด (ทำเมื่อไร/ยื่นใคร)</td></tr>
+          <tr><td>14</td><td>10 ข้อที่ PE ใหม่ต้องจำ + คำศัพท์</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 2 — PHASE 1 CONTRACT
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">1</div>
+    <div>
+      <div class="kicker">Phase 1 · Contract</div>
+      <h1>ทำสัญญา — เตรียมเอกสาร ลงนาม และรับสัญญากลับมา</h1>
+      <p><b>เริ่ม:</b> ได้รับหนังสือแจ้งผล/เชิญทำสัญญา · <b>จบ:</b> มีสัญญาลงนามครบ สแกนแล้ว และสรุปสัญญา 1 หน้าพร้อมใช้</p>
+    </div>
+    <div class="nav"><span class="on">1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow">
+      <div class="n se" id="a-s" style="grid-area:1/1"><div class="t">ได้รับหนังสือแจ้งผล / เชิญทำสัญญา / ใบสั่งจ้าง</div><div class="d">จากผู้ว่าจ้าง (ภาครัฐมักแจ้งผ่านระบบ e-GP + หนังสือ)</div></div>
+
+      <div class="n pe" id="a-1" style="grid-area:2/1">
+        <div class="hd"><span class="sn">1.1</span><div class="t">ลงรับ + จดวันครบกำหนดมาทำสัญญา</div><div class="who">PE</div></div>
+        <div class="d">ประทับตรารับ (เลขรับ/วันที่/เวลา) · แจ้งผู้บริหาร-บัญชี-การเงินทันที เพราะหลักประกันต้องใช้เวลาขอจากธนาคาร</div>
+      </div>
+      <div class="n scan" id="a-1s" style="grid-area:2/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>01_Contract</code> · หนังสือเชิญ</div></div>
+
+      <div class="n pe" id="a-2" style="grid-area:3/1">
+        <div class="hd"><span class="sn">1.2</span><div class="t">ขอร่างสัญญา + ตรวจเทียบ TOR / BOQ / ใบเสนอราคา</div><div class="who">PE</div></div>
+        <ul>
+          <li>ชื่องาน สถานที่ วงเงิน (รวม VAT หรือไม่) ตัวเลข = ตัวอักษร</li>
+          <li>ระยะเวลาก่อสร้าง วันเริ่ม–วันสิ้นสุด · งวดงาน–งวดเงิน</li>
+          <li>ค่าปรับต่อวัน · หลักประกัน % · ระยะรับประกันผลงาน</li>
+          <li>เงินล่วงหน้า · เงินประกันผลงาน (Retention) · ประกันภัย</li>
+        </ul>
+      </div>
+
+      <div class="n dec" id="a-d1" style="grid-area:4/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ข้อความ/ตัวเลข ถูกต้องครบ?</span></div>
+      <div class="n fix" id="a-f1" style="grid-area:4/2"><div class="t">ทำหนังสือขอแก้ไข / สอบถาม</div><div class="d">ส่งผู้ว่าจ้างก่อนวันลงนาม · สแกนเก็บ</div></div>
+
+      <div class="n grp" id="a-g" style="grid-area:5/1">
+        <div class="gt"><span>1.3 เตรียมเอกสารทำสัญญา — ทำพร้อมกัน</span><span>ตามรายการในหนังสือเชิญ</span></div>
+        <div class="gi">
+          <div class="m co"><b>หลักประกันสัญญา</b>ขอ LG จากธนาคาร (การเงิน) · <span class="tag gov">ภาครัฐ</span> ปกติ 5% ของวงเงิน ใช้แบบฟอร์ม/e-LG ตามที่กำหนด</div>
+          <div class="m co"><b>หนังสือรับรองบริษัท</b>ฉบับใหม่ อายุไม่เกินที่กำหนด (เช่น 3–6 เดือน) + สำเนาบัตรกรรมการ รับรองสำเนา</div>
+          <div class="m co"><b>หนังสือมอบอำนาจ</b>ถ้ากรรมการไม่ไปลงนามเอง · ติดอากร 10 บ. (ครั้งเดียว) / 30 บ. (หลายครั้ง) + ขีดฆ่า</div>
+          <div class="m pe"><b>เอกสารอื่นตามหนังสือเชิญ</b>เช่น ภ.พ.20, BOQ ฉบับสุดท้าย, แผนงานเบื้องต้น, รายชื่อวิศวกร</div>
+        </div>
+      </div>
+
+      <div class="n dec" id="a-d2" style="grid-area:6/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>LG ถูกต้อง? (ดูกล่องขวา)</span></div>
+      <div class="n fix" id="a-f2" style="grid-area:6/2"><div class="t">แจ้งธนาคารแก้ไข LG</div><div class="d">ผ่านฝ่ายการเงิน</div></div>
+
+      <div class="n co" id="a-3" style="grid-area:7/1">
+        <div class="hd"><span class="sn">1.4</span><div class="t">ยื่นเอกสาร + ลงนามสัญญา</div><div class="who">บริษัท ↔ ผู้ว่าจ้าง</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> LG + เอกสารนิติบุคคล · <span class="act sign"><svg class="ic s"><use href="#i-pen"/></svg>ลงนาม/ตรา</span> กรรมการผู้มีอำนาจตามหนังสือรับรอง (+ตรา ถ้ากำหนด) · พยาน 2 คน · ลงชื่อย่อทุกหน้า</div>
+      </div>
+
+      <div class="n ex" id="a-4" style="grid-area:8/1">
+        <div class="hd"><span class="sn">1.5</span><div class="t">ชำระอากรแสตมป์สัญญา</div><div class="who">บัญชี → สรรพากร</div></div>
+        <div class="d">สัญญาจ้างทำของ: <b>1 บาท ต่อทุก 1,000 บาท</b> (หรือเศษ) · ผู้รับจ้างเป็นผู้เสีย · ติดอากร+ขีดฆ่า หรือชำระผ่าน <b>e-Stamp Duty</b> → เก็บหลักฐานการชำระไว้กับสัญญา</div>
+      </div>
+
+      <div class="n pe" id="a-5" style="grid-area:9/1">
+        <div class="hd"><span class="sn">1.6</span><div class="t">รับสัญญาคู่ฉบับกลับ + ตรวจครบถ้วน</div><div class="who">PE</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ตรวจตาม Checklist ขวามือ ก่อนออกจากห้องลงนามได้ยิ่งดี</div>
+      </div>
+      <div class="n scan" id="a-5s" style="grid-area:9/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนสีทั้งเล่ม</div><div class="d"><code>01_Contract</code> · รวมภาคผนวก + LG + ใบเสร็จอากร</div></div>
+
+      <div class="n pe" id="a-6" style="grid-area:10/1">
+        <div class="hd"><span class="sn">1.7</span><div class="t">เก็บต้นฉบับ + ทำ “สรุปสัญญา 1 หน้า” + ตั้งปฏิทินเตือน</div><div class="who">PE / บริษัท</div></div>
+        <div class="d">ต้นฉบับสัญญา + สำเนา LG → ตู้เซฟสำนักงาน · สำเนาใช้งานหน้างาน · ส่งสรุปให้ PM, บัญชี, จัดซื้อ</div>
+      </div>
+
+      <div class="n se" id="a-e" style="grid-area:11/1"><div class="t">ไป Phase 2 — เตรียมเริ่มงาน</div></div>
+
+      <script type="application/json" class="edges">[
+        ["a-s","a-1"],["a-1","a-2"],["a-2","a-d1"],
+        ["a-d1","a-g","b-t","ถูกต้อง","yes"],
+        ["a-d1","a-f1","r-l","ไม่ถูก","no"],
+        ["a-f1","a-2","t-r","","no"],
+        ["a-g","a-d2"],
+        ["a-d2","a-3","b-t","ถูกต้อง","yes"],
+        ["a-d2","a-f2","r-l","ไม่ถูก","no"],
+        ["a-f2","a-g","t-r","","no"],
+        ["a-3","a-4"],["a-4","a-5"],["a-5","a-6"],["a-6","a-e"],
+        ["a-1","a-1s","r-l","","dim"],["a-5","a-5s","r-l","","dim"]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-eye"/></svg>ตรวจ LG ก่อนยื่น</h3>
+        <ul class="cl">
+          <li><b>ผู้รับประโยชน์</b> = ชื่อผู้ว่าจ้างถูกต้องตามสัญญา</li>
+          <li><b>จำนวนเงิน</b> ตัวเลข = ตัวอักษร = % ที่กำหนด</li>
+          <li>ชื่อโครงการ / เลขที่ประกาศ / เลขที่สัญญา ตรง</li>
+          <li><b>ระยะเวลาค้ำ</b> ครอบคลุมถึงสิ้นสุดระยะรับประกัน (ถ้ากำหนด)</li>
+          <li>ใช้แบบฟอร์มตามที่ผู้ว่าจ้างกำหนด · ลายเซ็นผู้มีอำนาจธนาคาร</li>
+        </ul>
+      </div>
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจสัญญาที่ได้กลับ (1.6)</h3>
+        <ul class="cl">
+          <li>ลายเซ็น<b>ผู้ว่าจ้าง</b> + ชื่อตัวบรรจง + ตำแหน่ง ครบทุกจุด</li>
+          <li>ลายเซ็น<b>ฝ่ายเรา</b> ตรงกับผู้มีอำนาจ + ตราบริษัท (ถ้ากำหนด)</li>
+          <li><b>พยาน</b> ลงนามครบ 2 คน</li>
+          <li>เลขที่สัญญา + วันที่ลงนาม เขียนครบ ไม่เว้นว่าง</li>
+          <li>ลงชื่อย่อทุกหน้า · จุดแก้ไข/ขีดฆ่ามีลายเซ็นกำกับ</li>
+          <li><b>ภาคผนวกครบ</b>: TOR, BOQ, แบบ, เงื่อนไข, แผนงวด</li>
+          <li>จำนวนหน้าเรียงครบ ไม่มีหน้าหาย/ซ้ำ</li>
+          <li>อากรแสตมป์ติดครบ/ขีดฆ่า หรือมีหลักฐาน e-Stamp</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-doc"/></svg>“สรุปสัญญา 1 หน้า” ต้องมี</h3>
+        <ul class="dl">
+          <li>เลขที่สัญญา · วันลงนาม · <b>วันเริ่ม–วันสิ้นสุด</b> · จำนวนวัน</li>
+          <li>วงเงิน · ตารางงวดงาน–งวดเงิน</li>
+          <li><b>ค่าปรับต่อวัน</b> · เงื่อนไขขยายเวลา</li>
+          <li>หลักประกัน: เลขที่ LG / ธนาคาร / <b>วันหมดอายุ</b></li>
+          <li>เงินล่วงหน้า · Retention · ระยะรับประกัน</li>
+          <li>ผู้ติดต่อ/ผู้ควบคุมงาน · <b>ที่อยู่ส่งหนังสือ</b>ตามสัญญา</li>
+        </ul>
+      </div>
+      <div class="box warn">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ระวัง</h3>
+        <ul class="dl">
+          <li>ดูหนังสือรับรองบริษัท ข้อ “<b>กรรมการผู้มีอำนาจ</b>” ต้องลงนามกี่คน ต้องประทับตราหรือไม่</li>
+          <li>ขอ LG ช้า = ทำสัญญาไม่ทัน อาจถูกริบหลักประกันซอง/ถูกลงโทษ</li>
+          <li>ห้ามเซ็นแทน ห้ามแก้เอกสารที่ลงนามแล้วเอง</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 3 — PHASE 2 MOBILIZATION
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">2</div>
+    <div>
+      <div class="kicker">Phase 2 · Mobilization</div>
+      <h1>เตรียมเริ่มงาน — ได้สัญญาแล้ว ต้องยื่นอะไรต่อ</h1>
+      <p><b>เริ่ม:</b> ได้สัญญาลงนามครบ · <b>จบ:</b> ได้หนังสือให้เริ่มงาน + รับมอบพื้นที่ + ระบบเอกสารหน้างานพร้อม</p>
+    </div>
+    <div class="nav"><span>1</span><span class="on">2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow">
+      <div class="n se" id="b-s" style="grid-area:1/1"><div class="t">ได้สัญญาแล้ว (จาก Phase 1)</div></div>
+
+      <div class="n co" id="b-1" style="grid-area:2/1">
+        <div class="hd"><span class="sn">2.1</span><div class="t">ประชุมเริ่มโครงการภายในบริษัท (Internal Kick-off)</div><div class="who">PE + บริษัท</div></div>
+        <div class="d">แจกสรุปสัญญา 1 หน้า · กำหนดทีม/งบประมาณ · จัดซื้อเริ่มหาวัสดุที่ใช้เวลาผลิตนาน (Long lead)</div>
+      </div>
+
+      <div class="n grp" id="b-g1" style="grid-area:3/1">
+        <div class="gt"><span>2.2 จัดทำเอกสารยื่นผู้ว่าจ้าง — ทำพร้อมกัน</span><span>ภายในวันที่สัญญากำหนด</span></div>
+        <div class="gi">
+          <div class="m pe"><b>แผนการทำงาน</b>Master Schedule (Bar chart) + S-Curve + แผนงวดงาน</div>
+          <div class="m pe"><b>ผังองค์กรโครงการ</b>PM / PE / โฟร์แมน / จป. + สำเนาใบ กว. (รับรองสำเนา)</div>
+          <div class="m ex"><b>ประกันภัย CAR / บุคคลภายนอก</b>ถ้าสัญญากำหนด · ระบุชื่อผู้ว่าจ้างตามเงื่อนไข</div>
+          <div class="m pe"><b>แผนความปลอดภัย</b>+ แผนสิ่งแวดล้อม / จราจร (ถ้าสัญญา/EIA กำหนด)</div>
+          <div class="m pe"><b>Submittal Schedule</b>รายการแบบ/วัสดุที่ต้องขออนุมัติ + วันที่ต้องได้</div>
+          <div class="m co"><b>ขอเบิกเงินล่วงหน้า (ถ้ามี)</b>+ หลักประกันเงินล่วงหน้า · <span class="tag gov">ภาครัฐ</span> ไม่เกิน 15%</div>
+        </div>
+      </div>
+
+      <div class="n pe" id="b-2" style="grid-area:4/1">
+        <div class="hd"><span class="sn">2.3</span><div class="t">ยื่นพร้อมใบนำส่ง (Transmittal)</div><div class="who">PE → ผู้ว่าจ้าง</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ให้ผู้รับเซ็นรับ + วันที่ หรือประทับตรารับ + เลขรับ</div>
+      </div>
+      <div class="n scan" id="b-2s" style="grid-area:4/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนฉบับส่ง</div><div class="d"><code>02_Letters/OUT</code> + ใบนำส่งที่เซ็นรับ</div></div>
+
+      <div class="n dec" id="b-d1" style="grid-area:5/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>อนุมัติ / รับทราบ?</span></div>
+      <div class="n fix" id="b-f1" style="grid-area:5/2"><div class="t">แก้ตามคอมเมนต์</div><div class="d">Rev.+1 แล้วยื่นใหม่</div></div>
+
+      <div class="n ow" id="b-3" style="grid-area:6/1">
+        <div class="hd"><span class="sn">2.4</span><div class="t">รับหนังสือแจ้งให้เริ่มงาน (Notice to Proceed)</div><div class="who">ผู้ว่าจ้าง → PE</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ลงรับ → ตรวจวันเริ่มงาน → คำนวณ<b>วันสิ้นสุดสัญญา</b> ลงปฏิทิน</div>
+      </div>
+      <div class="n scan" id="b-3s" style="grid-area:6/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>01_Contract</code></div></div>
+
+      <div class="n ow" id="b-4" style="grid-area:7/1">
+        <div class="hd"><span class="sn">2.5</span><div class="t">รับมอบพื้นที่ + สำรวจร่วม</div><div class="who">ผู้ว่าจ้าง + PE</div></div>
+        <div class="d">ตรวจหมุดหลักฐาน (BM) ระดับ แนวเขต สภาพเดิม + ถ่ายรูป → <b>บันทึกส่งมอบพื้นที่</b> ลงนาม 2 ฝ่าย</div>
+      </div>
+      <div class="n scan" id="b-4s" style="grid-area:7/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน + รูป</div><div class="d"><code>02_Letters</code> · <code>10_Photos</code></div></div>
+
+      <div class="n grp" id="b-g2" style="grid-area:8/1">
+        <div class="gt"><span>2.6 เตรียมหน้างาน / ขออนุญาต — ทำพร้อมกัน</span></div>
+        <div class="gi">
+          <div class="m ex"><b>ไฟฟ้า–ประปาชั่วคราว</b>ยื่นการไฟฟ้า / การประปาในพื้นที่</div>
+          <div class="m pe"><b>ป้ายโครงการ + ใบอนุญาต</b>ติดป้าย (<span class="tag gov">ภาครัฐ</span> ตามแบบกำหนด) + สำเนาใบอนุญาตก่อสร้างไว้หน้างาน</div>
+          <div class="m ex"><b>แคมป์คนงาน / ใช้พื้นที่สาธารณะ</b>ขออนุญาต/แจ้งท้องถิ่น ถ้าต้องใช้</div>
+          <div class="m co"><b>แรงงาน</b>ประกันสังคม / เงินทดแทน · ใบอนุญาตทำงานแรงงานต่างด้าว</div>
+        </div>
+      </div>
+
+      <div class="n pe" id="b-5" style="grid-area:9/1">
+        <div class="hd"><span class="sn">2.7</span><div class="t">ตั้งระบบเอกสารหน้างาน</div><div class="who">PE</div></div>
+        <div class="d">Register (OUT/IN/Submittal/RFI) · ระบบเลขที่ · แฟ้ม · Folder บน Cloud · แบบฟอร์ม Daily / Transmittal / ใบขอตรวจงาน → ดูหน้า 11</div>
+      </div>
+
+      <div class="n ow" id="b-6" style="grid-area:10/1">
+        <div class="hd"><span class="sn">2.8</span><div class="t">ประชุมเริ่มงานกับผู้ว่าจ้าง (Kick-off)</div><div class="who">ผู้ว่าจ้าง + PE</div></div>
+        <div class="d">ตกลง: ผู้มีอำนาจสั่งงาน · ช่องทางส่งเอกสาร · รอบประชุม · รูปแบบรายงาน/รหัสสถานะอนุมัติ → <b>MOM</b> ลงนามทุกฝ่าย</div>
+      </div>
+      <div class="n scan" id="b-6s" style="grid-area:10/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน MOM</div><div class="d"><code>06_MOM</code></div></div>
+
+      <div class="n se" id="b-e" style="grid-area:11/1"><div class="t">เริ่มก่อสร้าง → Phase 3 และ 4</div></div>
+
+      <script type="application/json" class="edges">[
+        ["b-s","b-1"],["b-1","b-g1"],["b-g1","b-2"],["b-2","b-d1"],
+        ["b-d1","b-3","b-t","ผ่าน","yes"],
+        ["b-d1","b-f1","r-l","ไม่ผ่าน","no"],
+        ["b-f1","b-g1","r-r","ยื่นใหม่","no",{"off":9,"lend":true}],
+        ["b-3","b-4"],["b-4","b-g2"],["b-g2","b-5"],["b-5","b-6"],["b-6","b-e"],
+        ["b-2","b-2s","r-l","","dim"],["b-3","b-3s","r-l","","dim"],["b-4","b-4s","r-l","","dim"],["b-6","b-6s","r-l","","dim"]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจเมื่อได้รับกลับ</h3>
+        <div class="sub">หนังสือให้เริ่มงาน</div>
+        <ul class="cl">
+          <li>ระบุ<b>วันเริ่มงาน</b>ชัดเจน · ผู้ลงนามมีอำนาจ</li>
+          <li>เลขที่สัญญา/ชื่อโครงการตรง</li>
+        </ul>
+        <div class="sub">บันทึกส่งมอบพื้นที่</div>
+        <ul class="cl">
+          <li>ลงนามครบ<b>ทั้ง 2 ฝ่าย</b> + วันที่</li>
+          <li>แนบผังหมุด + ค่าระดับ + รูปสภาพเดิม</li>
+          <li>ระบุพื้นที่ที่ยังส่งมอบไม่ได้ (ถ้ามี)</li>
+        </ul>
+        <div class="sub">แผนงานที่อนุมัติ</div>
+        <ul class="cl">
+          <li>ตราอนุมัติ + ลายเซ็น + วันที่ → ใช้เป็น <b>Baseline</b></li>
+        </ul>
+        <div class="sub">กรมธรรม์ประกันภัย</div>
+        <ul class="cl">
+          <li>ชื่อผู้เอาประกัน/ผู้รับประโยชน์ตามสัญญา</li>
+          <li>ทุนประกัน + <b>ระยะคุ้มครอง</b>ครอบคลุมทั้งโครงการ</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-cal"/></svg>จดลงปฏิทินทันที</h3>
+        <ul class="dl">
+          <li>วันเริ่ม – <b>วันสิ้นสุดสัญญา</b></li>
+          <li>กำหนดส่งเอกสารตามสัญญา (แผนงาน ฯลฯ)</li>
+          <li>กำหนดแล้วเสร็จของแต่ละงวดงาน</li>
+          <li>วันหมดอายุ: <b>LG · กรมธรรม์ · ใบ กว.</b> ของทีม</li>
+        </ul>
+      </div>
+      <div class="box warn">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ระวัง</h3>
+        <ul class="dl">
+          <li>ห้ามเข้าทำงานก่อนได้<b>หนังสือให้เริ่มงาน</b>และรับมอบพื้นที่เป็นลายลักษณ์อักษร</li>
+          <li>ส่งมอบพื้นที่ช้า/ไม่ครบ → <b>ทำหนังสือแจ้งทันที</b> เพื่อรักษาสิทธิ์ขอขยายเวลา</li>
+          <li>วันเริ่มสัญญา = วันเริ่มนับเวลาและค่าปรับ</li>
+        </ul>
+      </div>
+      <div class="box tip">
+        <h3><svg class="ic"><use href="#i-tip"/></svg>เคล็ดลับ</h3>
+        <p>ถามใน Kick-off ให้ชัดว่า “ใครมีอำนาจสั่งงาน/อนุมัติ” และ “ส่งเอกสารช่องทางไหนถือว่าส่งแล้ว” แล้วให้อยู่ใน MOM</p>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 4 — PHASE 3 SUBMITTAL
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">3</div>
+    <div>
+      <div class="kicker">Phase 3 · Submittal &amp; Approval</div>
+      <h1>ขออนุมัติก่อนทำ — Shop Drawing · วัสดุ · วิธีการ · RFI</h1>
+      <p><b>เมื่อไร:</b> ก่อนสั่งซื้อ/ก่อนเริ่มงานแต่ละส่วน ล่วงหน้า 2–4 สัปดาห์ · <b>วนซ้ำ</b>ทุกรายการตลอดโครงการ</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span class="on">3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow" style="row-gap:3.5mm">
+      <div class="n se" id="c-s" style="grid-area:1/1"><div class="t">ถึงเวลาต้องใช้แบบ / วัสดุ / วิธีทำงาน</div><div class="d">ดูจาก Submittal Schedule</div></div>
+
+      <div class="n pe" id="c-1" style="grid-area:2/1">
+        <div class="hd"><span class="sn">3.1</span><div class="t">จัดทำเอกสารขออนุมัติ</div><div class="who">PE</div></div>
+        <ul>
+          <li><b>Shop Drawing</b> — แบบขยายสำหรับก่อสร้างจริง</li>
+          <li><b>Material Submittal</b> — แคตตาล็อก, ตารางเทียบ Spec, มอก., ผลทดสอบ, ตัวอย่างจริง</li>
+          <li><b>Method Statement</b> — ขั้นตอน เครื่องจักร การควบคุมคุณภาพ ความปลอดภัย</li>
+        </ul>
+      </div>
+
+      <div class="n pe" id="c-2" style="grid-area:3/1">
+        <div class="hd"><span class="sn">3.2</span><div class="t">ใส่เลขที่ + Rev. จาก Register + ใบปะหน้า</div><div class="who">PE</div></div>
+        <div class="d">เช่น <span class="mono">P2601-SD-ST-012 Rev.0</span> · ใช้ Submittal Form มาตรฐานของโครงการ</div>
+      </div>
+
+      <div class="n co" id="c-3" style="grid-area:4/1">
+        <div class="hd"><span class="sn">3.3</span><div class="t">ตรวจภายใน + ลงนาม</div><div class="who">PE → PM</div></div>
+        <div class="d"><span class="act sign"><svg class="ic s"><use href="#i-pen"/></svg>ลงนาม</span> ช่อง “ผู้จัดทำ / ผู้ตรวจ” · ตรวจว่าตรงแบบสัญญาและ Spec</div>
+      </div>
+
+      <div class="n pe" id="c-4" style="grid-area:5/1">
+        <div class="hd"><span class="sn">3.4</span><div class="t">ยื่นพร้อมใบนำส่ง (Transmittal)</div><div class="who">PE → CM</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ให้ผู้รับเซ็นรับ + วันที่ · ตัวอย่างวัสดุติดป้ายเลขที่</div>
+      </div>
+      <div class="n scan" id="c-4s" style="grid-area:5/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนฉบับส่ง</div><div class="d"><code>03_Submittal</code> + ใบนำส่ง</div></div>
+
+      <div class="n pe" id="c-5" style="grid-area:6/1">
+        <div class="hd"><span class="sn">3.5</span><div class="t">ลง Register + ติดตาม</div><div class="who">PE</div></div>
+        <div class="d">วันที่ส่ง · กำหนดตอบตามสัญญา (เช่น 7–14 วัน) · ทวงในประชุมประจำสัปดาห์ และบันทึกใน MOM</div>
+      </div>
+
+      <div class="n ow" id="c-6" style="grid-area:7/1">
+        <div class="hd"><span class="sn">3.6</span><div class="t">รับเอกสารกลับ + ตรวจ</div><div class="who">CM → PE</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ตราสถานะ · ลายเซ็น · วันที่ · <b>อ่านคอมเมนต์ทุกหน้า</b></div>
+      </div>
+
+      <div class="n dec" id="c-d" style="grid-area:8/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>สถานะที่ได้?</span></div>
+      <div class="n fix" id="c-f" style="grid-area:8/2"><div class="t">C หรือ D = ห้ามใช้</div><div class="d"><b>C</b> แก้ → Rev.+1 → กลับ 3.2<br><b>D</b> เสนอใหม่ → กลับ 3.1</div></div>
+
+      <div class="n pe" id="c-7" style="grid-area:9/1">
+        <div class="hd"><span class="sn">3.7</span><div class="t">สแกนทุกหน้า + อัปเดต Register</div><div class="who">PE</div></div>
+        <div class="d">รวมหน้าคอมเมนต์/แบบที่เขียนมือ · ใส่สถานะ + วันที่ได้รับ + ลิงก์ไฟล์</div>
+      </div>
+      <div class="n scan" id="c-7s" style="grid-area:9/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>03_Submittal</code></div></div>
+
+      <div class="n pe" id="c-8" style="grid-area:10/1">
+        <div class="hd"><span class="sn">3.8</span><div class="t">แจกจ่ายหน้างาน (Controlled Copy)</div><div class="who">PE</div></div>
+        <div class="d">ประทับ “ใช้ก่อสร้างได้” · <b>B</b> = แก้ตามคอมเมนต์ทุกข้อ · เก็บ Rev. เก่าออก ประทับ “ยกเลิก / SUPERSEDED”</div>
+      </div>
+
+      <div class="n se" id="c-e" style="grid-area:11/1"><div class="t">สั่งซื้อวัสดุ / เริ่มทำงาน → Phase 4</div></div>
+
+      <div class="blk tm" style="grid-area:12/1/13/3">
+        <div class="tm-cap"><svg class="ic"><use href="#i-doc"/></svg>ตัวอย่าง: ใบนำส่งเอกสาร (Transmittal) ต้องมีอะไรบ้าง</div>
+        <div class="tm-paper">
+          <div class="tm-hd">
+            <div class="tm-logo">โลโก้ / ชื่อบริษัท</div>
+            <div class="tm-title">ใบนำส่งเอกสาร<br><span>TRANSMITTAL</span></div>
+            <div class="tm-no"><span class="mk">1</span>เลขที่ <b>P2601-TR-0045</b><br>วันที่ 5 ต.ค. 2569</div>
+          </div>
+          <div class="tm-row"><span><b>โครงการ:</b> อาคารสำนักงาน 5 ชั้น · สัญญาเลขที่ 12/2569</span><span><b>ถึง:</b> ผู้ควบคุมงาน / CM</span><span><b>จาก:</b> PE โครงการ</span></div>
+          <table class="tm-t">
+            <tr><th style="width:6mm">ลำดับ</th><th style="width:32mm"><span class="mk">2</span>เลขที่เอกสาร</th><th style="width:8mm">Rev.</th><th>รายการ</th><th style="width:12mm">จำนวน</th></tr>
+            <tr><td>1</td><td>P2601-SD-ST-012</td><td>1</td><td>Shop Drawing ฐานราก F1–F3</td><td>3 ชุด</td></tr>
+            <tr><td>2</td><td>P2601-MAT-AR-004</td><td>0</td><td>วัสดุกันซึมดาดฟ้า + ตัวอย่างจริง 1 ชิ้น</td><td>1 ชุด</td></tr>
+          </table>
+          <div class="tm-purp"><span class="mk">3</span><b>วัตถุประสงค์:</b> <span class="bx on"></span>เพื่ออนุมัติ <span class="bx"></span>เพื่อทราบ <span class="bx"></span>ตามที่ขอ <span class="bx"></span>แก้ไขส่งใหม่ &nbsp;·&nbsp; <b>ขอคำตอบภายใน:</b> 19 ต.ค. 2569</div>
+          <div class="tm-sign">
+            <div><b>ผู้ส่ง</b> ลงชื่อ ....................... (ชื่อตัวบรรจง / ตำแหน่ง)</div>
+            <div class="rcv"><span class="mk">4</span><b>ผู้รับ</b> ลงชื่อ ................ วันที่ ......... <b>เวลา</b> ......</div>
+          </div>
+        </div>
+        <div class="tm-notes">
+          <span><span class="mk">1</span>เลขที่จาก Register ไม่ซ้ำ</span>
+          <span><span class="mk">2</span>เลขที่ + Rev. ตรงกับเอกสารที่แนบจริง</span>
+          <span><span class="mk">3</span>บอกว่าส่งเพื่ออะไร + วันที่ต้องได้คำตอบ</span>
+          <span><span class="mk">4</span><b>สำคัญที่สุด</b> ลายเซ็นผู้รับ + วัน/เวลา = หลักฐานว่าส่งแล้ว → สแกนเก็บทุกครั้ง</span>
+        </div>
+      </div>
+
+      <script type="application/json" class="edges">[
+        ["c-s","c-1"],["c-1","c-2"],["c-2","c-3"],["c-3","c-4"],["c-4","c-5"],["c-5","c-6"],["c-6","c-d"],
+        ["c-d","c-7","b-t","A / B","yes"],
+        ["c-d","c-f","r-l","C / D","no"],
+        ["c-f","c-2","r-r","C → แก้ Rev.+1","no",{"fa":0.3,"off":8,"lend":true}],
+        ["c-f","c-1","r-r","D → เสนอใหม่","no",{"fa":0.75,"off":15,"lend":true}],
+        ["c-7","c-8"],["c-8","c-e"],
+        ["c-4","c-4s","r-l","","dim"],["c-7","c-7s","r-l","","dim"]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-stamp"/></svg>รหัสสถานะ (ที่ใช้ทั่วไป)</h3>
+        <table class="codes">
+          <tr><td><span class="cd a">A</span></td><td><b>Approved</b> อนุมัติ<br>ใช้ก่อสร้าง/สั่งซื้อได้</td></tr>
+          <tr><td><span class="cd b">B</span></td><td><b>Approved as Noted</b> อนุมัติตามคอมเมนต์<br>ใช้ได้ ต้องแก้ตามคอมเมนต์ (บางโครงการให้ส่ง Rev. ใหม่)</td></tr>
+          <tr><td><span class="cd c">C</span></td><td><b>Revise &amp; Resubmit</b> แก้ไขส่งใหม่<br>ห้ามใช้</td></tr>
+          <tr><td><span class="cd d">D</span></td><td><b>Rejected</b> ไม่อนุมัติ<br>ห้ามใช้ ต้องเสนอใหม่</td></tr>
+        </table>
+        <p class="small muted">รหัสแต่ละโครงการอาจต่างกัน ยึดตามที่ตกลงใน Kick-off</p>
+      </div>
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจเมื่อได้รับกลับ (3.6)</h3>
+        <ul class="cl">
+          <li><b>ตราสถานะ</b>ชัดเจน (A/B/C/D)</li>
+          <li>ลายเซ็นผู้พิจารณา + ชื่อ + วันที่</li>
+          <li>เลขที่ / Rev. ตรงกับที่ส่งไป</li>
+          <li>ได้คืนครบทุกแผ่น/ทุกหน้า</li>
+          <li>อ่าน<b>คอมเมนต์ทุกหน้า</b> รวมที่เขียนมือในแบบ</li>
+          <li>คอมเมนต์ที่ทำให้ราคา/เวลาเปลี่ยน → แจ้งเป็นหนังสือทันที (ไป VO/EOT หน้า 5)</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-doc"/></svg>RFI — เมื่อแบบไม่ชัด/ขัดกัน</h3>
+        <p>ใช้วงจรเดียวกันนี้: <b>1 เรื่องต่อ 1 ฉบับ</b> · เขียนคำถาม + เสนอทางแก้ + รูป/แบบอ้างอิง → ยื่น → ขอคำตอบเป็นลายลักษณ์อักษร → ถ้ากระทบราคา/เวลา → VO / EOT</p>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-list"/></svg>คอลัมน์ Submittal Register</h3>
+        <p class="mono small">เลขที่ · เรื่อง · Rev. · วันส่ง · กำหนดตอบ · วันได้รับ · สถานะ · ลิงก์ไฟล์ · หมายเหตุ</p>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-eye"/></svg>เมื่อวัสดุเข้าหน้างาน</h3>
+        <ul class="cl">
+          <li>เทียบกับ<b>ตัวอย่างที่อนุมัติแล้ว</b> (ให้ CM เซ็นบนป้ายตัวอย่าง เก็บห้อง Sample)</li>
+          <li>ตรวจใบส่งของ + ใบรับรอง/มอก./Mill cert ตรงรุ่นที่อนุมัติ</li>
+          <li>ทำ<b>บันทึกตรวจรับวัสดุ</b> ให้ CM เซ็น → สแกน <code class="fd">07_Test</code></li>
+          <li>ไม่ตรง → แยกกองติดป้าย “ห้ามใช้” แจ้งจัดซื้อคืนของ</li>
+        </ul>
+      </div>
+      <div class="box warn">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ระวัง</h3>
+        <ul class="dl">
+          <li>ห้ามใช้แบบ/วัสดุที่ยังไม่ได้ <b>A หรือ B</b></li>
+          <li>ห้ามสั่งของก่อนอนุมัติ (ถ้าไม่ผ่าน = ของค้าง)</li>
+          <li>หน้างานต้องมีแต่ <b>Rev. ล่าสุด</b> เท่านั้น</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+<!-- =====================================================================
+     PAGE 5 — PHASE 4 CONSTRUCTION
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">4</div>
+    <div>
+      <div class="kicker">Phase 4 · Construction Control</div>
+      <h1>ควบคุมงานก่อสร้าง — รอบประจำ + งานตามเหตุการณ์</h1>
+      <p><b>เมื่อไร:</b> ตลอดช่วงก่อสร้าง · เอกสารชุดนี้คือ<b>หลักฐาน</b>ที่ใช้ตอนส่งงวด ขอเวลา และเบิกงานเพิ่ม</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span class="on">4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="h2"><span class="bar"></span>รอบประจำ — ทำซ้ำตลอดโครงการ</div>
+  <div class="cols3 cmp">
+    <div>
+      <div class="colh"><svg class="ic"><use href="#i-clock"/></svg>ทุกวัน</div>
+      <div class="flow one">
+        <div class="n pe" id="d-1" style="grid-area:1/1"><div class="hd"><div class="t">เช้า: ประชุมความปลอดภัย (Toolbox Talk)</div></div><div class="d">หัวข้อที่คุย + ใบลงชื่อคนงาน</div></div>
+        <div class="n pe" id="d-2" style="grid-area:2/1"><div class="hd"><div class="t">ระหว่างวัน: ถ่ายรูปงาน</div></div><div class="d">ก่อน–ระหว่าง–หลัง · <b>งานที่จะถูกปิด</b> เช่น เหล็กเสริม ท่อฝัง กันซึม</div></div>
+        <div class="n pe" id="d-3" style="grid-area:3/1"><div class="hd"><div class="t">เย็น: Daily Report</div></div><div class="d">คนงาน · เครื่องจักร · วัสดุเข้า · งานที่ทำ · สภาพอากาศ · ปัญหา/อุบัติเหตุ</div></div>
+        <div class="n ow" id="d-4" style="grid-area:4/1"><div class="hd"><div class="t">ผู้ควบคุมงาน / CM เซ็นรับ</div></div><div class="d">ภายในวันถัดไป · วันที่ตรงกับวันทำงาน</div></div>
+        <div class="n scan" id="d-5" style="grid-area:5/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน + เก็บรูป</div><div class="d"><code>05_Reports/Daily</code> · <code>10_Photos/วันที่</code></div></div>
+        <script type="application/json" class="edges">[["d-1","d-2"],["d-2","d-3"],["d-3","d-4"],["d-4","d-5"]]</script>
+      </div>
+    </div>
+    <div>
+      <div class="colh"><svg class="ic"><use href="#i-cal"/></svg>ทุกสัปดาห์</div>
+      <div class="flow one">
+        <div class="n pe" id="w-1" style="grid-area:1/1"><div class="hd"><div class="t">เตรียม Weekly Report</div></div><div class="d">ผลงานสัปดาห์ + แผน 2–3 สัปดาห์หน้า (Look-ahead) + Submittal/RFI ที่ค้าง</div></div>
+        <div class="n ow" id="w-2" style="grid-area:2/1"><div class="hd"><div class="t">ประชุมความก้าวหน้า</div></div><div class="d">ผู้ว่าจ้าง / CM + PE + ผู้รับเหมาช่วง</div></div>
+        <div class="n pe" id="w-3" style="grid-area:3/1"><div class="hd"><div class="t">ร่าง MOM ส่งภายใน 1–2 วัน</div></div><div class="d">ใครทำอะไร เสร็จเมื่อไร · เวียนให้ทุกฝ่ายแก้ไข</div></div>
+        <div class="n ow" id="w-4" style="grid-area:4/1"><div class="hd"><div class="t">ทุกฝ่ายลงนามรับรอง MOM</div></div><div class="d">ข้อตกลงใน MOM = หลักฐานสำคัญ</div></div>
+        <div class="n scan" id="w-5" style="grid-area:5/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>06_MOM</code> · <code>05_Reports/Weekly</code></div></div>
+        <script type="application/json" class="edges">[["w-1","w-2"],["w-2","w-3"],["w-3","w-4"],["w-4","w-5"]]</script>
+      </div>
+    </div>
+    <div>
+      <div class="colh"><svg class="ic"><use href="#i-cal"/></svg>ทุกเดือน</div>
+      <div class="flow one">
+        <div class="n pe" id="m-1" style="grid-area:1/1"><div class="hd"><div class="t">Monthly Report</div></div><div class="d">S-Curve แผน vs จริง · % ความก้าวหน้า · รูป · ปัญหา · ผลทดสอบ · ความปลอดภัย</div></div>
+        <div class="n pe" id="m-2" style="grid-area:2/1"><div class="hd"><div class="t">ยื่นผู้ว่าจ้าง + ประชุมรายเดือน</div></div><div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> พร้อมใบนำส่ง</div></div>
+        <div class="n pe" id="m-3" style="grid-area:3/1"><div class="hd"><div class="t">ช้ากว่าแผน? → แผนเร่งงาน</div></div><div class="d">ทำ Recovery Plan ยื่นให้ผู้ว่าจ้าง ก่อนถูกทวงถาม</div></div>
+        <div class="n pe" id="m-4" style="grid-area:4/1"><div class="hd"><div class="t">เช็กวันหมดอายุ + Backup</div></div><div class="d">LG · กรมธรรม์ · ใบ กว. · สำรองไฟล์ทั้งหมด</div></div>
+        <div class="n scan" id="m-5" style="grid-area:5/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>05_Reports/Monthly</code></div></div>
+        <script type="application/json" class="edges">[["m-1","m-2"],["m-2","m-3"],["m-3","m-4"],["m-4","m-5"]]</script>
+      </div>
+    </div>
+  </div>
+
+  <div class="h2" style="margin-top:3mm"><span class="bar"></span>งานตามเหตุการณ์ — ทำทุกครั้งที่เกิด</div>
+  <div class="cols2 cmp">
+    <div>
+      <div class="colh a">A · ขอตรวจงาน ก่อนเท / ก่อนปิดงาน (Request for Inspection)</div>
+      <div class="flow" style="grid-template-columns:1fr 25mm;column-gap:5mm;row-gap:3.6mm">
+        <div class="n pe" id="ia-1" style="grid-area:1/1"><div class="hd"><span class="sn">A1</span><div class="t">ทำงานเสร็จส่วน + ตรวจเองด้วย Checklist</div></div><div class="d">QC ภายในก่อนเรียกตรวจ</div></div>
+        <div class="n pe" id="ia-2" style="grid-area:2/1"><div class="hd"><span class="sn">A2</span><div class="t">ยื่นใบขอตรวจงาน</div><div class="who">PE → CM</div></div><div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ล่วงหน้าตามตกลง (เช่น ≥ 24 ชม.)</div></div>
+        <div class="n dec" id="ia-d" style="grid-area:3/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>CM ตรวจร่วม ผ่าน?</span></div>
+        <div class="n fix" id="ia-f" style="grid-area:3/2"><div class="t">แก้ไข</div><div class="d">แล้วขอตรวจใหม่</div></div>
+        <div class="n ow" id="ia-3" style="grid-area:4/1"><div class="hd"><span class="sn">A3</span><div class="t">CM เซ็นอนุญาตในใบขอตรวจงาน</div></div><div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> แล้วจึงเท/ปิดงานได้</div></div>
+        <div class="n ex" id="ia-4" style="grid-area:5/1"><div class="hd"><span class="sn">A4</span><div class="t">เก็บตัวอย่าง ส่งแล็บทดสอบ</div></div><div class="d">ก้อนคอนกรีต 7/28 วัน · เหล็กเสริม · เสาเข็ม ฯลฯ</div></div>
+        <div class="n dec" id="ia-d2" style="grid-area:6/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ผลทดสอบ ผ่านเกณฑ์?</span></div>
+        <div class="n fix" id="ia-f2" style="grid-area:6/2"><div class="t">แจ้ง CM ทันที</div><div class="d">ทดสอบเพิ่ม/แก้ตามสั่ง</div></div>
+        <div class="n scan" id="ia-5" style="grid-area:7/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนใบขอตรวจงาน + ผลทดสอบ</div><div class="d"><code>04_RFI-Inspection</code> · <code>07_Test</code></div></div>
+        <script type="application/json" class="edges">[
+          ["ia-1","ia-2"],["ia-2","ia-d"],["ia-d","ia-3","b-t","ผ่าน","yes"],["ia-d","ia-f","r-l","ไม่ผ่าน","no"],
+          ["ia-f","ia-2","r-r","","no",{"off":7}],
+          ["ia-3","ia-4"],["ia-4","ia-d2"],["ia-d2","ia-5","b-t","ผ่าน","yes"],["ia-d2","ia-f2","r-l","ไม่ผ่าน","no"]
+        ]</script>
+      </div>
+    </div>
+    <div>
+      <div class="colh b">B · งานเพิ่ม–ลด (VO) / ขอขยายเวลา (EOT)</div>
+      <div class="flow" style="grid-template-columns:1fr 25mm;column-gap:5mm;row-gap:3.6mm">
+        <div class="n se" id="vo-s" style="grid-area:1/1"><div class="t">เกิดเหตุ</div><div class="d">สั่งเพิ่ม–ลดงาน · แบบเปลี่ยน · ส่งพื้นที่ช้า · ฝน/เหตุสุดวิสัย</div></div>
+        <div class="n pe" id="vo-1" style="grid-area:2/1"><div class="hd"><span class="sn">B1</span><div class="t">แจ้งเป็นหนังสือทันที + หลักฐาน</div></div><div class="d">รูป · Daily Report · MOM · <span class="tag gov">ภาครัฐ</span> ขอขยายเวลา/งดลดค่าปรับ ต้องแจ้งภายใน 15 วัน นับถัดจากวันที่เหตุสิ้นสุด (ตรวจสัญญา)</div></div>
+        <div class="n pe" id="vo-2" style="grid-area:3/1"><div class="hd"><span class="sn">B2</span><div class="t">ประเมินผลกระทบ</div></div><div class="d">ราคา (ปริมาณ × ราคาต่อหน่วย) + เวลา (จำนวนวันที่ขอ)</div></div>
+        <div class="n co" id="vo-3" style="grid-area:4/1"><div class="hd"><span class="sn">B3</span><div class="t">ยื่นขออนุมัติ VO / EOT</div><div class="who">บริษัท → ผู้ว่าจ้าง</div></div><div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ผู้มีอำนาจลงนาม + ตรา</div></div>
+        <div class="n dec" id="vo-d" style="grid-area:5/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>อนุมัติเป็นหนังสือแล้ว?</span></div>
+        <div class="n fix" id="vo-f" style="grid-area:5/2"><div class="t">ยังไม่ได้ = ยังไม่ทำ</div><div class="d">ติดตาม / เจรจา</div></div>
+        <div class="n ow" id="vo-4" style="grid-area:6/1"><div class="hd"><span class="sn">B4</span><div class="t">รับคำสั่งเปลี่ยนแปลง / บันทึกแก้ไขสัญญา</div></div><div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ปรับแผนงาน + งวดงาน แล้วจึงลงมือทำ</div></div>
+        <div class="n scan" id="vo-5" style="grid-area:7/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนทั้งชุด</div><div class="d"><code>08_VO-EOT</code></div></div>
+        <script type="application/json" class="edges">[
+          ["vo-s","vo-1"],["vo-1","vo-2"],["vo-2","vo-3"],["vo-3","vo-d"],["vo-d","vo-4","b-t","อนุมัติ","yes"],["vo-d","vo-f","r-l","ยัง","no"],
+          ["vo-f","vo-3","r-r","","no",{"off":7}],["vo-4","vo-5"]
+        ]</script>
+      </div>
+    </div>
+  </div>
+
+  <div class="box chk" style="margin-top:3mm">
+    <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจเมื่อได้รับกลับ — เอกสาร Phase 4</h3>
+    <div class="g4">
+      <div><div class="sub">Daily Report</div><ul class="cl"><li>ลายเซ็น CM + วันที่</li><li>วันที่ในรายงาน = วันทำงานจริง</li><li>ไม่มีช่องเซ็นว่าง</li></ul></div>
+      <div><div class="sub">MOM</div><ul class="cl"><li>ทุกฝ่ายลงนามครบ</li><li>ข้อความตรงที่ตกลงจริง</li><li>แย้งภายในกำหนด (ถ้าผิด)</li></ul></div>
+      <div><div class="sub">ใบขอตรวจงาน</div><ul class="cl"><li>ผลตรวจ “ผ่าน” ชัดเจน</li><li>ลายเซ็นผู้ตรวจ + วันที่/เวลา</li><li>ระบุตำแหน่ง/Grid ของงาน</li></ul></div>
+      <div><div class="sub">ผลทดสอบจากแล็บ</div><ul class="cl"><li>ลายเซ็นผู้ทดสอบ/ผู้รับรอง + ตราแล็บ</li><li>รหัสตัวอย่าง/วันหล่อ ตรงบันทึก</li><li>ค่าที่ได้ ≥ ค่าที่ Spec กำหนด</li></ul></div>
+    </div>
+  </div>
+
+  <div class="box warn strip">
+    <h3><svg class="ic"><use href="#i-warn"/></svg>กฎเหล็ก: คำสั่งด้วยวาจาหน้างาน</h3>
+    <p>ทำ <b>“หนังสือยืนยันคำสั่ง”</b> (Confirmation of Verbal Instruction) ภายใน 1–2 วัน ให้ผู้สั่งเซ็นรับ · <b>ไม่มีหนังสือ = ไม่มีหลักฐาน</b> ขอเวลาเพิ่มหรือเบิกค่างานเพิ่มไม่ได้</p>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+<!-- =====================================================================
+     PAGE 6 — PHASE 5 BILLING
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">5</div>
+    <div>
+      <div class="kicker">Phase 5 · Progress Billing</div>
+      <h1>ส่งงานงวด & เบิกเงิน — ทำซ้ำทุกงวดจนงวดสุดท้าย</h1>
+      <p><b>เมื่อไร:</b> เมื่อเนื้องานของงวดนั้นครบตามตารางงวดงานในสัญญา · <b>จบ:</b> ได้ใบตรวจรับ + ได้รับเงิน + 50 ทวิ</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span class="on">5</span><span>6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow" style="row-gap:6.2mm">
+      <div class="n se" id="e-s" style="grid-area:1/1"><div class="t">เนื้องานงวดที่ N ใกล้ครบ</div><div class="d">เทียบกับตารางงวดงานในสัญญา</div></div>
+
+      <div class="n pe" id="e-1" style="grid-area:2/1">
+        <div class="hd"><span class="sn">5.1</span><div class="t">ตรวจเงื่อนไขงวดตามสัญญา</div><div class="who">PE</div></div>
+        <div class="d">เนื้องานครบทุกรายการที่ระบุ? ผลทดสอบ/เอกสารที่ต้องแนบ ครบหรือยัง?</div>
+      </div>
+
+      <div class="n pe" id="e-2" style="grid-area:3/1">
+        <div class="hd"><span class="sn">5.2</span><div class="t">ตรวจงานภายใน (Self-inspection)</div><div class="who">PE</div></div>
+        <div class="d">ทำ Defect List เอง → แก้ให้เรียบร้อย<b>ก่อน</b>เรียกผู้ว่าจ้างมาตรวจ</div>
+      </div>
+
+      <div class="n pe" id="e-3" style="grid-area:4/1">
+        <div class="hd"><span class="sn">5.3</span><div class="t">จัดชุดเอกสารส่งงวด</div><div class="who">PE</div></div>
+        <ul>
+          <li><b>หนังสือส่งมอบงานงวดที่ N</b> (ขอให้ตรวจรับ)</li>
+          <li>สรุปผลงาน / ปริมาณงาน (% ตาม BOQ) + รูปก่อน–หลัง</li>
+          <li>ผลทดสอบ + ใบขอตรวจงานที่ผ่านแล้ว · As-built ส่วนนั้น (ถ้ากำหนด)</li>
+        </ul>
+      </div>
+
+      <div class="n co" id="e-4" style="grid-area:5/1">
+        <div class="hd"><span class="sn">5.4</span><div class="t">ผู้มีอำนาจลงนาม + ประทับตรา</div><div class="who">บริษัท</div></div>
+        <div class="d"><span class="act sign"><svg class="ic s"><use href="#i-pen"/></svg>ลงนาม/ตรา</span> หนังสือส่งมอบงาน (หนังสือทางการ)</div>
+      </div>
+
+      <div class="n pe" id="e-5" style="grid-area:6/1">
+        <div class="hd"><span class="sn">5.5</span><div class="t">ยื่นหนังสือ + ชุดเอกสาร</div><div class="who">PE → ผู้ว่าจ้าง</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ขอ<b>เลขรับ + วันที่</b> = หลักฐานวันส่งงาน (ใช้คิดค่าปรับ) · สแกนฉบับส่ง → <code class="fd">09_Payment</code></div>
+      </div>
+
+      <div class="n ow" id="e-6" style="grid-area:7/1">
+        <div class="hd"><span class="sn">5.6</span><div class="t">ตรวจรับงานร่วมที่หน้างาน</div><div class="who">ผู้ว่าจ้าง + PE</div></div>
+        <div class="d">ผู้ว่าจ้าง / CM · <span class="tag gov">ภาครัฐ</span> คณะกรรมการตรวจรับพัสดุ + ผู้ควบคุมงาน · PE พาตรวจ พร้อมเอกสาร</div>
+      </div>
+
+      <div class="n dec" id="e-d" style="grid-area:8/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ผ่านการตรวจรับ?</span></div>
+      <div class="n fix" id="e-f" style="grid-area:8/2"><div class="t">ขอรายการแก้ไขเป็นหนังสือ</div><div class="d">แก้ → แจ้งพร้อมตรวจใหม่</div></div>
+
+      <div class="n ow" id="e-7" style="grid-area:9/1">
+        <div class="hd"><span class="sn">5.7</span><div class="t">รับใบตรวจรับงานงวด</div><div class="who">ผู้ว่าจ้าง → PE</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ตรวจลายเซ็นกรรมการ/ผู้มีอำนาจครบทุกคน</div>
+      </div>
+      <div class="n scan" id="e-7s" style="grid-area:9/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>09_Payment/งวดN</code></div></div>
+
+      <div class="n co" id="e-8" style="grid-area:10/1">
+        <div class="hd"><span class="sn">5.8</span><div class="t">วางบิล: ใบแจ้งหนี้ (+ ใบกำกับภาษี)</div><div class="who">บัญชี → ผู้ว่าจ้าง</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ยอดสุทธิตามกล่องขวา · แนบสำเนาใบตรวจรับ · ขอใบรับวางบิล</div>
+      </div>
+
+      <div class="n co" id="e-9" style="grid-area:11/1">
+        <div class="hd"><span class="sn">5.9</span><div class="t">รับเงิน + 50 ทวิ → ออกใบเสร็จรับเงิน</div><div class="who">ผู้ว่าจ้าง ↔ บัญชี</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ต้นฉบับ 50 ทวิ ส่งบัญชี · อัปเดตตารางติดตามงวดเงิน</div>
+      </div>
+      <div class="n scan" id="e-9s" style="grid-area:11/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนทั้งชุด</div><div class="d"><code>09_Payment/งวดN</code></div></div>
+
+      <div class="n dec" id="e-d2" style="grid-area:12/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>เป็นงวดสุดท้าย?</span></div>
+      <div class="n fix loopbox" id="e-f2" style="grid-area:12/2"><div class="t">กลับ Phase 3–4</div><div class="d">ทำงานงวดถัดไป</div></div>
+
+      <div class="n se" id="e-e" style="grid-area:13/1"><div class="t">ไป Phase 6 — ส่งมอบงาน</div></div>
+
+      <script type="application/json" class="edges">[
+        ["e-s","e-1"],["e-1","e-2"],["e-2","e-3"],["e-3","e-4"],["e-4","e-5"],["e-5","e-6"],["e-6","e-d"],
+        ["e-d","e-7","b-t","ผ่าน","yes"],["e-d","e-f","r-l","ไม่ผ่าน","no"],
+        ["e-f","e-5","r-r","","no",{"off":9}],
+        ["e-7","e-8"],["e-8","e-9"],["e-9","e-d2"],
+        ["e-d2","e-e","b-t","ใช่","yes"],["e-d2","e-f2","r-l","ไม่ใช่","loop"],
+        ["e-7","e-7s","r-l","","dim"],["e-9","e-9s","r-l","","dim"]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-money"/></svg>ยอดเงินงวด (ลำดับทั่วไป)</h3>
+        <table class="calc">
+          <tr><td></td><td>มูลค่างานงวด (ก่อน VAT)</td></tr>
+          <tr><td>−</td><td>หักคืนเงินล่วงหน้า ตาม % ที่สัญญากำหนด</td></tr>
+          <tr><td>−</td><td>เงินประกันผลงาน / Retention (ถ้ามี)</td></tr>
+          <tr><td>−</td><td>ค่าปรับ (ถ้าส่งงานล่าช้า)</td></tr>
+          <tr class="sum"><td>+</td><td>VAT 7% ตามฐานที่บัญชีกำหนด</td></tr>
+          <tr><td>−</td><td>ผู้ว่าจ้างหัก ณ ที่จ่ายจากยอดก่อน VAT: <b>ภาครัฐ 1%</b> · <b>เอกชน 3%</b> (ค่าจ้างทำของ)</td></tr>
+        </table>
+        <p class="small muted">วิธีหักจริงยึดตามสัญญา + ยืนยันกับฝ่ายบัญชีทุกครั้ง</p>
+      </div>
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจเมื่อได้รับกลับ</h3>
+        <div class="sub">ใบตรวจรับงานงวด (5.7)</div>
+        <ul class="cl">
+          <li>ลงนาม<b>ครบทุกคน</b> ไม่มีช่องว่าง</li>
+          <li>ระบุงวดที่ + <b>วันที่ตรวจรับ</b></li>
+          <li>ไม่มีเงื่อนไขค้าง (ถ้ามี ต้องมีรายการแนบ)</li>
+        </ul>
+        <div class="sub">50 ทวิ / เงินที่ได้รับ (5.9)</div>
+        <ul class="cl">
+          <li>ชื่อ + <b>เลขผู้เสียภาษี 13 หลัก</b>ของเราถูก</li>
+          <li>ยอดเงินได้ + ภาษีที่หัก ถูกต้อง</li>
+          <li>ลายเซ็นผู้จ่าย (+ตรา ถ้ามี)</li>
+          <li>ยอดโอนตรงใบแจ้งหนี้ (ไม่ตรง → ถามทันที)</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-list"/></svg>ตารางติดตามงวดเงิน</h3>
+        <table class="mini-t">
+          <tr><th>งวด</th><th>ส่งงาน</th><th>ตรวจรับ</th><th>วางบิล</th><th>รับเงิน</th><th>50ทวิ</th></tr>
+          <tr><td>1</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><td>2</td><td>✓</td><td>✓</td><td>✓</td><td></td><td></td></tr>
+          <tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
+        </table>
+        <p class="small muted">ใส่วันที่จริงในแต่ละช่อง + ยอดเงิน · แชร์กับบัญชี</p>
+      </div>
+      <div class="box warn">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ระวัง</h3>
+        <ul class="dl">
+          <li>งานไม่ครบตามงวด = ตรวจรับไม่ได้ เสียรอบ</li>
+          <li>เก็บ<b>ใบลงรับหนังสือส่งงาน</b>ให้ดี ใช้พิสูจน์วันส่งงาน</li>
+          <li>งานจ้างทำของ: ออกใบกำกับภาษีเมื่อไร ภาษีขายเกิดเมื่อนั้น → ถามบัญชีก่อนออก</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 7 — PHASE 6 HANDOVER
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">6</div>
+    <div>
+      <div class="kicker">Phase 6 · Handover &amp; Close-out</div>
+      <h1>ส่งมอบงาน & ปิดโครงการ</h1>
+      <p><b>เริ่ม:</b> งานเสร็จ ~90–95% · <b>จบ:</b> ได้หนังสือรับมอบงาน + ส่งเอกสารครบ + ออกจากพื้นที่</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span class="on">6</span><span>7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow" style="row-gap:3.8mm">
+      <div class="n se" id="f-s" style="grid-area:1/1"><div class="t">งานก่อสร้างเสร็จ ~90–95%</div></div>
+
+      <div class="n pe" id="f-1" style="grid-area:2/1">
+        <div class="hd"><span class="sn">6.1</span><div class="t">ทดสอบระบบ (Testing &amp; Commissioning)</div><div class="who">PE + ผู้รับเหมาช่วง</div></div>
+        <div class="d">ไฟฟ้า · ประปา-สุขาภิบาล · ดับเพลิง · ปรับอากาศ · ลิฟต์ → รายงานผลลงนามผู้ทดสอบ + CM</div>
+      </div>
+      <div class="n scan" id="f-1s" style="grid-area:2/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนผลทดสอบ</div><div class="d"><code>07_Test</code></div></div>
+
+      <div class="n pe" id="f-2" style="grid-area:3/1">
+        <div class="hd"><span class="sn">6.2</span><div class="t">ตรวจภายใน → Punch List → แก้จนเคลียร์</div><div class="who">PE</div></div>
+      </div>
+
+      <div class="n ow" id="f-3" style="grid-area:4/1">
+        <div class="hd"><span class="sn">6.3</span><div class="t">ตรวจร่วมก่อนส่งมอบ (Pre-final Inspection)</div><div class="who">ผู้ว่าจ้าง/CM + PE</div></div>
+        <div class="d">ได้ Defect List ร่วม ลงนาม 2 ฝ่าย + กำหนดวันแก้</div>
+      </div>
+
+      <div class="n dec" id="f-d1" style="grid-area:5/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>Defect เคลียร์ครบ?</span></div>
+      <div class="n fix" id="f-f1" style="grid-area:5/2"><div class="t">แก้ + รูปก่อน–หลัง</div><div class="d">แล้วขอตรวจซ้ำ</div></div>
+
+      <div class="n grp" id="f-g" style="grid-area:6/1">
+        <div class="gt"><span>6.4 เอกสารส่งมอบ (Close-out) — เริ่มทำคู่ขนานตั้งแต่ 6.1</span></div>
+        <div class="gi">
+          <div class="m pe"><b>As-built Drawing</b>ลงนามวิศวกร + เลข กว. · PDF + CAD</div>
+          <div class="m pe"><b>คู่มือใช้งาน &amp; บำรุงรักษา</b>O&amp;M Manual ทุกระบบ/อุปกรณ์</div>
+          <div class="m pe"><b>ใบรับประกันวัสดุ/อุปกรณ์</b>ออกในชื่อเจ้าของโครงการ</div>
+          <div class="m pe"><b>ผลทดสอบทั้งหมด</b>+ ใบรับรองระบบ/ใบรับรองผู้ผลิต</div>
+          <div class="m pe"><b>กุญแจ / อะไหล่ / เครื่องมือ</b>บัญชีรายการ + ใบส่งมอบ</div>
+          <div class="m pe"><b>บันทึกการอบรมผู้ใช้งาน</b>หัวข้อ + รายชื่อผู้เข้าอบรม</div>
+        </div>
+      </div>
+
+      <div class="n co" id="f-4" style="grid-area:7/1">
+        <div class="hd"><span class="sn">6.5</span><div class="t">ยื่นหนังสือส่งมอบงานงวดสุดท้าย + ชุดเอกสาร</div><div class="who">บริษัท → ผู้ว่าจ้าง</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> แนบใบนำส่งแจงทุกรายการ ให้ผู้รับเซ็นรับ · สแกนฉบับส่ง → <code class="fd">12_Handover</code></div>
+      </div>
+
+      <div class="n dec" id="f-d2" style="grid-area:8/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ตรวจรับงวดสุดท้าย ผ่าน?</span></div>
+      <div class="n fix" id="f-f2" style="grid-area:8/2"><div class="t">แก้ไข</div><div class="d">แล้วยื่นใหม่</div></div>
+
+      <div class="n ow" id="f-5" style="grid-area:9/1">
+        <div class="hd"><span class="sn">6.6</span><div class="t">รับใบตรวจรับงวดสุดท้าย / หนังสือรับมอบงาน</div><div class="who">ผู้ว่าจ้าง → PE</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> <b style="color:var(--warn)">วันที่รับมอบ = วันเริ่มนับระยะรับประกัน</b> → จดทันที</div>
+      </div>
+      <div class="n scan" id="f-5s" style="grid-area:9/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>12_Handover</code></div></div>
+
+      <div class="n grp" id="f-g2" style="grid-area:10/1">
+        <div class="gt"><span>6.7 ปิดงาน — ทำพร้อมกัน</span></div>
+        <div class="gi">
+          <div class="m co"><b>เบิกเงินงวดสุดท้าย</b>ตามขั้นตอน Phase 5</div>
+          <div class="m co"><b>ขอคืนหลักประกันเงินล่วงหน้า</b>เมื่อหักคืนครบแล้ว</div>
+          <div class="m pe"><b>ออกจากพื้นที่</b>ปลดมิเตอร์ชั่วคราว รื้อแคมป์/ป้าย ทำความสะอาด (บันทึก + รูป)</div>
+          <div class="m pe"><b>ขอหนังสือรับรองผลงาน</b>ใช้ยื่นประมูลงานครั้งต่อไป</div>
+        </div>
+      </div>
+
+      <div class="n pe" id="f-6" style="grid-area:11/1">
+        <div class="hd"><span class="sn">6.8</span><div class="t">ปิดแฟ้มโครงการ</div><div class="who">PE</div></div>
+        <div class="d">Register ไม่มีรายการค้าง · ไฟล์สแกนครบทุก Folder · สรุปบทเรียน (Lessons Learned)</div>
+      </div>
+
+      <div class="n se" id="f-e" style="grid-area:12/1"><div class="t">ไป Phase 7 — ระยะรับประกัน</div></div>
+
+      <script type="application/json" class="edges">[
+        ["f-s","f-1"],["f-1","f-2"],["f-2","f-3"],["f-3","f-d1"],
+        ["f-d1","f-g","b-t","ครบ","yes"],["f-d1","f-f1","r-l","ไม่ครบ","no"],["f-f1","f-3","r-r","","no",{"off":9}],
+        ["f-g","f-4"],["f-4","f-d2"],
+        ["f-d2","f-5","b-t","ผ่าน","yes"],["f-d2","f-f2","r-l","ไม่ผ่าน","no"],["f-f2","f-4","r-r","","no",{"off":9}],
+        ["f-5","f-g2"],["f-g2","f-6"],["f-6","f-e"],
+        ["f-1","f-1s","r-l","","dim"],["f-5","f-5s","r-l","","dim"]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจเมื่อได้รับกลับ</h3>
+        <div class="sub">หนังสือรับมอบงาน / ใบตรวจรับงวดสุดท้าย</div>
+        <ul class="cl">
+          <li>ผู้มีอำนาจ/กรรมการลงนามครบ</li>
+          <li>ระบุ<b>วันที่รับมอบ</b>ชัดเจน</li>
+          <li>ถ้ามีรายการค้าง ต้องมีรายการแนบ + กำหนดวันแก้</li>
+        </ul>
+        <div class="sub">ใบนำส่งเอกสารส่งมอบ</div>
+        <ul class="cl">
+          <li>ผู้รับเซ็นรับ<b>ทุกรายการ</b> + วันที่</li>
+          <li>จำนวนชุด/แผ่นตรงกับที่ส่งจริง</li>
+        </ul>
+        <div class="sub">As-built Drawing</div>
+        <ul class="cl">
+          <li>ลายเซ็น + เลข กว. วิศวกรตามสาขา</li>
+          <li>ตรงกับงานจริง · Rev. สุดท้าย</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-list"/></svg>ใบรับประกันที่มักต้องส่ง</h3>
+        <ul class="dl">
+          <li>ระบบกันซึม / หลังคา</li>
+          <li>ป้องกันปลวก</li>
+          <li>อุปกรณ์ไฟฟ้า–เครื่องกล (ผู้ผลิต)</li>
+          <li>ลิฟต์ / เครื่องปรับอากาศ / ปั๊มน้ำ</li>
+          <li>กระจก/อะลูมิเนียม · สี · วัสดุพิเศษตาม Spec</li>
+        </ul>
+        <p class="small muted">ดูรายการจริงใน Spec / เงื่อนไขสัญญา</p>
+      </div>
+      <div class="box warn">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ระวัง</h3>
+        <ul class="dl">
+          <li>ไม่มีหนังสือยืนยันวันรับมอบ = เถียงกันเรื่องวันเริ่มรับประกันภายหลัง</li>
+          <li>เอกสารส่งมอบไม่ครบ อาจยังไม่ตรวจรับ/ไม่จ่ายงวดสุดท้าย</li>
+          <li>ส่งกุญแจ/อะไหล่ ต้องมีใบรับทุกครั้ง</li>
+        </ul>
+      </div>
+      <div class="box tip">
+        <h3><svg class="ic"><use href="#i-tip"/></svg>เคล็ดลับ</h3>
+        <p>เริ่มทำ As-built ตั้งแต่วันแรก: หน้างานต่างจากแบบเมื่อไร ให้มาร์กปากกาแดงในแบบชุดหน้างาน (Red-line) ทันที ตอนจบจะไม่ต้องไล่ความจำ</p>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 8 — PHASE 7 DLP
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num">7</div>
+    <div>
+      <div class="kicker">Phase 7 · Defects Liability Period</div>
+      <h1>ระยะรับประกัน & คืนหลักประกัน</h1>
+      <p><b>เริ่ม:</b> วันรับมอบงาน · <b>ระยะ:</b> ตามสัญญา (เช่น 1–2 ปี) · <b>จบ:</b> ได้หลักประกันคืน + ยกเลิก LG + ปิดแฟ้ม</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span class="on">7</span><div class="nav-cap">PHASE</div></div>
+  </header>
+
+  <div class="body">
+    <div class="flow" style="row-gap:6.2mm">
+      <div class="n se" id="g-s" style="grid-area:1/1"><div class="t">เริ่มระยะรับประกัน</div><div class="d">นับจากวันที่ในหนังสือรับมอบงาน</div></div>
+
+      <div class="n pe" id="g-1" style="grid-area:2/1">
+        <div class="hd"><span class="sn">7.1</span><div class="t">ตั้งปฏิทินเตือน</div><div class="who">PE</div></div>
+        <div class="d">วันครบรับประกัน · วันหมดอายุ LG (ต้องครอบคลุม) · รอบตรวจสภาพ (เช่น ทุก 6 เดือน)</div>
+      </div>
+
+      <div class="n ow" id="g-2" style="grid-area:3/1">
+        <div class="hd"><span class="sn">7.2</span><div class="t">รับแจ้งซ่อม → ลงทะเบียนแจ้งซ่อม</div><div class="who">ผู้ว่าจ้าง → PE</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับ</span> ทางหนังสือ/อีเมล/LINE → ขอให้ยืนยันเป็นหนังสือ · ใส่ Defect Log</div>
+      </div>
+
+      <div class="n pe" id="g-3" style="grid-area:4/1">
+        <div class="hd"><span class="sn">7.3</span><div class="t">ตรวจหน้างาน + ถ่ายรูป + หาสาเหตุ</div><div class="who">PE</div></div>
+      </div>
+
+      <div class="n dec w" id="g-d1" style="grid-area:5/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>อยู่ในความรับผิดชอบ ตามสัญญา?</span></div>
+      <div class="n fix" id="g-f1" style="grid-area:5/2"><div class="t">ตอบเป็นหนังสือ</div><div class="d">พร้อมเหตุผล + หลักฐาน (เช่น ใช้งานผิดวิธี/ต่อเติม)</div></div>
+
+      <div class="n pe" id="g-4" style="grid-area:6/1">
+        <div class="hd"><span class="sn">7.4</span><div class="t">ซ่อมภายในเวลาที่สัญญากำหนด</div><div class="who">PE</div></div>
+        <div class="d">รูปก่อน–หลัง → <b>บันทึกการซ่อม</b> ให้ผู้ว่าจ้างเซ็นรับงาน</div>
+      </div>
+      <div class="n scan" id="g-4s" style="grid-area:6/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>13_Warranty</code></div></div>
+
+      <div class="n dec w" id="g-d2" style="grid-area:7/1"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ใกล้ครบระยะรับประกัน? (≤ 60 วัน)</span></div>
+      <div class="n fix loopbox" id="g-f2" style="grid-area:7/2"><div class="t">ยัง → รอรอบถัดไป</div><div class="d">กลับ 7.2 เมื่อมีแจ้งซ่อม</div></div>
+
+      <div class="n ow" id="g-5" style="grid-area:8/1">
+        <div class="hd"><span class="sn">7.5</span><div class="t">ตรวจร่วมครั้งสุดท้าย</div><div class="who">ผู้ว่าจ้าง + PE</div></div>
+        <div class="d">แก้รายการที่เหลือ → ขอบันทึกว่า<b>ไม่มีรายการค้าง</b></div>
+      </div>
+
+      <div class="n co" id="g-6" style="grid-area:9/1">
+        <div class="hd"><span class="sn">7.6</span><div class="t">ยื่นหนังสือขอคืนหลักประกันสัญญา + Retention</div><div class="who">บริษัท → ผู้ว่าจ้าง</div></div>
+        <div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> เมื่อครบระยะ/พ้นข้อผูกพัน · ระบุเลขที่ LG + จำนวนเงิน</div>
+      </div>
+
+      <div class="n ow" id="g-7" style="grid-area:10/1">
+        <div class="hd"><span class="sn">7.7</span><div class="t">รับต้นฉบับ LG คืน / หนังสือแจ้งคืน + เงิน Retention</div><div class="who">ผู้ว่าจ้าง → บริษัท</div></div>
+        <div class="d"><span class="act recv"><svg class="ic s"><use href="#i-recv"/></svg>รับกลับ</span> ตรวจว่าเป็นต้นฉบับ + เลขที่/จำนวนเงินตรง</div>
+      </div>
+      <div class="n scan" id="g-7s" style="grid-area:10/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกน</div><div class="d"><code>01_Contract</code></div></div>
+
+      <div class="n ex" id="g-8" style="grid-area:11/1">
+        <div class="hd"><span class="sn">7.8</span><div class="t">ส่ง LG คืนธนาคาร / แจ้งยกเลิก</div><div class="who">การเงิน → ธนาคาร</div></div>
+        <div class="d">หยุดค่าธรรมเนียม + คืนวงเงินค้ำ → ขอหนังสือยืนยันการยกเลิก</div>
+      </div>
+
+      <div class="n pe" id="g-9" style="grid-area:12/1">
+        <div class="hd"><span class="sn">7.9</span><div class="t">ปิดแฟ้มถาวร (Archive)</div><div class="who">PE / บริษัท</div></div>
+        <div class="d">เอกสารบัญชี/ภาษี เก็บ<b>อย่างน้อย 5 ปี</b> · สัญญา/แบบ/As-built เก็บตามนโยบายบริษัท</div>
+      </div>
+
+      <div class="n se" id="g-e" style="grid-area:13/1"><div class="t">✓ ปิดโครงการสมบูรณ์</div></div>
+
+      <script type="application/json" class="edges">[
+        ["g-s","g-1"],["g-1","g-2"],["g-2","g-3"],["g-3","g-d1"],
+        ["g-d1","g-4","b-t","ใช่","yes"],["g-d1","g-f1","r-l","ไม่ใช่","no"],
+        ["g-4","g-d2"],["g-d2","g-5","b-t","ใช่","yes"],["g-d2","g-f2","r-l","ยัง","loop"],
+        ["g-f2","g-2","r-r","","loop",{"off":9}],
+        ["g-5","g-6"],["g-6","g-7"],["g-7","g-8"],["g-8","g-9"],["g-9","g-e"],
+        ["g-4","g-4s","r-l","","dim"],["g-7","g-7s","r-l","","dim"]
+      ]</script>
+    </div>
+
+    <div class="side">
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-list"/></svg>ทะเบียนแจ้งซ่อม (Defect Log)</h3>
+        <p class="mono small">เลขที่แจ้ง · วันรับแจ้ง · ตำแหน่ง/อาการ · สาเหตุ · อยู่ในประกัน? · วันเข้าซ่อม · วันเสร็จ · ผู้เซ็นรับงาน · ลิงก์รูป</p>
+      </div>
+      <div class="box chk">
+        <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจเมื่อได้รับกลับ</h3>
+        <div class="sub">บันทึกการซ่อม</div>
+        <ul class="cl">
+          <li>ผู้ว่าจ้างเซ็นรับงานซ่อม + วันที่</li>
+          <li>แนบรูปก่อน–หลัง ตรงตำแหน่ง</li>
+        </ul>
+        <div class="sub">หนังสือคืนหลักประกัน</div>
+        <ul class="cl">
+          <li>เลขที่ LG / ธนาคาร / จำนวนเงิน ตรง</li>
+          <li>ได้<b>ต้นฉบับ LG</b> คืนจริง (ไม่ใช่สำเนา)</li>
+          <li>เงิน Retention ได้ครบยอด</li>
+        </ul>
+        <div class="sub">หนังสือยกเลิกจากธนาคาร</div>
+        <ul class="cl">
+          <li>ระบุเลขที่ LG + วันที่ยกเลิก</li>
+        </ul>
+      </div>
+      <div class="box warn">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ระวัง</h3>
+        <ul class="dl">
+          <li>ไม่ซ่อมในเวลาที่กำหนด → ผู้ว่าจ้างอาจจ้างคนอื่นซ่อมแล้ว<b>หักจากหลักประกัน</b></li>
+          <li>ลืมขอคืน LG = เสียค่าธรรมเนียมธนาคารต่อเนื่อง + วงเงินค้ำถูกกันไว้</li>
+          <li>แจ้งซ่อมทาง LINE/โทร ต้องขอยืนยันเป็นหนังสือเสมอ</li>
+        </ul>
+      </div>
+      <div class="box tip">
+        <h3><svg class="ic"><use href="#i-tip"/></svg>เคล็ดลับ</h3>
+        <p>ถ้ายังไม่ได้<b>หนังสือรับรองผลงาน</b>ใน Phase 6 ให้ขอพร้อมหนังสือขอคืนหลักประกัน</p>
+      </div>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+<!-- =====================================================================
+     PAGE 9 — DOCUMENT LOOP OUT / IN
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num"><svg class="ic big"><use href="#i-loop"/></svg></div>
+    <div>
+      <div class="kicker">เครื่องมือ · Document Control</div>
+      <h1>วงจรเอกสาร — ขาออก (OUT) และ ขาเข้า (IN)</h1>
+      <p>ใช้กับเอกสาร<b>ทุกฉบับ ทุก Phase</b>: หนังสือ · Submittal · รายงาน · ใบขอตรวจงาน · ใบแจ้งหนี้ ฯลฯ</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">ใช้ได้ทุก PHASE</div></div>
+  </header>
+
+  <div class="cols2 cmp">
+    <div>
+      <div class="colh"><svg class="ic"><use href="#i-send"/></svg>ขาออก (OUT) — เราส่งเอกสารออกไป</div>
+      <div class="flow" style="grid-template-columns:1fr 25mm;column-gap:5mm;row-gap:3.6mm">
+        <div class="n se" id="x-s" style="grid-area:1/1"><div class="t">ต้องส่งเอกสารออก</div></div>
+        <div class="n pe" id="x-1" style="grid-area:2/1"><div class="hd"><span class="sn">1</span><div class="t">ขอเลขที่จาก Register + ใช้แบบฟอร์ม</div></div><div class="d">หัวกระดาษ · เรื่อง · เรียน · อ้างถึง · สิ่งที่ส่งมาด้วย</div></div>
+        <div class="n pe" id="x-2" style="grid-area:3/1"><div class="hd"><span class="sn">2</span><div class="t">ตรวจทานเอง</div></div><div class="d">ชื่อโครงการ · เลขสัญญา · ตัวเลข/วันที่ · สิ่งแนบครบ</div></div>
+        <div class="n co" id="x-3" style="grid-area:4/1"><div class="hd"><span class="sn">3</span><div class="t">ผู้มีอำนาจลงนาม / ประทับตรา</div></div><div class="d">เทคนิค → PM/PE · หนังสือทางการ/เงิน/สัญญา → กรรมการ + ตรา</div></div>
+        <div class="n dec" id="x-d" style="grid-area:5/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ลงนามครบ ตามอำนาจ?</span></div>
+        <div class="n fix" id="x-f" style="grid-area:5/2"><div class="t">แก้ / ขอลายเซ็นให้ครบ</div></div>
+        <div class="n scan" id="x-4" style="grid-area:6/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>4 สแกนฉบับที่จะส่ง</div><div class="d">+ ถ่ายสำเนาเก็บ 1 ชุด (ฉบับที่ส่งออกจริง)</div></div>
+        <div class="n pe" id="x-5" style="grid-area:7/1"><div class="hd"><span class="sn">5</span><div class="t">ส่งพร้อมใบนำส่ง</div></div><div class="d"><span class="act send"><svg class="ic s"><use href="#i-send"/></svg>ยื่น</span> ผู้รับเซ็นรับ + ชื่อ + วันที่ + <b>เวลา</b> หรือ ตรารับ + เลขรับ</div></div>
+        <div class="n pe" id="x-6" style="grid-area:8/1"><div class="hd"><span class="sn">6</span><div class="t">ลง Register OUT</div></div><div class="d">เลขที่ · วันที่ส่ง · ผู้รับ · <b>กำหนดตอบ</b></div></div>
+        <div class="n scan" id="x-6s" style="grid-area:8/2"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>สแกนใบรับ</div><div class="d">เก็บคู่ฉบับส่ง</div></div>
+        <div class="n pe" id="x-7" style="grid-area:9/1"><div class="hd"><span class="sn">7</span><div class="t">ติดตาม</div></div><div class="d">ใกล้ครบกำหนด → ทวง (โทร + อีเมล + ในประชุม บันทึกใน MOM)</div></div>
+        <div class="n dec" id="x-d2" style="grid-area:10/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ได้คำตอบ / เอกสารคืน?</span></div>
+        <div class="n fix loopbox" id="x-f2" style="grid-area:10/2"><div class="t">ยัง → ทวงซ้ำ</div></div>
+        <div class="n se" id="x-e" style="grid-area:11/1"><div class="t">ไปวงจรขาเข้า (IN) →</div></div>
+        <script type="application/json" class="edges">[
+          ["x-s","x-1"],["x-1","x-2"],["x-2","x-3"],["x-3","x-d"],["x-d","x-4","b-t","ครบ","yes"],["x-d","x-f","r-l","ไม่ครบ","no"],["x-f","x-3","r-r","","no",{"off":7}],
+          ["x-4","x-5"],["x-5","x-6"],["x-6","x-7"],["x-7","x-d2"],["x-d2","x-e","b-t","ได้แล้ว","yes"],["x-d2","x-f2","r-l","ยัง","loop"],["x-f2","x-7","r-r","","loop",{"off":7}],
+          ["x-6","x-6s","r-l","","dim"]
+        ]</script>
+      </div>
+    </div>
+    <div>
+      <div class="colh"><svg class="ic"><use href="#i-recv"/></svg>ขาเข้า (IN) — มีเอกสารเข้ามา / ได้เอกสารคืน</div>
+      <div class="flow" style="grid-template-columns:1fr 25mm;column-gap:5mm;row-gap:3.6mm">
+        <div class="n se" id="y-s" style="grid-area:1/1"><div class="t">มีเอกสารเข้ามา</div><div class="d">หนังสือ · เอกสารตอบกลับ · คำสั่ง</div></div>
+        <div class="n pe" id="y-1" style="grid-area:2/1"><div class="hd"><span class="sn">1</span><div class="t">ประทับตรารับ</div></div><div class="d">เลขรับ · วันที่ · เวลา · ผู้รับ · ถ้าเป็นการตอบกลับ ให้จับคู่กับเลขที่ที่ส่งไป</div></div>
+        <div class="n pe" id="y-2" style="grid-area:3/1"><div class="hd"><span class="sn">2</span><div class="t">ตรวจความถูกต้อง</div></div><div class="d">ลายเซ็น · ตรา · วันที่ · เลขที่/Rev. · ครบหน้า/สิ่งแนบ → <b>หน้า 10</b></div></div>
+        <div class="n dec" id="y-d" style="grid-area:4/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ถูกต้องครบ?</span></div>
+        <div class="n fix" id="y-f" style="grid-area:4/2"><div class="t">แจ้งผู้ส่งขอแก้</div><div class="d">เป็นหนังสือ/อีเมล · Register = “รอแก้”</div></div>
+        <div class="n scan" id="y-3" style="grid-area:5/1"><div class="t"><svg class="ic s"><use href="#i-scan"/></svg>3 สแกนภายในวันที่ได้รับ</div><div class="d">ตั้งชื่อไฟล์ + วางใน Folder → <b>หน้า 11</b></div></div>
+        <div class="n pe" id="y-4" style="grid-area:6/1"><div class="hd"><span class="sn">4</span><div class="t">อัปเดต Register IN</div></div><div class="d">ปิดรายการ OUT ที่ได้คำตอบแล้ว · ใส่ลิงก์ไฟล์</div></div>
+        <div class="n pe" id="y-5" style="grid-area:7/1"><div class="hd"><span class="sn">5</span><div class="t">ต้นฉบับเข้าแฟ้ม · สำเนาแจก</div></div><div class="d">เรียงตามเลขรับ · แจกหน้างาน / จัดซื้อ / บัญชี ตามเรื่อง</div></div>
+        <div class="n dec" id="y-d2" style="grid-area:8/1;width:40mm"><svg viewBox="0 0 100 50" preserveAspectRatio="none"><polygon points="50,1 99,25 50,49 1,25"/></svg><span>ต้องตอบ / ต้องทำต่อ?</span></div>
+        <div class="n fix loopbox" id="y-f2" style="grid-area:8/2"><div class="t">กำหนดวันตอบ</div><div class="d">→ เริ่มวงจรขาออก</div></div>
+        <div class="n se" id="y-e" style="grid-area:9/1"><div class="t">จบ — เก็บเข้าแฟ้ม</div></div>
+        <script type="application/json" class="edges">[
+          ["y-s","y-1"],["y-1","y-2"],["y-2","y-d"],["y-d","y-3","b-t","ครบ","yes"],["y-d","y-f","r-l","ไม่ครบ","no"],
+          ["y-3","y-4"],["y-4","y-5"],["y-5","y-d2"],["y-d2","y-e","b-t","ไม่ต้อง","yes"],["y-d2","y-f2","r-l","ต้อง","loop"]
+        ]</script>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols2" style="margin-top:3.4mm;align-items:start">
+    <div class="box">
+      <h3><svg class="ic"><use href="#i-send"/></svg>ช่องทางส่ง & หลักฐานที่ต้องเก็บ</h3>
+      <table class="tbl sm">
+        <tr><th style="width:22mm">ช่องทาง</th><th>หลักฐานการส่ง</th></tr>
+        <tr><td><b>ส่งด้วยมือ</b></td><td>ลายเซ็นผู้รับ + วัน/เวลา บนใบนำส่ง หรือตรารับ + เลขรับ (ส่งที่งานสารบรรณ/ผู้มีหน้าที่รับ)</td></tr>
+        <tr><td><b>ไปรษณีย์ตอบรับ / EMS</b></td><td>ใบรับฝาก + ใบตอบรับ / ผลติดตามพัสดุ · ส่งถึงที่อยู่ตามสัญญาเท่านั้น</td></tr>
+        <tr><td><b>อีเมล / ระบบออนไลน์</b></td><td>อีเมลที่ส่ง + อีเมลตอบรับ · ใช้ได้เมื่อตกลงไว้ · หนังสือสำคัญส่งตัวจริงตาม</td></tr>
+        <tr><td><b>LINE / โทร</b></td><td><b style="color:var(--warn)">ไม่นับเป็นหนังสือ</b> ใช้ประสานงานเท่านั้น → ยืนยันเป็นหนังสือเสมอ</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3><svg class="ic"><use href="#i-list"/></svg>คอลัมน์ Register ที่ควรมี (Excel)</h3>
+      <div class="sub" style="margin-top:0">Register OUT</div>
+      <p class="mono small">เลขที่ · วันที่ · ถึง · เรื่อง · อ้างถึง · กำหนดตอบ · วันที่ได้คำตอบ · สถานะ · ลิงก์ไฟล์</p>
+      <div class="sub">Register IN</div>
+      <p class="mono small">เลขรับ · วัน/เวลารับ · จาก · เลขที่หนังสือ · เรื่อง · ต้องตอบภายใน · ผู้รับผิดชอบ · สถานะ · ลิงก์ไฟล์</p>
+      <p class="small muted" style="margin-top:1.2mm">ใช้สีแถว: เหลือง = รอคำตอบ · แดง = เลยกำหนด · เขียว = ปิดแล้ว</p>
+    </div>
+  </div>
+  <div class="box tip strip" style="margin-top:3.4mm">
+    <h3><svg class="ic"><use href="#i-clock"/></svg>กฎภายในวันเดียว</h3>
+    <p>เอกสารเข้ามาวันไหน → <b>ลงรับ · ตรวจ · สแกน · ลง Register ให้จบในวันนั้น</b> · ถ้ารอสะสมไว้ทำทีเดียว เอกสารจะหาย และจะลืมกำหนดตอบ</p>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 10 — SIGNATURE / STAMP CHECK
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num"><svg class="ic big"><use href="#i-pen"/></svg></div>
+    <div>
+      <div class="kicker">เครื่องมือ · Signature &amp; Stamp Check</div>
+      <h1>ตรวจลายเซ็น · ตราประทับ · ความถูกต้อง</h1>
+      <p>ใช้ทุกครั้งที่<b>ได้เอกสารกลับมา</b> และ<b>ก่อนส่งออก</b> · ไม่ผ่านข้อใดข้อหนึ่ง = ยังไม่ใช่ฉบับสมบูรณ์</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">ใช้ได้ทุก PHASE</div></div>
+  </header>
+
+  <div class="sig-wrap">
+    <div class="paper">
+      <div class="lh"><div class="lh-logo"></div><div><b>บริษัท ตัวอย่าง ก่อสร้าง จำกัด</b><br><span>ที่อยู่ · โทร · เลขประจำตัวผู้เสียภาษี</span></div></div>
+      <div class="rstamp"><b>ตรารับ</b> เลขรับ <u>1234</u><br>วันที่ <u>6 ต.ค. 69</u> เวลา <u>10.30</u><br>ผู้รับ <span class="scrib-s"></span></div>
+      <div class="pl"><span class="mk">1</span>ที่ P2601-OUT-0123</div>
+      <div class="pl r">วันที่ 5 ตุลาคม 2569</div>
+      <div class="pl"><span class="mk">2</span><b>เรื่อง</b> ขอส่งมอบงานงวดที่ 3</div>
+      <div class="pl"><b>เรียน</b> ประธานกรรมการตรวจรับ / ผู้แทนผู้ว่าจ้าง</div>
+      <div class="pl"><span class="mk">3</span><b>อ้างถึง</b> สัญญาจ้างเลขที่ 12/2569 ลงวันที่ 1 มิถุนายน 2569</div>
+      <div class="pl"><span class="mk">4</span><b>สิ่งที่ส่งมาด้วย</b> 1. สรุปผลงานงวดที่ 3 &nbsp;2. รูปถ่าย &nbsp;3. ผลทดสอบคอนกรีต</div>
+      <div class="lines"><i style="width:94%"></i><i style="width:100%"></i><i style="width:88%"></i></div>
+      <div class="pl">…งานแล้วเสร็จเมื่อวันที่ <s>15</s> <span class="corr">16<span class="ini">ลช.</span></span> กันยายน 2569 <span class="mk">5</span></div>
+      <div class="lines"><i style="width:97%"></i><i style="width:62%"></i></div>
+      <div class="pl c">ขอแสดงความนับถือ</div>
+      <div class="sig">
+        <svg viewBox="0 0 120 34" class="scrib"><path d="M4 24c8-14 14-18 16-10s-6 14 2 10 12-18 18-14-4 16 4 12 10-12 16-10 2 10 8 8 14-8 20-12 8 6 14 2"/></svg>
+        <div class="cseal">ตรา<br>บริษัท</div>
+        <span class="mk m6">6</span><span class="mk m8">8</span>
+      </div>
+      <div class="pl c"><span class="mk">7</span>( ชื่อ–นามสกุล ตัวบรรจง )<br>กรรมการผู้จัดการ</div>
+      <div class="pgno"><span class="mk">10</span>หน้า 1/1</div>
+      <span class="mk m9">9</span>
+    </div>
+
+    <div class="sig-list">
+      <div class="h2" style="font-size:9pt"><span class="bar"></span>10 จุดที่ต้องตรวจ</div>
+      <ol class="pts">
+        <li><b>เลขที่ + วันที่</b> มีครบ ตรงกับ Register</li>
+        <li><b>เรื่อง / เรียน</b> ถึงผู้มีอำนาจที่ถูกต้องตามสัญญา</li>
+        <li><b>อ้างถึง</b> เลขที่สัญญา/หนังสือฉบับก่อน ถูกต้อง</li>
+        <li><b>สิ่งที่ส่งมาด้วย</b> แนบครบตามจำนวนที่ระบุ</li>
+        <li><b>จุดแก้ไข/ขีดฆ่า</b> มีลายเซ็นย่อกำกับทุกจุด · ห้ามใช้น้ำยาลบคำผิด</li>
+        <li><b>ลายเซ็น</b> หมึกจริง ครบทุกช่อง (ไม่ใช่สำเนา/ลายเซ็นสแกน เว้นแต่ตกลงไว้)</li>
+        <li><b>ชื่อตัวบรรจง + ตำแหน่ง</b> ตรงกับผู้มีอำนาจ (หนังสือรับรอง / คำสั่งแต่งตั้ง / หนังสือมอบอำนาจ)</li>
+        <li><b>ตราประทับ</b> ตราบริษัท/หน่วยงาน (ถ้ากำหนด) ชัดเจน · ตราสถานะ (Approved ฯลฯ)</li>
+        <li><b>ตรารับ</b> เลขรับ + วันที่ + เวลา + ผู้รับ = หลักฐานว่าส่งถึงแล้ว</li>
+        <li><b>เลขหน้า</b> ครบ x/y · สัญญาต้องลงชื่อย่อทุกหน้า</li>
+      </ol>
+      <div class="box warn" style="margin-top:2mm">
+        <h3><svg class="ic"><use href="#i-warn"/></svg>ถ้าพบว่าไม่สมบูรณ์</h3>
+        <ul class="dl">
+          <li>ยังไม่เข้าแฟ้มเป็นฉบับสมบูรณ์ → Register “รอแก้”</li>
+          <li>แจ้งผู้ส่งเป็นลายลักษณ์อักษร ขอฉบับแก้/ขอลายเซ็นเพิ่ม</li>
+          <li><b>ห้ามแก้เอง ห้ามเซ็นแทน</b> ห้ามประทับตราแทน</li>
+        </ul>
+      </div>
+      <div class="box" style="margin-top:2mm">
+        <h3><svg class="ic"><use href="#i-stamp"/></svg>การรับรองสำเนาถูกต้อง</h3>
+        <p>เขียน “<b>สำเนาถูกต้อง</b>” + ลงนามเจ้าของเอกสาร/ผู้มีอำนาจ (+ตรา ถ้ากำหนด) + เขียนกำกับ “<b>ใช้สำหรับ…เท่านั้น</b>” กันนำไปใช้ผิดวัตถุประสงค์</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="h2" style="margin-top:3.4mm"><span class="bar"></span>ตรวจอะไรเพิ่ม แยกตามประเภทเอกสาร</div>
+  <table class="tbl">
+    <tr><th style="width:36mm">เอกสาร</th><th style="width:44mm">ใครต้องลงนาม</th><th style="width:34mm">ตรา / อากร</th><th>จุดตรวจพิเศษ</th></tr>
+    <tr><td><b>สัญญา / บันทึกแก้ไขสัญญา</b></td><td>ผู้มีอำนาจทั้ง 2 ฝ่าย + พยาน 2 คน</td><td>ตราบริษัท (ถ้ากำหนด) · อากรแสตมป์</td><td>ลงชื่อย่อทุกหน้า · ภาคผนวกครบ · เลขที่/วันที่ลงนามไม่ว่าง</td></tr>
+    <tr><td><b>หนังสือค้ำประกัน (LG)</b></td><td>ผู้มีอำนาจของธนาคาร</td><td>ตามแบบของธนาคาร / e-LG</td><td>ผู้รับประโยชน์ · วงเงิน · ระยะเวลาค้ำ · ใช้แบบฟอร์มที่ผู้ว่าจ้างกำหนด</td></tr>
+    <tr><td><b>หนังสือมอบอำนาจ</b></td><td>กรรมการผู้มีอำนาจ + ผู้รับมอบ + พยาน</td><td>อากร 10 / 30 บาท + ขีดฆ่า · ตรา (ถ้ากำหนด)</td><td>ขอบเขตอำนาจครอบคลุมเรื่องที่จะทำ · ไม่หมดอายุ</td></tr>
+    <tr><td><b>สำเนาเอกสาร</b> (บัตร, ใบ กว., หนังสือรับรอง)</td><td>เจ้าของเอกสาร / ผู้มีอำนาจ รับรองสำเนา</td><td>ตราบริษัท (ถ้ากำหนด)</td><td>เขียนวัตถุประสงค์กำกับ · เอกสารยังไม่หมดอายุ</td></tr>
+    <tr><td><b>หนังสือออก–เข้า (ทางการ)</b></td><td>ผู้มีอำนาจตามเรื่อง</td><td>ตราบริษัท/หน่วยงาน (ถ้ากำหนด) · ตรารับ</td><td>เลขที่ · อ้างถึงถูกฉบับ · ตรารับมีวัน/เวลา</td></tr>
+    <tr><td><b>Shop Drawing / Submittal</b></td><td>ผู้จัดทำ + ผู้ตรวจ (เรา) + ผู้พิจารณา (CM)</td><td>ตราสถานะ A/B/C/D</td><td>เลขที่ + Rev. ตรง · อ่านคอมเมนต์ทุกหน้า</td></tr>
+    <tr><td><b>แบบวิศวกรรม / As-built</b></td><td>วิศวกรผู้รับผิดชอบ + เลขทะเบียน กว.</td><td>—</td><td>สาขา/ระดับใบอนุญาตตรงงาน · เช็กสถานะใบ กว. ที่เว็บสภาวิศวกร</td></tr>
+    <tr><td><b>Daily / MOM / ใบขอตรวจงาน</b></td><td>PE + CM (MOM = ทุกฝ่าย)</td><td>—</td><td>วันที่ตรงวันจริง · ไม่มีช่องเซ็นว่าง · ผลตรวจชัดเจน</td></tr>
+    <tr><td><b>ผลทดสอบวัสดุ</b></td><td>ผู้ทดสอบ + ผู้รับรอง (วิศวกร)</td><td>ตราห้องปฏิบัติการ</td><td>รหัสตัวอย่าง · วันหล่อ/วันทดสอบ · ค่าผ่านเกณฑ์ Spec</td></tr>
+    <tr><td><b>ใบตรวจรับงาน</b></td><td>กรรมการตรวจรับ / ผู้มีอำนาจ ครบทุกคน</td><td>ตราหน่วยงาน (ถ้ามี)</td><td>งวดที่ · วันที่ตรวจรับ · ไม่มีเงื่อนไขค้าง</td></tr>
+    <tr><td><b>ใบแจ้งหนี้ / ใบกำกับภาษี</b></td><td>ผู้มีอำนาจ / ผู้รับเงิน</td><td>ตราบริษัท (ถ้ากำหนด)</td><td>เลขผู้เสียภาษี 13 หลัก + สาขา ทั้ง 2 ฝ่าย · ยอด VAT ถูก</td></tr>
+    <tr><td><b>50 ทวิ</b></td><td>ผู้จ่ายเงิน</td><td>ตรา (ถ้ามี)</td><td>ชื่อ/เลขภาษีของเราถูก · ยอดเงินได้/ภาษีตรง · ต้นฉบับส่งบัญชี</td></tr>
+    <tr><td><b>กรมธรรม์ประกันภัย</b></td><td>บริษัทประกันภัย</td><td>—</td><td>ผู้เอาประกัน/ผู้รับประโยชน์ · ทุนประกัน · ระยะคุ้มครอง</td></tr>
+  </table>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+<!-- =====================================================================
+     PAGE 11 — SCAN / NAMING / FILING
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num"><svg class="ic big"><use href="#i-scan"/></svg></div>
+    <div>
+      <div class="kicker">เครื่องมือ · Scan &amp; Filing Standard</div>
+      <h1>มาตรฐานการสแกน ตั้งชื่อไฟล์ และจัดเก็บ</h1>
+      <p>เป้าหมาย: หาเอกสารใดก็ได้เจอภายใน 1 นาที ทั้งไฟล์และตัวจริง · ทำ<b>ภายในวันที่ได้รับ</b></p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">ใช้ได้ทุก PHASE</div></div>
+  </header>
+
+  <div class="h2"><span class="bar"></span>ขั้นตอนสแกน–จัดเก็บ</div>
+  <div class="chev">
+    <div><b>1</b>ตรวจเอกสาร<span>หน้า 10</span></div>
+    <div><b>2</b>สแกน<span>ตามตารางล่าง</span></div>
+    <div><b>3</b>ตรวจไฟล์<span>ครบ · ชัด · ไม่เอียง</span></div>
+    <div><b>4</b>ตั้งชื่อไฟล์<span>ตามรูปแบบ</span></div>
+    <div><b>5</b>วางใน Folder<span>ตามหมวด</span></div>
+    <div><b>6</b>อัปเดต Register<span>+ ลิงก์ไฟล์</span></div>
+    <div><b>7</b>ตัวจริงเข้าแฟ้ม<span>+ Backup</span></div>
+  </div>
+
+  <div class="cols2" style="margin-top:3.4mm;align-items:start;grid-template-columns:1.25fr 1fr">
+    <div class="box">
+      <h3><svg class="ic"><use href="#i-scan"/></svg>ตั้งค่าการสแกน</h3>
+      <table class="tbl sm">
+        <tr><th>ประเภทเอกสาร</th><th style="width:15mm">ความละเอียด</th><th style="width:12mm">สี</th><th>หมายเหตุ</th></tr>
+        <tr><td><b>สัญญา · LG · เอกสารการเงิน</b></td><td>300 dpi</td><td>สี</td><td>ทั้งเล่ม รวมปก/ภาคผนวก เป็น 1 ไฟล์</td></tr>
+        <tr><td><b>มีลายเซ็น/ตรา</b> (หนังสือ, ใบตรวจรับ, Submittal ที่ได้คืน)</td><td>200–300 dpi</td><td>สี</td><td>เห็นสีหมึก/ตรา ใช้พิสูจน์ว่าเป็นต้นฉบับ</td></tr>
+        <tr><td><b>รายงานทั่วไป</b> (Daily, Weekly)</td><td>200 dpi</td><td>เทา/สี</td><td>หน้าที่มีลายเซ็นให้ชัดเจน</td></tr>
+        <tr><td><b>แบบ A1–A3</b></td><td>300 dpi</td><td>สี</td><td>ใช้ PDF จาก CAD + สแกนเฉพาะแผ่นที่มีลายเซ็น/คอมเมนต์</td></tr>
+      </table>
+      <p class="small muted">บันทึกเป็น PDF · เปิด OCR ถ้าเครื่องทำได้ (ค้นหาข้อความได้) · 1 เอกสาร = 1 ไฟล์ ครบทุกหน้า</p>
+    </div>
+    <div class="box chk">
+      <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจไฟล์หลังสแกน</h3>
+      <ul class="cl">
+        <li>จำนวนหน้าตรงกับตัวจริง ไม่ขาด/ไม่ซ้ำ</li>
+        <li>เรียงหน้าถูก หันถูกทิศ ไม่เอียง ไม่ตกขอบ</li>
+        <li>อ่านตัวเลข/ลายเซ็น/ตราได้ชัด</li>
+        <li>รวมสิ่งแนบ/หน้าคอมเมนต์ ในไฟล์เดียวกัน</li>
+        <li>ขนาดไฟล์เหมาะสม (ส่งอีเมลได้)</li>
+        <li>ตั้งชื่อถูกรูปแบบ ก่อนย้ายเข้า Folder</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="h2" style="margin-top:3.4mm"><span class="bar"></span>รูปแบบชื่อไฟล์</div>
+  <div class="fname">
+    <div class="seg s1"><b>P2601</b><span>รหัสโครงการ</span></div><i>-</i>
+    <div class="seg s2"><b>SD</b><span>ประเภท</span></div><i>-</i>
+    <div class="seg s3"><b>ST</b><span>สาขา (ถ้ามี)</span></div><i>-</i>
+    <div class="seg s4"><b>012</b><span>ลำดับ</span></div><i>_</i>
+    <div class="seg s5"><b>R1</b><span>Rev.</span></div><i>_</i>
+    <div class="seg s6"><b>20261005</b><span>วันที่ ปปปปดดวว</span></div><i>_</i>
+    <div class="seg s7"><b>ฐานรากF1-F3</b><span>คำอธิบายสั้น</span></div><i>.pdf</i>
+  </div>
+  <div class="fx">
+    <span class="mono">P2601-OUT-0123_20261005_ขอส่งมอบงานงวด3.pdf</span>
+    <span class="mono">P2601-MAT-AR-004_R0_20261003_กันซึมดาดฟ้า.pdf</span>
+    <span class="mono">P2601-INS-0156_20261008_เทพื้นชั้น2-โซนA.pdf</span>
+    <span class="mono">P2601-DR_20261008.pdf</span>
+  </div>
+  <p class="small muted" style="margin:1mm 0 0">วันที่ใช้ ปี–เดือน–วัน เพื่อให้เรียงตามเวลาอัตโนมัติ (ใช้ ค.ศ. หรือ พ.ศ. ก็ได้ แต่ต้องแบบเดียวทั้งโครงการ) · ไม่ใช้อักขระ / \ : * ? " &lt; &gt; |</p>
+
+  <div class="cols3" style="margin-top:3.4mm;align-items:start;grid-template-columns:1fr 1fr 1fr">
+    <div class="box">
+      <h3><svg class="ic"><use href="#i-doc"/></svg>รหัสประเภทเอกสาร</h3>
+      <table class="codes2">
+        <tr><td>CON</td><td>สัญญา / หลักประกัน / ประกันภัย</td></tr>
+        <tr><td>OUT · IN</td><td>หนังสือออก · หนังสือเข้า</td></tr>
+        <tr><td>TR</td><td>ใบนำส่ง (Transmittal)</td></tr>
+        <tr><td>SD</td><td>Shop Drawing</td></tr>
+        <tr><td>MAT</td><td>ขออนุมัติวัสดุ</td></tr>
+        <tr><td>MST</td><td>Method Statement</td></tr>
+        <tr><td>RFI</td><td>ขอคำชี้แจง</td></tr>
+        <tr><td>INS</td><td>ใบขอตรวจงาน</td></tr>
+        <tr><td>DR · WR · MR</td><td>รายงานวัน / สัปดาห์ / เดือน</td></tr>
+        <tr><td>MOM</td><td>รายงานการประชุม</td></tr>
+        <tr><td>TST</td><td>ผลทดสอบ</td></tr>
+        <tr><td>VO · EOT</td><td>งานเพิ่มลด · ขยายเวลา</td></tr>
+        <tr><td>PAY</td><td>ส่งงวด / วางบิล</td></tr>
+        <tr><td>ABD · OM · WTY</td><td>As-built · คู่มือ · ใบรับประกัน</td></tr>
+      </table>
+      <p class="small muted">สาขา: AR สถาปัตย์ · ST โครงสร้าง · EE ไฟฟ้า · SN สุขาภิบาล · ME เครื่องกล · FP ดับเพลิง · CV โยธา</p>
+    </div>
+    <div class="box">
+      <h3><svg class="ic"><use href="#i-folder"/></svg>โครงสร้าง Folder</h3>
+      <div class="tree">
+        <div class="root">P2601_ชื่อโครงการ/</div>
+        <div><b>00_Register</b> <em>ทะเบียน Excel ทั้งหมด</em></div>
+        <div><b>01_Contract</b> <em>สัญญา LG ประกันภัย NTP</em></div>
+        <div><b>02_Letters</b> <em>/IN · /OUT</em></div>
+        <div><b>03_Submittal</b> <em>/SD · /MAT · /MST · แผนงาน</em></div>
+        <div><b>04_RFI-Inspection</b></div>
+        <div><b>05_Reports</b> <em>/Daily · /Weekly · /Monthly</em></div>
+        <div><b>06_MOM</b></div>
+        <div><b>07_Test</b> <em>ผลทดสอบ ตรวจรับวัสดุ</em></div>
+        <div><b>08_VO-EOT</b></div>
+        <div><b>09_Payment</b> <em>/งวด01 · /งวด02 …</em></div>
+        <div><b>10_Photos</b> <em>/ปปปป-ดด-วว</em></div>
+        <div><b>11_Safety</b></div>
+        <div><b>12_Handover</b></div>
+        <div class="last"><b>13_Warranty</b></div>
+      </div>
+    </div>
+    <div class="side" style="gap:2.4mm">
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-folder"/></svg>แฟ้มตัวจริง</h3>
+        <ul class="dl">
+          <li><b>ตู้เซฟ/ตู้ล็อก สำนักงาน:</b> สัญญา, LG, ใบตรวจรับ, เอกสารการเงิน</li>
+          <li><b>แฟ้มหน้างาน:</b> สำเนา + แบบ Controlled Copy</li>
+          <li>สันแฟ้มใช้เลขหมวดเดียวกับ Folder + ช่วงเลขที่/วันที่</li>
+          <li>ยืมตัวจริงออก → ลงสมุดยืม–คืน</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3><svg class="ic"><use href="#i-loop"/></svg>Backup 3–2–1</h3>
+        <ul class="dl">
+          <li><b>3</b> ชุด: เครื่อง + Cloud + ฮาร์ดดิสก์</li>
+          <li><b>2</b> สื่อที่ต่างกัน</li>
+          <li><b>1</b> ชุดอยู่นอกหน้างาน</li>
+          <li>สำรองอย่างน้อยทุกสัปดาห์</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="h2" style="margin-top:3.4mm"><span class="bar"></span>ตัวอย่าง Register (Excel) — หน้าตาประมาณนี้</div>
+  <table class="xl">
+    <tr class="colid"><td></td><td>A</td><td>B</td><td>C</td><td>D</td><td>E</td><td>F</td><td>G</td><td>H</td><td>I</td></tr>
+    <tr class="hdr"><td>1</td><td>เลขที่</td><td>วันที่ส่ง</td><td>ถึง</td><td>เรื่อง</td><td>Rev.</td><td>กำหนดตอบ</td><td>วันที่ได้คืน</td><td>สถานะ</td><td>ไฟล์</td></tr>
+    <tr class="ok"><td>2</td><td>P2601-SD-ST-012</td><td>05/10/69</td><td>CM</td><td>Shop Drawing ฐานราก F1–F3</td><td>1</td><td>19/10/69</td><td>15/10/69</td><td>B · อนุมัติตามคอมเมนต์</td><td><u>ลิงก์</u></td></tr>
+    <tr class="wait"><td>3</td><td>P2601-MAT-AR-004</td><td>03/10/69</td><td>CM</td><td>วัสดุกันซึมดาดฟ้า + ตัวอย่าง</td><td>0</td><td>17/10/69</td><td>—</td><td>รอคำตอบ</td><td><u>ลิงก์</u></td></tr>
+    <tr class="late"><td>4</td><td>P2601-RFI-009</td><td>20/09/69</td><td>ผู้ออกแบบ</td><td>ระดับท้องคานชั้น 2 ขัดกับแบบสถาปัตย์</td><td>–</td><td>27/09/69</td><td>—</td><td>เลยกำหนด · ทวงแล้ว 2 ครั้ง</td><td><u>ลิงก์</u></td></tr>
+    <tr class="ok"><td>5</td><td>P2601-OUT-0123</td><td>05/10/69</td><td>ผู้ว่าจ้าง</td><td>ขอส่งมอบงานงวดที่ 3</td><td>–</td><td>–</td><td>06/10/69 (ลงรับ)</td><td>ปิดแล้ว</td><td><u>ลิงก์</u></td></tr>
+  </table>
+  <p class="small muted" style="margin:1.2mm 0 0">สีแถว: <span class="sw wait"></span>รอคำตอบ &nbsp;<span class="sw late"></span>เลยกำหนด &nbsp;<span class="sw ok"></span>ปิดแล้ว · ตั้ง Conditional Formatting ให้แถวเปลี่ยนสีเองเมื่อเลยกำหนดตอบ</p>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+<!-- =====================================================================
+     PAGE 12 — MASTER TABLE (1/2)
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num"><svg class="ic big"><use href="#i-list"/></svg></div>
+    <div>
+      <div class="kicker">ตารางสรุป · Master Document List (1/2)</div>
+      <h1>เอกสารทั้งหมด — ทำเมื่อไร · ยื่นใคร · ได้อะไรกลับ</h1>
+      <p>ใช้เป็น Checklist ประจำโครงการ · Folder = โครงสร้างในหน้า 11</p>
+    </div>
+    <div class="nav"><span class="on">1</span><span class="on">2</span><span class="on">3</span><span class="on">4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">PHASE 1–4</div></div>
+  </header>
+
+  <table class="tbl master">
+    <thead><tr><th style="width:39mm">เอกสาร</th><th style="width:34mm">ทำ / ยื่นเมื่อไร</th><th style="width:27mm">จาก → ถึง</th><th style="width:33mm">ใครลงนาม / ตรา</th><th>ได้อะไรกลับ / ตรวจอะไร</th><th style="width:15mm">Folder</th></tr></thead>
+    <tr class="grp"><td colspan="6"><span class="nv">1</span>ทำสัญญา</td></tr>
+    <tr><td><b>หนังสือแจ้งผล / เชิญทำสัญญา</b></td><td>ได้รับจากผู้ว่าจ้าง</td><td>ผู้ว่าจ้าง → เรา</td><td>ผู้มีอำนาจผู้ว่าจ้าง</td><td>ลงรับ · จดวันครบกำหนดทำสัญญา</td><td class="fd">01</td></tr>
+    <tr><td><b>หลักประกันสัญญา (LG)</b></td><td>ก่อนวันลงนาม</td><td>ธนาคาร → บริษัท → ผู้ว่าจ้าง</td><td>ผู้มีอำนาจธนาคาร</td><td>สำเนา LG + หลักฐานการรับ · ตรวจผู้รับประโยชน์/วงเงิน/ระยะเวลา</td><td class="fd">01</td></tr>
+    <tr><td><b>หนังสือรับรองบริษัท + สำเนาบัตรกรรมการ</b></td><td>ก่อนวันลงนาม</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ รับรองสำเนา (+ตรา)</td><td>อายุหนังสือรับรองไม่เกินที่กำหนด</td><td class="fd">01</td></tr>
+    <tr><td><b>หนังสือมอบอำนาจ</b> (ถ้ามอบ)</td><td>ก่อนวันลงนาม</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ผู้รับมอบ + พยาน · อากร 10/30 บ.</td><td>ขอบเขตอำนาจครอบคลุมการลงนาม</td><td class="fd">01</td></tr>
+    <tr><td><b>สัญญาจ้าง + ภาคผนวก</b></td><td>วันนัดลงนาม</td><td>ลงนามร่วม 2 ฝ่าย</td><td>ผู้มีอำนาจ 2 ฝ่าย + พยาน 2 + ตรา</td><td>คู่ฉบับของเรา · ครบทุกหน้า/ภาคผนวก · ลงชื่อย่อทุกหน้า</td><td class="fd">01</td></tr>
+    <tr><td><b>อากรแสตมป์สัญญา / e-Stamp</b></td><td>เมื่อทำสัญญา (บัญชีดูกำหนด)</td><td>บัญชี → สรรพากร</td><td>—</td><td>หลักฐานการชำระ เก็บคู่กับสัญญา</td><td class="fd">01</td></tr>
+    <tr><td><b>สรุปสัญญา 1 หน้า</b></td><td>ภายใน 1–2 วันหลังได้สัญญา</td><td>PE → ทีม/บัญชี/จัดซื้อ</td><td>PE (PM ตรวจ)</td><td>ใช้ภายใน · อัปเดตเมื่อแก้ไขสัญญา</td><td class="fd">01</td></tr>
+
+    <tr class="grp"><td colspan="6"><span class="nv">2</span>เตรียมเริ่มงาน</td></tr>
+    <tr><td><b>แผนการทำงาน / S-Curve</b></td><td>ภายในวันที่สัญญากำหนด</td><td>PE → ผู้ว่าจ้าง/CM</td><td>PM / PE</td><td>ฉบับอนุมัติ = Baseline ใช้วัดความก้าวหน้า</td><td class="fd">03</td></tr>
+    <tr><td><b>ผังองค์กร + สำเนาใบ กว.</b></td><td>พร้อมแผนงาน</td><td>PE → ผู้ว่าจ้าง</td><td>PM + รับรองสำเนา</td><td>หนังสือรับทราบ · ใบ กว. ไม่หมดอายุ</td><td class="fd">02</td></tr>
+    <tr><td><b>กรมธรรม์ CAR / บุคคลภายนอก</b></td><td>ก่อนเข้าพื้นที่ (ถ้ากำหนด)</td><td>ประกันภัย → บริษัท → ผู้ว่าจ้าง</td><td>บริษัทประกันภัย</td><td>ผู้เอาประกัน · ทุนประกัน · ระยะคุ้มครอง</td><td class="fd">01</td></tr>
+    <tr><td><b>ขอเบิกเงินล่วงหน้า + หลักประกันเงินล่วงหน้า</b></td><td>หลังลงนาม (ถ้าสัญญาให้)</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา · ธนาคาร</td><td>เงิน + 50 ทวิ · จดอัตราหักคืนต่องวด</td><td class="fd">09</td></tr>
+    <tr><td><b>หนังสือแจ้งให้เริ่มงาน (NTP)</b></td><td>ก่อนเริ่มงาน</td><td>ผู้ว่าจ้าง → เรา</td><td>ผู้มีอำนาจผู้ว่าจ้าง</td><td>วันเริ่มงาน → คำนวณวันสิ้นสุดสัญญา</td><td class="fd">01</td></tr>
+    <tr><td><b>บันทึกส่งมอบพื้นที่</b></td><td>วันรับมอบพื้นที่</td><td>ร่วม 2 ฝ่าย</td><td>ตัวแทน 2 ฝ่าย</td><td>ผังหมุด BM + ค่าระดับ + รูปสภาพเดิม</td><td class="fd">02</td></tr>
+    <tr><td><b>MOM ประชุมเริ่มงาน</b></td><td>ภายใน 1–2 วันหลังประชุม</td><td>PE → ทุกฝ่าย</td><td>ทุกฝ่าย</td><td>ผู้มีอำนาจสั่งงาน · ช่องทางส่งเอกสาร · รหัสสถานะ</td><td class="fd">06</td></tr>
+
+    <tr class="grp"><td colspan="6"><span class="nv">3</span>ขออนุมัติก่อนทำ</td></tr>
+    <tr><td><b>Shop Drawing</b></td><td>ก่อนทำงานส่วนนั้น 2–4 สัปดาห์</td><td>PE → CM</td><td>ผู้จัดทำ + ผู้ตรวจ (เรา) · CM</td><td>สถานะ A/B/C/D · อ่านคอมเมนต์ทุกหน้า</td><td class="fd">03</td></tr>
+    <tr><td><b>ขออนุมัติวัสดุ + ตัวอย่าง</b></td><td>ก่อนสั่งซื้อ (เผื่อ Lead time)</td><td>PE → CM</td><td>PE/PM · CM</td><td>สถานะ + ตัวอย่างที่ CM เซ็นรับรอง</td><td class="fd">03</td></tr>
+    <tr><td><b>Method Statement</b></td><td>ก่อนเริ่มงานสำคัญ/งานเสี่ยง</td><td>PE → CM</td><td>PM · CM</td><td>สถานะอนุมัติ · ชี้แจงทีมหน้างานก่อนทำ</td><td class="fd">03</td></tr>
+    <tr><td><b>RFI (ขอคำชี้แจง)</b></td><td>ทันทีที่แบบไม่ชัด/ขัดกัน</td><td>PE → CM/ผู้ออกแบบ</td><td>PE · ผู้ตอบ</td><td>คำตอบเป็นลายลักษณ์อักษร · กระทบราคา/เวลา → VO/EOT</td><td class="fd">04</td></tr>
+
+    <tr class="grp"><td colspan="6"><span class="nv">4</span>ควบคุมงานก่อสร้าง</td></tr>
+    <tr><td><b>Daily Report + รูปถ่าย</b></td><td>ทุกวัน</td><td>PE → CM</td><td>PE + CM</td><td>ฉบับที่ CM เซ็นรับ · วันที่ตรงวันจริง</td><td class="fd">05 · 10</td></tr>
+    <tr><td><b>ใบขอตรวจงาน</b></td><td>ก่อนเท/ก่อนปิดงาน (เช่น ≥ 24 ชม.)</td><td>PE → CM</td><td>PE + ผู้ตรวจ</td><td>ผลตรวจ “ผ่าน” + ลายเซ็น + วัน/เวลา</td><td class="fd">04</td></tr>
+    <tr><td><b>ผลทดสอบวัสดุ</b></td><td>ตามรอบทดสอบ (7/28 วัน ฯลฯ)</td><td>แล็บ → PE → CM</td><td>ผู้ทดสอบ + ผู้รับรอง + ตราแล็บ</td><td>ค่าผ่านเกณฑ์ Spec · รหัสตัวอย่างตรง</td><td class="fd">07</td></tr>
+    <tr><td><b>บันทึกตรวจรับวัสดุเข้าหน้างาน</b></td><td>ทุกครั้งที่ของเข้า</td><td>PE → CM</td><td>PE + CM</td><td>ตรงตัวอย่าง/รุ่นที่อนุมัติ · ใบรับรองผลิตภัณฑ์</td><td class="fd">07</td></tr>
+    <tr><td><b>Weekly Report + MOM</b></td><td>ทุกสัปดาห์</td><td>PE → ทุกฝ่าย</td><td>ทุกฝ่าย</td><td>MOM ลงนามครบ · แย้งภายในกำหนดถ้าผิด</td><td class="fd">05 · 06</td></tr>
+    <tr><td><b>Monthly Report / Recovery Plan</b></td><td>ทุกเดือน / เมื่อช้ากว่าแผน</td><td>PE → ผู้ว่าจ้าง</td><td>PM</td><td>หลักฐานรับ · ความเห็นผู้ว่าจ้าง</td><td class="fd">05</td></tr>
+    <tr><td><b>หนังสือยืนยันคำสั่งด้วยวาจา</b></td><td>ภายใน 1–2 วันหลังได้คำสั่ง</td><td>PE → CM/ผู้สั่ง</td><td>PM · ผู้สั่งเซ็นรับ</td><td>ลายเซ็นรับทราบของผู้สั่ง</td><td class="fd">02</td></tr>
+    <tr><td><b>ขอ VO (งานเพิ่ม–ลด)</b></td><td>ทันทีที่เกิด · <b>ก่อน</b>ลงมือทำ</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา</td><td>คำสั่งเปลี่ยนแปลง / บันทึกแก้ไขสัญญา</td><td class="fd">08</td></tr>
+    <tr><td><b>ขอขยายเวลา / งดลดค่าปรับ</b></td><td>ตามกำหนดสัญญา · <span class="tag gov">ภาครัฐ</span> ภายใน 15 วันนับถัดจากเหตุสิ้นสุด</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา</td><td>หนังสืออนุมัติ · จำนวนวันที่ได้ · ปรับแผนงาน</td><td class="fd">08</td></tr>
+  </table>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 13 — MASTER TABLE (2/2)
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num"><svg class="ic big"><use href="#i-list"/></svg></div>
+    <div>
+      <div class="kicker">ตารางสรุป · Master Document List (2/2)</div>
+      <h1>เอกสารทั้งหมด — ส่งงวด · ส่งมอบ · รับประกัน</h1>
+      <p>ใช้เป็น Checklist ประจำโครงการ · Folder = โครงสร้างในหน้า 11</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span class="on">5</span><span class="on">6</span><span class="on">7</span><div class="nav-cap">PHASE 5–7</div></div>
+  </header>
+
+  <table class="tbl master">
+    <thead><tr><th style="width:39mm">เอกสาร</th><th style="width:34mm">ทำ / ยื่นเมื่อไร</th><th style="width:27mm">จาก → ถึง</th><th style="width:33mm">ใครลงนาม / ตรา</th><th>ได้อะไรกลับ / ตรวจอะไร</th><th style="width:15mm">Folder</th></tr></thead>
+    <tr class="grp"><td colspan="6"><span class="nv">5</span>ส่งงานงวด &amp; เบิกเงิน (ทุกงวด)</td></tr>
+    <tr><td><b>หนังสือส่งมอบงานงวด + ชุดเอกสาร</b></td><td>เมื่อเนื้องานครบตามงวด</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา</td><td>เลขรับ + วันที่ = วันส่งงาน (ใช้คิดค่าปรับ)</td><td class="fd">09</td></tr>
+    <tr><td><b>ใบตรวจรับงานงวด</b></td><td>หลังตรวจรับผ่าน</td><td>ผู้ว่าจ้าง → เรา</td><td>กรรมการตรวจรับ/ผู้มีอำนาจ ครบทุกคน</td><td>งวดที่ · วันที่ตรวจรับ · ไม่มีเงื่อนไขค้าง</td><td class="fd">09</td></tr>
+    <tr><td><b>ใบแจ้งหนี้ / ใบวางบิล (+ ใบกำกับภาษี)</b></td><td>หลังได้ใบตรวจรับ</td><td>บัญชี → ผู้ว่าจ้าง</td><td>ผู้มีอำนาจ (+ตรา)</td><td>ใบรับวางบิล · ยอดหักตามสัญญาถูกต้อง</td><td class="fd">09</td></tr>
+    <tr><td><b>50 ทวิ + ใบเสร็จรับเงิน</b></td><td>เมื่อได้รับเงิน</td><td>ผู้ว่าจ้าง ↔ บัญชี</td><td>ผู้จ่าย · ผู้รับเงิน</td><td>เลขภาษีเราถูก · ยอดตรง · ต้นฉบับส่งบัญชี</td><td class="fd">09</td></tr>
+
+    <tr class="grp"><td colspan="6"><span class="nv">6</span>ส่งมอบงาน &amp; ปิดโครงการ</td></tr>
+    <tr><td><b>รายงานทดสอบระบบ (T&amp;C)</b></td><td>ก่อนส่งมอบงวดสุดท้าย</td><td>PE → CM</td><td>ผู้ทดสอบ + CM</td><td>ผลผ่านทุกระบบ</td><td class="fd">07</td></tr>
+    <tr><td><b>Defect / Punch List ร่วม</b></td><td>ตรวจร่วมก่อนส่งมอบ</td><td>ร่วม 2 ฝ่าย</td><td>ตัวแทน 2 ฝ่าย</td><td>รายการ + กำหนดวันแก้ · รูปก่อน–หลัง</td><td class="fd">12</td></tr>
+    <tr><td><b>As-built Drawing</b></td><td>ก่อนส่งมอบงวดสุดท้าย</td><td>PE → ผู้ว่าจ้าง</td><td>วิศวกร + เลข กว.</td><td>ใบนำส่งเซ็นรับ · ตรงงานจริง</td><td class="fd">12</td></tr>
+    <tr><td><b>คู่มือ O&amp;M + ใบรับประกัน + กุญแจ/อะไหล่ + บันทึกอบรม</b></td><td>พร้อมส่งมอบงาน</td><td>PE → ผู้ว่าจ้าง</td><td>ผู้รับเซ็นรับทุกรายการ</td><td>ใบรับของ/ใบนำส่งรายการ</td><td class="fd">12</td></tr>
+    <tr><td><b>หนังสือส่งมอบงานงวดสุดท้าย</b></td><td>งานเสร็จ 100% + เอกสารครบ</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา</td><td>เลขรับ + วันที่</td><td class="fd">12</td></tr>
+    <tr><td><b>ใบตรวจรับงวดสุดท้าย / หนังสือรับมอบงาน</b></td><td>หลังตรวจรับผ่าน</td><td>ผู้ว่าจ้าง → เรา</td><td>ผู้มีอำนาจ / กก.ตรวจรับ</td><td><b style="color:var(--warn)">วันรับมอบ = วันเริ่มนับรับประกัน</b></td><td class="fd">12</td></tr>
+    <tr><td><b>ขอคืนหลักประกันเงินล่วงหน้า</b></td><td>เมื่อหักคืนเงินล่วงหน้าครบ</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา</td><td>ต้นฉบับหลักประกันคืน → ธนาคาร</td><td class="fd">01</td></tr>
+    <tr><td><b>บันทึกคืนพื้นที่ / ออกจากพื้นที่</b></td><td>หลังรื้อแคมป์ ปลดมิเตอร์</td><td>ร่วม 2 ฝ่าย</td><td>ตัวแทน 2 ฝ่าย</td><td>รูปพื้นที่สะอาด · ใบปลดมิเตอร์</td><td class="fd">12</td></tr>
+    <tr><td><b>หนังสือรับรองผลงาน</b></td><td>หลังรับมอบงาน</td><td>บริษัทขอ → ผู้ว่าจ้างออก</td><td>ผู้มีอำนาจผู้ว่าจ้าง</td><td>ต้นฉบับส่งฝ่ายประมูล · มูลค่า/ระยะเวลาถูก</td><td class="fd">12</td></tr>
+
+    <tr class="grp"><td colspan="6"><span class="nv">7</span>ระยะรับประกัน &amp; คืนหลักประกัน</td></tr>
+    <tr><td><b>หนังสือแจ้งซ่อม + บันทึกการซ่อม</b></td><td>ตลอดระยะรับประกัน</td><td>ผู้ว่าจ้าง ↔ PE</td><td>ผู้ว่าจ้างเซ็นรับงานซ่อม</td><td>Defect Log · รูปก่อน–หลัง</td><td class="fd">13</td></tr>
+    <tr><td><b>บันทึกตรวจร่วมครั้งสุดท้าย</b></td><td>ก่อนครบระยะ ~30–60 วัน</td><td>ร่วม 2 ฝ่าย</td><td>ตัวแทน 2 ฝ่าย</td><td>ยืนยันว่าไม่มีรายการค้าง</td><td class="fd">13</td></tr>
+    <tr><td><b>หนังสือขอคืนหลักประกันสัญญา / Retention</b></td><td>เมื่อครบระยะรับประกัน</td><td>บริษัท → ผู้ว่าจ้าง</td><td>กรรมการ + ตรา</td><td>ต้นฉบับ LG คืน / เงิน Retention ครบ</td><td class="fd">01</td></tr>
+    <tr><td><b>หนังสือยกเลิก LG กับธนาคาร</b></td><td>หลังได้ LG คืน</td><td>บริษัท → ธนาคาร</td><td>กรรมการ</td><td>หนังสือยืนยันการยกเลิก · หยุดค่าธรรมเนียม</td><td class="fd">01</td></tr>
+  </table>
+
+  <div class="cols2" style="margin-top:4mm;align-items:start">
+    <div class="box">
+      <h3><svg class="ic"><use href="#i-cal"/></svg>วันสำคัญที่ต้องอยู่ในปฏิทินเสมอ</h3>
+      <ul class="dl">
+        <li>วันครบกำหนดทำสัญญา · วันเริ่ม–วันสิ้นสุดสัญญา</li>
+        <li>กำหนดส่งเอกสารตามสัญญา (แผนงาน ฯลฯ)</li>
+        <li>กำหนดแล้วเสร็จแต่ละงวดงาน</li>
+        <li>กำหนดตอบของ Submittal / RFI ที่ค้าง</li>
+        <li>วันหมดอายุ LG · กรมธรรม์ · ใบ กว. · ใบอนุญาต</li>
+        <li>วันรับมอบงาน → วันครบระยะรับประกัน</li>
+      </ul>
+    </div>
+    <div class="box tip">
+      <h3><svg class="ic"><use href="#i-tip"/></svg>ใช้ตารางนี้อย่างไร</h3>
+      <ul class="dl">
+        <li>คัดลอกลง Excel เป็น <b>Master Checklist</b> ของโครงการ</li>
+        <li>เพิ่มคอลัมน์ “วันครบกำหนด” + “สถานะ” + “ลิงก์ไฟล์”</li>
+        <li>ตัดแถวที่สัญญาไม่กำหนดออก · เพิ่มเอกสารเฉพาะโครงการ</li>
+        <li>ทบทวนทุกวันศุกร์กับ PM</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="h2" style="margin-top:4mm"><span class="bar"></span>สมุดติดต่อโครงการ (พิมพ์แล้วกรอกเอง)</div>
+  <table class="tbl fill">
+    <tr><th style="width:44mm">บทบาท</th><th style="width:40mm">ชื่อ</th><th style="width:30mm">ตำแหน่ง</th><th style="width:28mm">โทร</th><th>อีเมล</th></tr>
+    <tr><td><b>ผู้ว่าจ้าง (ผู้มีอำนาจลงนาม)</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>ผู้ควบคุมงาน / CM</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>ประธานกรรมการตรวจรับ</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>ผู้ออกแบบ (สถาปนิก/วิศวกร)</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>PM / ผู้บริหารฝ่ายเรา</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>บัญชี / การเงิน ฝ่ายเรา</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>ธนาคาร (LG) · บริษัทประกันภัย</b></td><td></td><td></td><td></td><td></td></tr>
+    <tr><td><b>ห้องแล็บทดสอบ</b></td><td></td><td></td><td></td><td></td></tr>
+  </table>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<!-- =====================================================================
+     PAGE 14 — RULES + GLOSSARY
+===================================================================== -->
+<section class="page">
+  <header class="ph">
+    <div class="ph-num"><svg class="ic big"><use href="#i-tip"/></svg></div>
+    <div>
+      <div class="kicker">สรุปท้ายเล่ม</div>
+      <h1>10 ข้อที่ PE ใหม่ต้องจำ + คำศัพท์ที่เจอบ่อย</h1>
+      <p>อ่านหน้านี้ก่อนเริ่มงานวันแรก แล้วกลับมาทบทวนทุกเดือน</p>
+    </div>
+    <div class="nav"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><div class="nav-cap">ใช้ได้ทุก PHASE</div></div>
+  </header>
+
+  <div class="rules">
+    <div class="rule"><b>1</b><div><h4>ไม่มีหนังสือ = ไม่เกิดขึ้น</h4><p>คำสั่ง ข้อตกลง การอนุมัติ ทุกอย่างต้องเป็นลายลักษณ์อักษร (หนังสือ / MOM / ลายเซ็นในเอกสาร)</p></div></div>
+    <div class="rule"><b>2</b><div><h4>อ่านสัญญาให้จบ ทำสรุป 1 หน้า</h4><p>รู้วันสิ้นสุด งวดงาน ค่าปรับ หลักประกัน ระยะรับประกัน และที่อยู่ส่งหนังสือ</p></div></div>
+    <div class="rule"><b>3</b><div><h4>ห้ามทำงานเพิ่ม/เปลี่ยนวัสดุ ก่อนได้อนุมัติ</h4><p>ทำไปก่อน = อาจเบิกเงินไม่ได้ และอาจต้องรื้อ</p></div></div>
+    <div class="rule"><b>4</b><div><h4>นับวันให้เป็น</h4><p>วันปฏิทิน vs วันทำการ · กำหนดแจ้งเหตุขอขยายเวลา · ค่าปรับรายวัน · กำหนดตอบเอกสาร</p></div></div>
+    <div class="rule"><b>5</b><div><h4>ส่งทุกครั้งต้องมีหลักฐานรับ</h4><p>ลายเซ็นผู้รับ + วัน/เวลา หรือตรารับ + เลขรับ แล้วสแกนเก็บ</p></div></div>
+    <div class="rule"><b>6</b><div><h4>ได้เอกสารมา จบในวันเดียว</h4><p>ลงรับ → ตรวจลายเซ็น/ตรา → สแกน → Register → เข้าแฟ้ม</p></div></div>
+    <div class="rule"><b>7</b><div><h4>หน้างานใช้แต่ Rev. ล่าสุดที่อนุมัติแล้ว</h4><p>Rev. เก่าประทับ “ยกเลิก” และเก็บออกจากหน้างาน</p></div></div>
+    <div class="rule"><b>8</b><div><h4>ถ่ายรูปงานที่จะถูกปิดเสมอ</h4><p>เหล็กเสริม ท่อฝัง กันซึม ฐานราก — ปิดแล้วพิสูจน์ไม่ได้</p></div></div>
+    <div class="rule"><b>9</b><div><h4>เฝ้าวันหมดอายุ</h4><p>LG · ประกันภัย · ใบ กว. · ใบอนุญาต → เตือนล่วงหน้าอย่างน้อย 30 วัน</p></div></div>
+    <div class="rule"><b>10</b><div><h4>ไม่แน่ใจ ถามก่อนเซ็น</h4><p>ถาม PM/รุ่นพี่ก่อนลงนามใด ๆ · ถามผู้ว่าจ้างเป็นลายลักษณ์อักษร (RFI)</p></div></div>
+  </div>
+
+  <div class="h2" style="margin-top:4mm"><span class="bar"></span>คำศัพท์ที่เจอบ่อย</div>
+  <div class="gl">
+    <table class="tbl gloss">
+      <tr><td>PE / PM</td><td>วิศวกรโครงการ / ผู้จัดการโครงการ</td></tr>
+      <tr><td>CM</td><td>ที่ปรึกษาควบคุมงาน (Construction Manager)</td></tr>
+      <tr><td>QS · DC</td><td>ผู้ถอดปริมาณ/ประมาณราคา · ผู้ควบคุมเอกสาร</td></tr>
+      <tr><td>TOR</td><td>ขอบเขตของงาน (Terms of Reference)</td></tr>
+      <tr><td>BOQ</td><td>บัญชีแสดงปริมาณวัสดุและราคา</td></tr>
+      <tr><td>LOA · ใบสั่งจ้าง</td><td>หนังสือแจ้งการยอมรับข้อเสนอ / สั่งจ้าง</td></tr>
+      <tr><td>NTP</td><td>หนังสือแจ้งให้เริ่มงาน (Notice to Proceed)</td></tr>
+      <tr><td>LG · Bond</td><td>หนังสือค้ำประกันของธนาคาร</td></tr>
+      <tr><td>e-LG</td><td>หนังสือค้ำประกันอิเล็กทรอนิกส์</td></tr>
+      <tr><td>CAR</td><td>ประกันภัยงานก่อสร้าง (Contractor’s All Risks)</td></tr>
+      <tr><td>Submittal</td><td>เอกสารที่ส่งขออนุมัติ</td></tr>
+      <tr><td>Shop Drawing</td><td>แบบขยายเพื่อการก่อสร้างจริง</td></tr>
+      <tr><td>Method Statement</td><td>เอกสารแสดงขั้นตอน/วิธีการทำงาน</td></tr>
+      <tr><td>RFI</td><td>หนังสือขอคำชี้แจง (Request for Information)</td></tr>
+      <tr><td>Transmittal</td><td>ใบนำส่งเอกสาร</td></tr>
+      <tr><td>Register</td><td>ทะเบียนคุมเอกสาร (Excel)</td></tr>
+      <tr><td>Controlled Copy</td><td>เอกสารฉบับควบคุมที่ใช้หน้างาน</td></tr>
+    </table>
+    <table class="tbl gloss">
+      <tr><td>Superseded</td><td>ถูกแทนที่ด้วย Rev. ใหม่แล้ว ห้ามใช้</td></tr>
+      <tr><td>MOM</td><td>รายงานการประชุม (Minutes of Meeting)</td></tr>
+      <tr><td>S-Curve</td><td>กราฟความก้าวหน้าสะสม แผน vs จริง</td></tr>
+      <tr><td>Look-ahead</td><td>แผนงานล่วงหน้า 2–3 สัปดาห์</td></tr>
+      <tr><td>VO</td><td>งานเพิ่ม–ลด / คำสั่งเปลี่ยนแปลงงาน</td></tr>
+      <tr><td>EOT</td><td>การขยายเวลาก่อสร้าง</td></tr>
+      <tr><td>Retention</td><td>เงินประกันผลงานที่หักไว้ในแต่ละงวด</td></tr>
+      <tr><td>T&amp;C</td><td>ทดสอบและเดินระบบ (Testing &amp; Commissioning)</td></tr>
+      <tr><td>Punch / Defect List</td><td>รายการที่ต้องแก้ไขก่อนส่งมอบ</td></tr>
+      <tr><td>As-built</td><td>แบบก่อสร้างจริง</td></tr>
+      <tr><td>O&amp;M Manual</td><td>คู่มือใช้งานและบำรุงรักษา</td></tr>
+      <tr><td>DLP</td><td>ระยะรับประกันความชำรุดบกพร่อง</td></tr>
+      <tr><td>กว.</td><td>ใบอนุญาตประกอบวิชาชีพวิศวกรรมควบคุม</td></tr>
+      <tr><td>จป.</td><td>เจ้าหน้าที่ความปลอดภัยในการทำงาน</td></tr>
+      <tr><td>e-GP</td><td>ระบบจัดซื้อจัดจ้างภาครัฐ</td></tr>
+      <tr><td>50 ทวิ</td><td>หนังสือรับรองการหักภาษี ณ ที่จ่าย</td></tr>
+      <tr><td>ภ.พ.20</td><td>ใบทะเบียนภาษีมูลค่าเพิ่ม</td></tr>
+    </table>
+  </div>
+
+  <div class="cols3" style="margin-top:4mm;align-items:start">
+    <div class="box chk">
+      <h3><svg class="ic"><use href="#i-clock"/></svg>ก่อนกลับบ้าน (ทุกวัน)</h3>
+      <ul class="cl">
+        <li>Daily Report ส่ง CM แล้ว</li>
+        <li>รูปวันนี้ลง Folder ตามวันที่</li>
+        <li>เอกสารเข้าวันนี้ ลงรับ–สแกน–Register ครบ</li>
+        <li>พรุ่งนี้มีงานต้องขอตรวจ? ยื่นใบขอตรวจงานแล้ว</li>
+        <li>มีคำสั่งด้วยวาจา? ทำหนังสือยืนยันแล้ว</li>
+      </ul>
+    </div>
+    <div class="box chk">
+      <h3><svg class="ic"><use href="#i-cal"/></svg>ทุกวันศุกร์</h3>
+      <ul class="cl">
+        <li>Register: รายการเลยกำหนด → ทวง</li>
+        <li>Submittal ที่ต้องได้อนุมัติใน 2–4 สัปดาห์หน้า</li>
+        <li>ความก้าวหน้า vs แผน (Look-ahead)</li>
+        <li>MOM ที่ยังไม่ได้ลงนาม</li>
+        <li>Backup ไฟล์ทั้งหมด</li>
+      </ul>
+    </div>
+    <div class="box chk">
+      <h3><svg class="ic"><use href="#i-cal"/></svg>ทุกสิ้นเดือน</h3>
+      <ul class="cl">
+        <li>Monthly Report + อัปเดต S-Curve</li>
+        <li>งวดงานถัดไป: ยังขาดงาน/เอกสารอะไร</li>
+        <li>ติดตามเงินงวดที่ยังไม่ได้รับ</li>
+        <li>วันหมดอายุเอกสารภายใน 30–60 วัน</li>
+        <li>ทบทวน Master Checklist (หน้า 12–13)</li>
+      </ul>
+    </div>
+  </div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · ฉบับ ก.ย. 2569</span><span>ขั้นตอนจริงให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span><span class="pg"></span></footer>
+</section>
+
+<script src="flow.js"></script>
+</body>
+</html>
