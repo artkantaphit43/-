@@ -1,0 +1,245 @@
+:root {
+  --ink: #1f2328;
+  --ink2: #52514e;
+  --muted: #898781;
+  --line: #e1e0d9;
+  --paper: #ffffff;
+  --blue: #1c5cab;
+  --blue-d: #104281;
+  --blue-l: #e8f1fc;
+  --aqua-l: #e6f6ef;
+  --aqua: #0f8a5f;
+  --amber-l: #fff5dc;
+  --amber: #a76c00;
+  --red-l: #fdecec;
+  --red: #b3261e;
+  --violet-l: #efedfb;
+  --violet: #4a3aa7;
+  --brown: #7a5a26;
+  --brown-l: #f5efe3;
+  --gray-l: #f5f5f2;
+}
+
+@page {
+  size: A4;
+  margin: 19mm 17mm 17mm 17mm;
+  @top-left {
+    content: "คู่มือการเลือกปั๊มสำหรับระบบผลิตน้ำประปาและระบบน้ำเสีย";
+    font-family: 'Sarabun', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 8pt; color: #9a9994;
+    vertical-align: bottom; padding-bottom: 3mm;
+  }
+  @top-right {
+    content: "สื่อการสอนสำหรับวิศวกร";
+    font-family: 'Sarabun', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 8pt; color: #9a9994;
+    vertical-align: bottom; padding-bottom: 3mm;
+  }
+  @bottom-right {
+    content: counter(page);
+    font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 9pt; color: #52514e; font-weight: 600;
+    vertical-align: top; padding-top: 3mm;
+  }
+}
+@page cover { margin: 0; @top-left { content: none; } @top-right { content: none; } @bottom-right { content: none; } }
+@page partpage { margin: 0; @top-left { content: none; } @top-right { content: none; } @bottom-right { content: none; } }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  font-family: 'Sarabun', 'Liberation Sans', 'DejaVu Sans', sans-serif;
+  font-size: 10.6pt;
+  line-height: 1.62;
+  color: var(--ink);
+  background: var(--paper);
+  font-variant-ligatures: no-common-ligatures;
+  text-rendering: optimizeLegibility;
+}
+p { margin: 0 0 2.6mm; text-align: left; }
+b, strong { font-weight: 700; }
+sub, sup { line-height: 0; font-size: 72%; }
+a { color: inherit; text-decoration: none; }
+.en { font-style: italic; color: var(--ink2); }
+.nowrap { white-space: nowrap; }
+
+/* ---------- cover ---------- */
+.cover {
+  page: cover;
+  height: 296mm; width: 210mm; overflow: hidden; position: relative;
+  background: linear-gradient(160deg, #0d366b 0%, #1c5cab 58%, #2a78d6 100%);
+  color: #fff; break-after: page;
+}
+.cover .inner { position: absolute; left: 20mm; right: 20mm; top: 34mm; }
+.cover .kicker { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 11pt; letter-spacing: 0.08em; opacity: 0.85; font-weight: 600; }
+.cover h1.cover-title { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 32pt; line-height: 1.32; margin: 6mm 0 5mm; font-weight: 700; break-before: auto; border: 0; padding: 0; color: #fff; }
+.cover .sub { font-size: 14pt; line-height: 1.5; opacity: 0.95; max-width: 150mm; }
+.cover .chips { margin-top: 9mm; display: flex; flex-wrap: wrap; gap: 2.5mm; }
+.cover .chips span { border: 1px solid rgba(255,255,255,0.55); border-radius: 20px; padding: 1mm 4mm; font-size: 9.5pt; }
+.cover .art { position: absolute; left: 0; right: 0; bottom: 34mm; height: 95mm; }
+.cover .foot { position: absolute; left: 20mm; right: 20mm; bottom: 14mm; font-size: 9.5pt; opacity: 0.85; display: flex; justify-content: space-between; }
+
+/* ---------- part pages ---------- */
+.partpage {
+  page: partpage; height: 296mm; width: 210mm; overflow: hidden; position: relative;
+  background: #0d366b; color: #fff; break-before: page; break-after: page;
+}
+.partpage.ww { background: #4d3a17; }
+.partpage.ex { background: #0f5a43; }
+.partpage.pr { background: #3b2f6e; }
+.partpage .inner { position: absolute; left: 22mm; right: 22mm; top: 95mm; }
+.partpage .pno { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 13pt; opacity: 0.8; font-weight: 600; letter-spacing: 0.05em; }
+.partpage h1.part { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 30pt; line-height: 1.3; margin: 3mm 0 6mm; border: 0; padding: 0; color: #fff; break-before: auto; }
+.partpage p { font-size: 12pt; opacity: 0.92; max-width: 150mm; line-height: 1.6; }
+.partpage ul { font-size: 11pt; opacity: 0.92; padding-left: 5mm; }
+
+/* ---------- headings ---------- */
+h1, h2, h3, h4 { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; color: var(--ink); break-after: avoid; }
+section.pagewrap { break-before: page; }
+h1.chapter, h1.appendix, h1.front {
+  break-before: auto; font-size: 21pt; line-height: 1.3; margin: 0 0 5mm; padding: 0 0 3.5mm;
+  border-bottom: 2.5px solid var(--blue); font-weight: 700;
+}
+h1 .chno { display: block; font-size: 11pt; color: var(--blue); letter-spacing: 0.04em; font-weight: 600; margin-bottom: 1mm; }
+h2 { font-size: 14.5pt; margin: 7mm 0 2.5mm; line-height: 1.35; color: var(--blue-d); font-weight: 700; }
+h3 { font-size: 12pt; margin: 5mm 0 2mm; line-height: 1.4; font-weight: 700; }
+h4 { font-size: 10.8pt; margin: 3.5mm 0 1.5mm; font-weight: 700; color: var(--ink2); }
+h2 + h3 { margin-top: 2.5mm; }
+
+.lead { font-size: 11.6pt; line-height: 1.62; color: var(--ink2); margin-bottom: 4mm; }
+.objectives { background: var(--gray-l); border-radius: 3mm; padding: 3mm 5mm 2mm; margin: 0 0 5mm; font-size: 10.2pt; }
+.objectives .ttl { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; font-size: 10pt; color: var(--ink2); margin-bottom: 1mm; }
+.objectives ul { margin: 0; padding-left: 5mm; }
+
+/* ---------- lists ---------- */
+ul, ol { margin: 0 0 2.8mm; padding-left: 6mm; }
+li { margin-bottom: 0.9mm; }
+li > ul, li > ol { margin-top: 0.8mm; margin-bottom: 0.8mm; }
+ol.steps { counter-reset: st; list-style: none; padding-left: 0; }
+ol.steps > li { counter-increment: st; position: relative; padding-left: 10mm; margin-bottom: 2.4mm; }
+ol.steps > li::before {
+  content: counter(st); position: absolute; left: 0; top: 0.3mm; width: 6.4mm; height: 6.4mm; border-radius: 50%;
+  background: var(--blue); color: #fff; font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; font-size: 9.5pt;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+
+/* ---------- boxes ---------- */
+.box { border-radius: 2.5mm; padding: 3mm 4.5mm 1.5mm; margin: 3.5mm 0 4.5mm; break-inside: avoid; border-left: 4px solid; }
+.box > .bt { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; font-size: 10.2pt; margin-bottom: 1.2mm; display: flex; align-items: center; gap: 2mm; }
+.box > .bt::before { content: ""; display: inline-block; width: 4.6mm; height: 4.6mm; border-radius: 50%; flex: none; }
+.box.key { background: var(--blue-l); border-color: var(--blue); }
+.box.key > .bt { color: var(--blue-d); }
+.box.key > .bt::before { background: var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 3.2l1.4 2.9 3.2.5-2.3 2.2.5 3.2L8 10.5 5.2 12l.5-3.2-2.3-2.2 3.2-.5z' fill='%23fff'/%3E%3C/svg%3E") center/80% no-repeat; }
+.box.warn { background: var(--red-l); border-color: var(--red); }
+.box.warn > .bt { color: var(--red); }
+.box.warn > .bt::before { background: var(--red) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='7' y='3.5' width='2' height='6' rx='1' fill='%23fff'/%3E%3Ccircle cx='8' cy='12' r='1.2' fill='%23fff'/%3E%3C/svg%3E") center/80% no-repeat; }
+.box.tip { background: var(--aqua-l); border-color: var(--aqua); }
+.box.tip > .bt { color: var(--aqua); }
+.box.tip > .bt::before { background: var(--aqua) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.5l2.3 2.3 4.7-5' stroke='%23fff' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") center/80% no-repeat; }
+.box.note { background: var(--gray-l); border-color: #a8a69e; }
+.box.note > .bt { color: var(--ink2); }
+.box.note > .bt::before { background: #a8a69e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='4.6' r='1.2' fill='%23fff'/%3E%3Crect x='7' y='7' width='2' height='5.5' rx='1' fill='%23fff'/%3E%3C/svg%3E") center/80% no-repeat; }
+.box.ex { background: #fff; border: 1px solid #c9d8ee; border-left: 4px solid var(--blue); break-inside: auto; }
+.box.ex .ex-title { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; font-size: 10.6pt; color: var(--blue-d); margin-bottom: 1.5mm; }
+.box.ex .ex-title b { background: var(--blue); color: #fff; border-radius: 1.2mm; padding: 0.2mm 2mm; margin-right: 1.5mm; font-size: 9.6pt; }
+.box.ex .ans { background: var(--blue-l); border-radius: 1.8mm; padding: 1.8mm 3.5mm; margin: 2mm 0 2mm; font-weight: 600; }
+.box p:last-child, .box ul:last-child, .box ol:last-child { margin-bottom: 1.5mm; }
+
+/* ---------- equations ---------- */
+.eq {
+  display: flex; align-items: center; gap: 4mm; background: #fafaf8; border: 1px solid var(--line); border-radius: 2mm;
+  padding: 2.5mm 4.5mm; margin: 2.5mm 0 3.5mm; break-inside: avoid;
+}
+.eq .f { flex: 1; font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 12pt; font-weight: 500; text-align: center; }
+.eq .f i { font-family: 'Sarabun', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-style: italic; font-size: 12.5pt; }
+.eq .n { color: var(--muted); font-size: 9.5pt; white-space: nowrap; }
+.where { font-size: 10pt; color: var(--ink2); margin: -1.5mm 0 3.5mm 0; }
+.where table { border-collapse: collapse; }
+.where td { padding: 0.2mm 2.5mm 0.2mm 0; vertical-align: top; }
+.where td:first-child { white-space: nowrap; font-weight: 600; color: var(--ink); }
+.calc { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-size: 10.2pt; background: #fafaf8; border-radius: 1.5mm; padding: 1.5mm 3.5mm; margin: 1.5mm 0 2.5mm; }
+.calc div { margin: 0.4mm 0; }
+
+/* ---------- tables ---------- */
+table.data { width: 100%; border-collapse: collapse; margin: 2mm 0 5mm; font-size: 9.6pt; line-height: 1.45; break-inside: auto; }
+table.data caption { caption-side: top; text-align: left; font-size: 9.8pt; color: var(--ink2); padding-bottom: 1.5mm; line-height: 1.45; }
+table.data caption b { color: var(--ink); }
+table.data th { background: #eef3f9; color: var(--ink); font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 600; text-align: left; padding: 1.6mm 2.2mm; border-bottom: 1.5px solid #b9cbe3; vertical-align: bottom; }
+table.data td { padding: 1.4mm 2.2mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data tr:nth-child(even) td { background: #fbfbfa; }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.data td.c, table.data th.c { text-align: center; }
+table.data tr { break-inside: avoid; }
+table.data thead { display: table-header-group; }
+table.data tr.hl td { background: #fff5dc !important; font-weight: 600; }
+table.data tr.bad td { background: #fdecec !important; }
+table.data tr.ok td { background: #e6f6ef !important; }
+table.compact { font-size: 9.1pt; }
+table.compact td, table.compact th { padding: 1.1mm 1.8mm; }
+
+/* ---------- figures ---------- */
+figure { margin: 3mm 0 5mm; break-inside: avoid; }
+figure svg { display: block; width: 100%; height: auto; }
+figure.half svg { width: 72%; margin: 0 auto; }
+figcaption { font-size: 9.6pt; color: var(--ink2); margin-top: 1.8mm; line-height: 1.5; }
+figcaption b { color: var(--ink); margin-right: 1mm; }
+
+/* ---------- layout helpers ---------- */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.grid2 > .box { margin: 0; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; }
+.avoid { break-inside: avoid; }
+.pb { break-before: page; }
+.small { font-size: 9.4pt; color: var(--ink2); }
+.tag { display: inline-block; border-radius: 1.2mm; padding: 0 1.6mm; font-size: 8.8pt; font-weight: 600; font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; }
+.tag.w { background: var(--blue-l); color: var(--blue-d); }
+.tag.s { background: var(--brown-l); color: var(--brown); }
+.tag.ok { background: var(--aqua-l); color: var(--aqua); }
+.tag.no { background: var(--red-l); color: var(--red); }
+.tag.mid { background: var(--amber-l); color: var(--amber); }
+
+/* ---------- summary ---------- */
+.summary { border: 1.5px solid var(--blue); border-radius: 3mm; padding: 3mm 5mm 1.5mm; margin: 6mm 0 2mm; break-inside: avoid; }
+.summary .st { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; color: var(--blue-d); margin-bottom: 1.5mm; }
+.summary ul { margin-bottom: 1.5mm; }
+
+/* ---------- flow chart ---------- */
+.flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; margin: 3mm 0 5mm; }
+.flow .st { display: grid; grid-template-columns: 9mm 1fr; gap: 3mm; align-items: start; background: #f6f9fd; border: 1px solid #c9d8ee; border-radius: 2.5mm; padding: 2.2mm 3.5mm; break-inside: avoid; }
+.flow .st .k { width: 8mm; height: 8mm; border-radius: 50%; background: var(--blue); color: #fff; font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 11pt; }
+.flow .st .h { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; font-size: 10.6pt; }
+.flow .st .d { font-size: 9.6pt; color: var(--ink2); line-height: 1.5; }
+.flow .ar { height: 5mm; position: relative; }
+.flow .ar::after { content: ""; position: absolute; left: 7.5mm; top: 0.6mm; border-left: 2.4mm solid transparent; border-right: 2.4mm solid transparent; border-top: 3.6mm solid var(--blue); }
+.flow .st.loop { background: var(--amber-l); border-color: #efd18f; }
+.flow .st.loop .k { background: var(--amber); }
+
+/* ---------- TOC ---------- */
+.toc { font-size: 10.2pt; }
+.toc .toc-part { font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; font-weight: 700; color: var(--blue); font-size: 10pt; margin: 4mm 0 1mm; letter-spacing: 0.02em; }
+.toc .toc-h1, .toc .toc-h2 { display: flex; align-items: baseline; gap: 1.5mm; }
+.toc .toc-h1 { font-weight: 700; font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; margin: 1.6mm 0 0.4mm; font-size: 10.4pt; }
+.toc .toc-h2 { padding-left: 7mm; color: var(--ink2); font-size: 9.6pt; line-height: 1.5; }
+.toc .dots { flex: 1; border-bottom: 1px dotted #b9b8b1; transform: translateY(-1mm); min-width: 5mm; }
+.toc .p { font-variant-numeric: tabular-nums; min-width: 7mm; text-align: right; font-family: 'IBM Plex Sans Thai', 'Liberation Sans', 'DejaVu Sans', sans-serif; }
+
+/* ---------- glossary ---------- */
+table.gloss td:first-child { font-weight: 600; white-space: nowrap; }
+.toc a { color: inherit; text-decoration: none; }
+.toc a.toc-part { display: block; }
+table.data { break-inside: avoid; }
+table.data.long { break-inside: auto; }
+.box.chk ul { list-style: none; padding-left: 0; }
+.box.chk li { position: relative; padding-left: 6mm; }
+.box.chk li::before { content: ""; position: absolute; left: 0; top: 1.3mm; width: 3.2mm; height: 3.2mm; border: 1.3px solid #6b6a66; border-radius: 0.8mm; background: #fff; }
+/* Thai stacked marks need taller line boxes; tight lines let ink spill onto the previous page when a page breaks */
+h1.chapter, h1.appendix, h1.front { line-height: 1.5; }
+h1 .chno { line-height: 1.6; }
+h2 { line-height: 1.55; }
+h3, h4 { line-height: 1.6; }
+table.data { line-height: 1.55; }
+table.data caption, figcaption { line-height: 1.6; }
+.box > .bt, .ex-title, .summary .st, .objectives .ttl { line-height: 1.6; }
+/* padding (unlike margin) survives at the top of a page, keeping stacked Thai marks inside the page */
+h2 { padding-top: 1.2mm; margin-top: 6mm; }
+h3 { padding-top: 1mm; margin-top: 4mm; }
+table.data caption { padding-top: 1.2mm; }
+.box.ex[data-kind="q"] { break-inside: avoid; }
+.box.ex .ex-title { break-after: avoid; }

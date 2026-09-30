@@ -1,0 +1,31 @@
+<h1 class="appendix" id="app-formula">สรุปสูตรที่ใช้บ่อย</h1>
+
+<table class="data compact long" id="t-formula"><caption>สรุปสูตรสำคัญในคู่มือ (หน่วย SI: Q ม.³/วินาที, H ม., D ม., v ม./วินาที, P kW, ρ kg/ม.³, g = 9.81 ม./วินาที²)</caption>
+<thead><tr><th style="width:28%">หัวข้อ</th><th style="width:44%">สูตร</th><th>หมายเหตุ</th></tr></thead>
+<tbody>
+<tr><td>ความดันเป็นเฮด</td><td>h = p / (ρg)</td><td>1 บาร์ ≈ 10.2 ม. (น้ำ)</td></tr>
+<tr><td>ความเร็วในท่อ</td><td>v = 4Q / (πD²)</td><td></td></tr>
+<tr><td>เฮดรวม (ถังเปิด–ถังเปิด)</td><td>H = H<sub>s</sub> + Σh<sub>f</sub> + Σh<sub>m</sub></td><td>บทที่ 3</td></tr>
+<tr><td>เฮดที่หน้าแปลน</td><td>H = (p<sub>d</sub> − p<sub>s</sub>)/ρg + (z<sub>d</sub> − z<sub>s</sub>) + (v<sub>d</sub>² − v<sub>s</sub>²)/2g</td><td>ใช้วัดในสนาม</td></tr>
+<tr><td>ดาร์ซี–ไวส์บาค</td><td>h<sub>f</sub> = f (L/D) v²/2g</td><td>Re = vD/ν</td></tr>
+<tr><td>Swamee–Jain</td><td>f = 0.25 / [log<sub>10</sub>(ε/3.7D + 5.74/Re<sup>0.9</sup>)]²</td><td>การไหลปั่นป่วน</td></tr>
+<tr><td>เฮเซน–วิลเลียมส์</td><td>h<sub>f</sub> = 10.67 L Q<sup>1.852</sup> / (C<sup>1.852</sup> D<sup>4.87</sup>)</td><td>น้ำ อุณหภูมิปกติ</td></tr>
+<tr><td>ความสูญเสียรอง</td><td>h<sub>m</sub> = ΣK v²/2g</td><td>ตาราง K บทที่ 3</td></tr>
+<tr><td>กราฟระบบ</td><td>H<sub>sys</sub> = H<sub>s</sub> + kQ<sup>n</sup></td><td>n ≈ 1.85–2</td></tr>
+<tr><td>กฎความคล้าย (รอบ)</td><td>Q ∝ n · H ∝ n² · P ∝ n³ · NPSH3 ∝ n² (โดยประมาณ)</td><td>บนพาราโบลาผ่านจุดกำเนิด</td></tr>
+<tr><td>กฎความคล้าย (ตัดใบพัด)</td><td>Q ∝ D · H ∝ D² · P ∝ D³ (โดยประมาณ)</td><td>ตัดไม่เกิน ~10–15%</td></tr>
+<tr><td>ความเร็วต่ำสุดที่ยังมีอัตราไหล</td><td>n<sub>min</sub>/n = √(H<sub>s</sub>/H<sub>0</sub>)</td><td>H<sub>0</sub> = เฮดวาล์วปิดที่รอบเต็ม</td></tr>
+<tr><td>ความเร็วจำเพาะ</td><td>n<sub>q</sub> = n √Q / H<sup>0.75</sup></td><td>ที่ BEP ต่อชั้น (หน่วย US ≈ ×51.6)</td></tr>
+<tr><td>ความเร็วจำเพาะด้านดูด</td><td>N<sub>ss</sub> = n √Q / NPSH3<sup>0.75</sup></td><td>Q ต่อหนึ่งตาดูด</td></tr>
+<tr><td>NPSHa (ถังเปิด)</td><td>NPSHa = (p<sub>atm</sub> − p<sub>v</sub>)/ρg + z<sub>s</sub> − h<sub>fs</sub></td><td>z<sub>s</sub> ลบเมื่อยกดูด</td></tr>
+<tr><td>ความดันบรรยากาศตามความสูง</td><td>p = 101.325 (1 − 2.25577×10<sup>−5</sup> z)<sup>5.25588</sup> kPa</td><td>z เป็น ม. รทก.</td></tr>
+<tr><td>การจมต่ำสุด (HI 9.8)</td><td>S = D(1 + 2.3F<sub>D</sub>) · F<sub>D</sub> = V/√(gD)</td><td>D = ปากระฆัง</td></tr>
+<tr><td>ปริมาตรใช้งานบ่อสูบ</td><td>V = T<sub>min</sub> Q / 4 · T<sub>min</sub> = 60/Z (นาที)</td><td>Z = สตาร์ท/ชม.</td></tr>
+<tr><td>กำลังน้ำ</td><td>P = ρ g Q H / 1000</td><td>kW</td></tr>
+<tr><td>กำลังเพลา / ไฟฟ้า</td><td>P<sub>s</sub> = P/η<sub>p</sub> · P<sub>e</sub> = P<sub>s</sub>/(η<sub>m</sub> η<sub>VFD</sub>)</td><td></td></tr>
+<tr><td>พลังงานจำเพาะ</td><td>E<sub>s</sub> = H / (367 η<sub>ww</sub>) kWh/ม.³</td><td>η<sub>ww</sub> = η<sub>p</sub>η<sub>m</sub>η<sub>VFD</sub></td></tr>
+<tr><td>ตัวคูณมูลค่าปัจจุบัน</td><td>PV = [1 − (1+i)<sup>−n</sup>] / i</td><td>LCC</td></tr>
+<tr><td>จูคอฟสกี</td><td>Δh = a Δv / g · t<sub>c</sub> = 2L/a</td><td>บทที่ 11</td></tr>
+<tr><td>ตัวคูณชั่วโมงสูงสุดน้ำเสีย</td><td>Harmon: 1 + 14/(4 + √P) · Babbitt: 5/P<sup>0.2</sup></td><td>P = ประชากร (พันคน)</td></tr>
+<tr><td>อัตราจ่ายสารละลาย</td><td>q (ลิตร/ชม.) = Q (ม.³/ชม.) × dose (มก./ลิตร) / [C(%) × 10 × ρ (kg/ลิตร)]</td><td>บทที่ 12</td></tr>
+</tbody></table>
