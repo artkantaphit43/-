@@ -54,6 +54,7 @@ function makeEnv() {
           setFontWeight: () => range,
           setBackground: () => range,
           setVerticalAlignment: () => range,
+          setHorizontalAlignment: () => range,
         };
         return range;
       },
@@ -155,6 +156,7 @@ function makeEnv() {
     },
     SpreadsheetApp: {
       getActiveSpreadsheet: () => index,
+      flush: () => {},
       create: (n) => makeSpreadsheet(n),
       openById: (id) => files[id],
       newConditionalFormatRule: () => chain(),
@@ -182,7 +184,12 @@ function makeEnv() {
         if (/\/content$/.test(url)) return res(200, '', blob('img.jpg'));
         if (/\/summary$/.test(url)) return res(200, { groupName: 'คอนโด ABC' });
         if (/\/member\/|\/profile\//.test(url)) return res(200, { displayName: 'สมชาย' });
-        if (/export\?format=pdf/.test(url)) return res(200, '', blob('r.pdf'));
+        if (/export\?format=pdf/.test(url)) {
+          // เก็บหัวกระดาษ ณ ตอน export ไว้ตรวจ
+          const ss = files[url.match(/\/d\/([^/]+)\//)[1]];
+          ctx.exportedHeader = ss.sheets[0].grid[0].slice();
+          return res(200, '', blob('r.pdf'));
+        }
         return res(404, 'not found');
       },
     },
@@ -204,7 +211,7 @@ function walkNoEmptyText(node) {
 }
 
 test('Apps Script: ตั้งค่า → รูป → ข้อความ → ปิดงาน → PDF', () => {
-  const { api, props, files, sent, index } = makeEnv();
+  const { api, ctx, props, files, sent, index } = makeEnv();
 
   // เปิด URL web app ครั้งแรก → ได้ webhook URL พร้อม key
   const page = api.doGet();
@@ -268,6 +275,8 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   assert.match(sent.at(-1).messages[0].text, /📄 PDF คอนโด ABC/);
   const pdfs = Object.values(files).filter((f) => f.parent === project.pdfFolderId);
   assert.strictEqual(pdfs.length, 1);
+  assert.ok(ctx.exportedHeader.some((v) => /^สถานะ ณ วันที่ .+ น\.$/.test(v)), 'PDF มีวันที่บนหน้า');
+  assert.ok(!sh.grid[0].some((v) => /สถานะ ณ/.test(v)), 'ลบวันที่ออกจาก Sheet หลัง export');
 
   post([txt('ตั้งชื่อ คอนโด ABC เฟส 2')]);
   assert.strictEqual(files[project.sheetId].name, 'Punch List - คอนโด ABC เฟส 2');

@@ -590,12 +590,26 @@ function addItem(project, fields, photoIds, reporter) {
 
 function exportPdf(project) {
   const ss = SpreadsheetApp.openById(project.sheetId);
-  const gid = ss.getSheets()[0].getSheetId();
-  const url = `https://docs.google.com/spreadsheets/d/${project.sheetId}/export?format=pdf&gid=${gid}` +
-    '&size=A4&portrait=false&fitw=true&gridlines=true&sheetnames=false&printtitle=false&pagenum=CENTER' +
+  const sh = ss.getSheets()[0];
+  const at = now();
+
+  // พิมพ์ "สถานะ ณ วันที่" ไว้ในแถวหัว (แถว 1–2 ถูก freeze → ซ้ำทุกหน้าของ PDF)
+  // แล้วลบออกหลัง export เพื่อไม่ให้ Sheet สดแสดงวันที่เก่าค้างไว้
+  const stamp = sh.getRange(1, C.notes);
+  stamp.setValue(`สถานะ ณ วันที่ ${Utilities.formatDate(at, TZ, 'd/M/yyyy เวลา HH:mm')} น.`)
+    .setFontWeight('bold').setHorizontalAlignment('right');
+  SpreadsheetApp.flush();
+
+  const url = `https://docs.google.com/spreadsheets/d/${project.sheetId}/export?format=pdf&gid=${sh.getSheetId()}` +
+    '&size=A4&portrait=false&fitw=true&gridlines=true&sheetnames=false&printtitle=false&pagenum=CENTER&fzr=true' +
     '&top_margin=0.4&bottom_margin=0.4&left_margin=0.4&right_margin=0.4';
-  const blob = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } })
-    .getBlob().setName(`${project.title} ${Utilities.formatDate(now(), TZ, 'yyyy-MM-dd HHmm')}.pdf`);
+  let blob;
+  try {
+    blob = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getBlob();
+  } finally {
+    stamp.setValue('');
+  }
+  blob.setName(`${project.title} ${Utilities.formatDate(at, TZ, 'yyyy-MM-dd HHmm')}.pdf`);
   const file = DriveApp.getFolderById(project.pdfFolderId).createFile(blob);
   if (SHARE_WITH_LINK) file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file;
