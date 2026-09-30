@@ -99,6 +99,7 @@ module ArtK
               t['main_size'] = main.get_attribute(H::DICT, 'size')
               t['main_rating'] = main.get_attribute(H::DICT, 'rating')
               t['main_service'] = main.get_attribute(H::DICT, 'service')
+              t['main_color'] = run_settings(main)['pipe_color']
               changed = true
             end
             [key, recs]
@@ -114,7 +115,7 @@ module ArtK
       # Keys that a rebuild applies from the current settings.
       def settings_for_rebuild(settings)
         settings.select do |k, _|
-          %w[service catalog size rating insulation_mm elbow_type segments centerline labels lod].include?(k)
+          %w[service catalog size rating insulation_mm elbow_type segments centerline labels lod pipe_color].include?(k)
         end
       end
 
@@ -160,9 +161,10 @@ module ArtK
         extras = []
         tees.each { |t| premark_branch(ctx, t) }
         unless segs.empty?
-          net = Network.new(segs, spec, tol: 1.0, radius_type: settings['elbow_type'].to_sym,
+          net = Network.new(segs, network_spec(spec), tol: 1.0,
+                                        radius_type: spec.flexible ? :lr : settings['elbow_type'].to_sym,
                                         takes: ctx[:refs] ? ref_takes(spec) : nil).solve
-          warnings.concat(net.warnings)
+          warnings.concat(spec.flexible ? flexible_warnings(net) : net.warnings)
           ctx[:mitres] = net.pieces.select { |pc| pc.type == :mitre }.map { |pc| pc.data[:at] }
           # fittings first: real fittings record their socket depths, which
           # the pipes then run into
@@ -202,7 +204,7 @@ module ArtK
           lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps),
           refs: refs_enabled?(settings), ext: {},
           tag: H.service_tag(model, svc[:code]),
-          mat: H.pipe_material(model, svc[:code], spec.family, settings['color_scheme']),
+          mat: H.pipe_material(model, svc[:code], spec.family, settings['color_scheme'], settings['pipe_color']),
           open_ends: [], mitres: [], cl: [],
           common: {
             'service' => svc[:code], 'catalog' => spec.catalog_key, 'catalog_name' => spec.catalog_name,
@@ -383,8 +385,54 @@ module ArtK
         ctx[:open_ends].none? { |p| Vec.dist(p, pt) <= 1.0 } && ctx[:mitres].none? { |p| Vec.dist(p, pt) <= 1.0 }
       end
 
+      # Coiled HDPE turns by bending the pipe itself (LR = the minimum bend
+      # radius); the SR alternative is an electrofusion elbow.
+      def network_spec(spec)
+        return spec unless spec.flexible
+
+        s = spec.dup
+        s.elbow_radius_lr = spec.bend_radius
+        s
+      end
+
+      def flexible_warnings(net)
+        out = net.warnings.reject { |w| w.include?('Long Radius') }
+        net.pieces.each do |pc|
+          next unless pc.type == :elbow && pc.data[:radius_type] == :sr
+
+          at = pc.data[:vertex].map(&:round).join(', ')
+          out << "ระยะท่อไม่พอดัดโค้งท่อ HDPE ม้วน – ใช้ข้องอหลอมไฟฟ้าแทน @ (#{at}) mm " \
+                 '(no room for the minimum bend radius, electrofusion elbow used)'
+        end
+        out
+      end
+
+      def render_bend(ctx, d)
+        spec = ctx[:spec]
+        o = ctx[:opts]
+        arc_steps = [(d[:angle] / (Math::PI / 2) * 12).ceil, 3].max
+        solid = Mesh.bend(d[:center], d[:xaxis], d[:normal], d[:radius], d[:angle], o.ro, o.ri,
+                          steps: ctx[:steps], arc_steps: arc_steps)
+        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:pipe, solid), steps: ctx[:steps])
+        len = d[:radius] * d[:angle]
+        # continuous pipe: the straight lengths butt onto the bend
+        mark_ext(ctx, d[:start], nil)
+        mark_ext(ctx, d[:end], nil)
+        finish_piece(ctx, g, "Pipe bend #{spec.size} R=#{d[:radius].round}", ctx[:mat],
+                     'type' => 'pipe', 'length_mm' => len.round(1), 'bend_radius_mm' => d[:radius].round,
+                     'bend_angle' => d[:angle_deg], 'weight_kg_m' => spec.weight_kg_m.round(3),
+                     'stick_m' => spec.stick_length_m, 'geom' => JSON.generate('a' => d[:start], 'b' => d[:end]))
+        return g unless ctx[:ins].positive?
+
+        insulate(ctx, Mesh.bend(d[:center], d[:xaxis], d[:normal], d[:radius], d[:angle], o.ro + ctx[:ins], o.ro + 0.5,
+                                steps: ctx[:steps], arc_steps: arc_steps), len)
+        g
+      end
+
       def render_elbow(ctx, d, extras)
         spec = ctx[:spec]
+        return render_bend(ctx, d) if spec.flexible && d[:radius_type] == :lr
+
         o = ctx[:opts]
         ang = d[:angle]
         name = "PP Elbow #{d[:angle_deg].round(1)}° #{d[:radius_type].to_s.upcase} | #{spec_key(spec)} | #{lod_key(ctx)}"
@@ -491,9 +539,9 @@ module ArtK
         kind = (angle - 90.0).abs <= 1.0 ? 'tee' : 'lateral'
         name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}"
         main_code = t['main_service'] || ctx[:common]['service']
-        mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'])
+        mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'], t['main_color'])
         item = kind == 'tee' && branch_ref_tee(t, ctx)
-        inst = item && ref_or_nil(ctx, item) { place_ref(ctx, item, Mesh.frame(at, main_dir, bdir), mat) }
+        inst = item && ref_or_nil(ctx, item) { place_ref(ctx, item, Mesh.frame(at, main_dir, bdir), mat, plain: true) }
         item = nil unless inst
         inst ||= place_part(ctx, name, f) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
         finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{spec.size}", mat,

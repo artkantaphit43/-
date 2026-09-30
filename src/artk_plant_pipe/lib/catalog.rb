@@ -9,7 +9,7 @@ module ArtK
       :catalog_key, :catalog_name, :material, :joint, :size, :rating,
       :od, :wall, :nps_in, :hw_c, :roughness_mm, :density,
       :elbow_radius_lr, :elbow_radius_sr, :tee_c, :fitting_od, :stick_length_m,
-      :estimated, :style, :family,
+      :estimated, :style, :family, :flexible, :bend_radius,
       keyword_init: true
     ) do
       def id
@@ -270,14 +270,32 @@ module ArtK
         }
 
         cats['HDPE_PE100'] = {
-          name: 'HDPE PE100 – ISO 4427',
-          name_th: 'ท่อเอชดีพีอี (HDPE PE100)',
+          name: 'HDPE PE100 rigid – ISO 4427, 6 m lengths + fusion fittings',
+          name_th: 'ท่อ HDPE แบบแข็ง (ท่อน + ข้อต่อหลอม) – ในอาคาร/โรงงาน',
           material: 'HDPE PE100', joint: 'Butt fusion / Electrofusion',
           hw_c: 150, roughness_mm: 0.007, density: 955,
           elbow_factor: 1.5, elbow_sr_factor: 1.0, tee_c_factor: 1.0,
           fitting_od_factor: 1.0, stick_length_m: 6.0,
           style: :fusion, default_rating: 'SDR11 PN16',
           sizes: HDPE.map { |od, walls| { size: "#{od} mm", nps: nil, od: od.to_f, walls: walls } }
+        }
+
+        # Coiled PE100 (ท่อม้วน): bent on site instead of elbows – outdoor and
+        # long-distance lines. Minimum cold-bend radius per PPI Handbook
+        # ch. 8 (20 °C): SDR11 = 25 × OD, SDR17 = 27 × OD. Where a turn has no
+        # room for the bend an electrofusion elbow is used instead (and
+        # reported). Coils: 100 m up to 63 mm, 50 m for 75–110 mm.
+        cats['HDPEC_PE100'] = {
+          name: 'HDPE PE100 coiled / flexible – ISO 4427, bent on site',
+          name_th: 'ท่อ HDPE แบบม้วน (อ่อน ดัดโค้งได้) – นอกอาคาร/เดินท่อระยะไกล',
+          material: 'HDPE PE100 (coil)', joint: 'Bent on site; electrofusion couplers / tees',
+          hw_c: 150, roughness_mm: 0.007, density: 955, family: 'HDPE',
+          flexible: true, bend_factor: { 'SDR11 PN16' => 25.0, 'SDR17 PN10' => 27.0 },
+          elbow_factor: 1.5, elbow_sr_factor: 1.5, tee_c_factor: 1.0,
+          fitting_od_factor: 1.0, stick_length_m: 100.0,
+          style: :fusion, default_rating: 'SDR11 PN16',
+          sizes: { 20 => { 'SDR11 PN16' => 2.0 }, 25 => { 'SDR11 PN16' => 2.3 } }.merge(HDPE.select { |od, _| od <= 110 })
+                   .map { |od, walls| { size: "#{od} mm", nps: nil, od: od.to_f, walls: walls } }
         }
 
         cats['CU_B88_L'] = {
@@ -352,9 +370,11 @@ module ArtK
             roughness_mm: cat[:roughness_mm], density: cat[:density],
             elbow_radius_lr: lr, elbow_radius_sr: sr, tee_c: tee_c,
             fitting_od: od * (cat[:fitting_od_factor] || 1.0),
-            stick_length_m: cat[:stick_length_m] || 6.0,
+            stick_length_m: cat[:flexible] && od > 63 ? 50.0 : (cat[:stick_length_m] || 6.0),
             estimated: cat[:estimated] ? true : false,
-            style: cat[:style] || :butt_weld, family: key.split('_').first
+            style: cat[:style] || :butt_weld, family: cat[:family] || key.split('_').first,
+            flexible: cat[:flexible] ? true : false,
+            bend_radius: cat[:flexible] ? od * cat[:bend_factor].fetch(rating, 25.0) : nil
           )
         end
 

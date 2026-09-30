@@ -21,6 +21,7 @@ class TestPipeTool < Minitest::Test
     Sketchup.active_model = @model
     @view = @model.active_view
     Sketchup::InputPoint.next_vertex = nil
+    Sketchup::InputPoint.next_dof = nil
   end
 
   def tool_with(settings)
@@ -163,5 +164,89 @@ class TestPipeTool < Minitest::Test
     t.onReturn(@view)
     assert_equal 1, runs.size
     assert_equal 1, runs.first.entities.count { |e| H.type_of(e) == 'pipe' } # merged, no gap
+  end
+
+  def test_point_snapped_on_a_guide_line_is_kept_exactly
+    t = tool_with('service' => 'CW', 'snap45' => true)
+    click(t, [0, 0, 0])
+    Sketchup::InputPoint.next_dof = 1 # on a guide line / edge
+    click(t, [3000, 700, 0])          # not a 45° direction
+    Sketchup::InputPoint.next_dof = nil
+    t.onReturn(@view)
+    assert_equal [3000.0, 700.0, 0.0], cl_points(runs.first)[1].map { |v| v.round(6) }
+  end
+
+  def test_drawing_from_an_elbow_makes_a_tee_in_the_same_run
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    click(t, [3000, 3000, 0])
+    t.onReturn(@view)
+    run = runs.first
+    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'elbow' }
+    # start near the elbow (anywhere on the fitting) and carry straight on
+    click(t, [3040, -30, 0])
+    click(t, [6000, 0, 0])
+    t.onReturn(@view)
+    assert_equal 1, runs.size
+    assert_equal 0, run.entities.count { |e| H.type_of(e) == 'elbow' }
+    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'tee' }
+  end
+
+  def test_ending_on_an_elbow_joins_that_run
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    click(t, [3000, 3000, 0])
+    t.onReturn(@view)
+    click(t, [3000, -3000, 0])
+    click(t, [3000, 0, 0]) # ends on the elbow corner
+    assert_equal 1, runs.size
+    assert_equal 1, runs.first.entities.count { |e| H.type_of(e) == 'tee' }
+  end
+
+  def test_smaller_branch_from_an_elbow_gets_stub_and_reducer
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    click(t, [3000, 3000, 0])
+    t.onReturn(@view)
+    first = runs.first
+    H.save_settings(Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"'))
+    t.resume(@view)
+    click(t, [3000, 0, 0])
+    click(t, [6000, 0, 0])
+    t.onReturn(@view)
+    assert_equal 1, first.entities.count { |e| H.type_of(e) == 'tee' }
+    second = runs.find { |r| r != first }
+    assert_equal '2"', second.get_attribute(H::DICT, 'size')
+    refute_nil second.entities.find { |e| H.type_of(e) == 'reducer' }
+  end
+
+  def test_own_pipe_colour
+    t = tool_with('service' => 'CW', 'pipe_color' => '#FF8800')
+    click(t, [0, 0, 0])
+    click(t, [2000, 0, 0])
+    t.onReturn(@view)
+    pipe = runs.first.entities.find { |e| H.type_of(e) == 'pipe' }
+    assert_equal 'PP_Custom_ff8800', pipe.material.name
+    assert_equal [255, 136, 0], pipe.material.color.rgb
+  end
+
+  def test_coiled_hdpe_bends_instead_of_elbows
+    t = tool_with('service' => 'CW', 'catalog' => 'HDPEC_PE100', 'size' => '63 mm')
+    click(t, [0, 0, 0])
+    click(t, [20_000, 0, 0])
+    click(t, [20_000, 20_000, 0])
+    click(t, [20_500, 20_000, 0]) # too close for a 25×OD bend
+    t.onReturn(@view)
+    run = runs.first
+    bends = run.entities.select { |e| e.get_attribute(H::DICT, 'bend_radius_mm') }
+    assert_equal 1, bends.size
+    assert_equal 63 * 25, bends.first.get_attribute(H::DICT, 'bend_radius_mm')
+    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'elbow' } # electrofusion elbow where no room
+    assert(H.get_json(run, 'warnings').any? { |w| w.include?('ข้องอหลอมไฟฟ้า') })
+    total = run.entities.select { |e| H.type_of(e) == 'pipe' }.sum { |e| e.get_attribute(H::DICT, 'length_mm') }
+    assert_operator total, :>, 39_000 # bend arc counted as pipe
   end
 end

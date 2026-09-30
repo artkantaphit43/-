@@ -157,7 +157,12 @@ module ArtK
 
       # Pipe/fitting colour: one material per service + material family, so
       # a scheme change is just a recolour of these few materials.
-      def pipe_material(model, code, family, scheme)
+      # The run's own colour when the user picked one (fixed – colour schemes
+      # leave it alone), otherwise the service/material colour of the scheme.
+      def pipe_material(model, code, family, scheme, custom = nil)
+        rgb = Settings.rgb(custom)
+        return material(model, "PP_Custom_#{custom.delete('#')}", rgb) if rgb
+
         material(model, "PP_#{code}_#{family}", Services.color(code, scheme, family))
       end
 

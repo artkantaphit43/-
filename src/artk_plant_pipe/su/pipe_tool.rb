@@ -87,7 +87,7 @@ module ArtK
           return if Vec.dist(@cursor, @points.last) < 1.0
 
           link = detect_link(@cursor, exclude_run: @start_link && @start_link[:run])
-          if link && link[:kind] == :tee
+          if link && %i[tee node].include?(link[:kind])
             @points << link[:point]
             @end_link = link
             return finish(view)
@@ -176,7 +176,8 @@ module ArtK
         @ip.draw(view) if @ip.valid? && @ip.display?
         pts = @points.map { |p| H.to_pt(p) }
         pts << H.to_pt(@cursor) if @cursor && !@points.empty?
-        color = Sketchup::Color.new(*Services.color(@settings['service'], @settings['color_scheme']))
+        color = Sketchup::Color.new(*(Settings.rgb(@settings['pipe_color']) ||
+                                      Services.color(@settings['service'], @settings['color_scheme'])))
         if pts.size >= 2
           view.line_stipple = ''
           view.line_width = 4
@@ -206,7 +207,7 @@ module ArtK
       def load_settings
         @settings = H.load_settings
         @spec = Settings.spec(@settings)
-        return unless @start_link && @start_link[:kind] == :append
+        return unless @start_link && %i[append node].include?(@start_link[:kind])
 
         # Continuing a run keeps that run's own size & service.
         @settings = Builder.run_settings(@start_link[:run]).merge(
@@ -276,13 +277,18 @@ module ArtK
         apply_slope(last, pt)
       end
 
+      # A point the user snapped to (endpoint, edge, guide line or guide
+      # point, intersection, axis) is used exactly – the 45° lock only tidies
+      # free cursor positions.
       def hard_snap?(ip)
-        !ip.vertex.nil? || ip.degrees_of_freedom.zero?
+        !ip.vertex.nil? || ip.degrees_of_freedom <= 1
       end
 
       def bop_offset?(ip)
         return false unless @settings['elevation_ref'] == 'bop'
-        return false unless ip.face || ip.edge || ip.vertex
+        # only a pick on a surface (floor, beam top) lifts the pipe onto it;
+        # points on edges / guides are taken as the centreline itself
+        return false unless ip.face && ip.degrees_of_freedom == 2
 
         path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
         path.none? { |e| e.respond_to?(:attribute_dictionary) && H.type_of(e) }
@@ -319,6 +325,9 @@ module ArtK
           e = Picker.run_end(@model, pt)
           return { kind: :append, run: e[:run], tr: e[:tr], point: e[:world] } if e
         end
+        n = Picker.run_node(@model, pt, exclude_run: exclude_run)
+        return { kind: :node, run: n[:run], tr: n[:tr], point: n[:world], arms: n[:arms] } if n
+
         hit = Picker.nearest_pipe(@model, pt, exclude_run: exclude_run)
         return nil unless hit
 
@@ -335,6 +344,14 @@ module ArtK
           else
             "ต่อท่อ + Reducer #{rs['size']} → #{@spec.size} (new run)"
           end
+        elsif @hover[:kind] == :node
+          rs = Builder.run_settings(@hover[:run])
+          kind = @hover[:arms] >= 3 ? 'สี่ทาง (cross)' : 'สามทาง (tee)'
+          if same_spec?(rs)
+            "แยกจากข้อต่อ → #{kind} #{@hover[:run].name}"
+          else
+            "แยกจากข้อต่อ → #{kind} + Reducer #{rs['size']} → #{@spec.size}"
+          end
         else
           "แยกท่อด้วย Tee (branch from) #{@hover[:hit][:run].name}"
         end
@@ -345,10 +362,13 @@ module ArtK
         if link
           # A different size/material selected → reducer + new run;
           # the same spec → simply continue the existing run.
-          link[:kind] = :reduce if link[:kind] == :append && !same_spec?(Builder.run_settings(link[:run]))
+          if %i[append node].include?(link[:kind]) && !same_spec?(Builder.run_settings(link[:run]))
+            link[:kind] = :reduce if link[:kind] == :append
+            link[:kind] = :node_reduce if link[:kind] == :node
+          end
           @start_link = link
           pt = link[:point]
-          load_settings if link[:kind] == :append
+          load_settings if %i[append node].include?(link[:kind])
         end
         @points << pt
       end
@@ -371,13 +391,16 @@ module ArtK
       # Continue run A at another size: if the new line turns, A first gets a
       # short leg in the new direction (so A's own elbow is made), then a
       # reducer in line, then the new run.
-      def finish_with_reducer(segs)
+      #
+      # From a corner / junction of run A (stub: true) A gets a short branch
+      # leg first (its elbow becomes a tee), then the reducer and new run.
+      def finish_with_reducer(segs, stub: false)
         run = @start_link[:run]
         tr = @start_link[:tr]
         p0 = segs.first[0]
         d1 = Vec.unit(Vec.sub(segs.first[1], p0))
         dir_a = end_direction(run, tr, p0) || d1
-        ang = Vec.angle(dir_a, d1)
+        ang = stub ? Math::PI / 2 : Vec.angle(dir_a, d1)
         raise 'ท่อย้อนกลับทางเดิม (line folds back)' if ang > 179.0 * Math::PI / 180
 
         spec_a = Builder.run_spec(run)
@@ -385,7 +408,7 @@ module ArtK
         @model.start_operation('Plant Piping: Reducer + New Run', true)
         warnings = []
         if ang > 0.5 * Math::PI / 180
-          leg = spec_a.elbow_radius_lr * Math.tan(ang / 2.0) + 1.0
+          leg = stub ? stub_length(run) : spec_a.elbow_radius_lr * Math.tan(ang / 2.0) + 1.0
           q = Vec.add(p0, Vec.scale(d1, leg))
           inv_a = tr.inverse
           warnings.concat(Builder.extend_run(@model, run, [[H.transform_mm(inv_a, p0), H.transform_mm(inv_a, q)]],
@@ -409,12 +432,24 @@ module ArtK
         raise
       end
 
+      # Branch leg of run A out of its new tee: the tee's branch outlet plus a
+      # little pipe for the reducer to start on.
+      def stub_length(run)
+        spec = Builder.run_spec(run)
+        c = spec.tee_c
+        rs = Builder.run_settings(run)
+        tee = Builder.refs_enabled?(rs) && Builder.ref_tee(spec)
+        c = [c, Vec.length(tee['ports'][2]['p'])].max if tee
+        c + 20.0
+      end
+
       def tee_record(hit, at_world, inv)
         a = hit[:attrs]
         { 'at' => H.transform_mm(inv, at_world),
           'main_dir' => Vec.unit(H.from_vec(H.to_vec(hit[:dir]).transform(inv))),
           'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
-          'main_service' => a['service'], 'main_pid' => hit[:run].persistent_id }
+          'main_service' => a['service'], 'main_pid' => hit[:run].persistent_id,
+          'main_color' => Builder.run_settings(hit[:run])['pipe_color'] }
       end
 
       # A branch must leave the main pipe at a real angle.
@@ -434,15 +469,27 @@ module ArtK
           reset_state
           return view.invalidate
         end
-        if @start_link && @start_link[:kind] == :reduce
-          report(finish_with_reducer(segs))
+        if @start_link && %i[reduce node_reduce].include?(@start_link[:kind])
+          report(finish_with_reducer(segs, stub: @start_link[:kind] == :node_reduce))
           reset_state
           update_status
           return view.invalidate
         end
         warnings = []
-        append = @start_link && @start_link[:kind] == :append
-        inv = append ? @start_link[:tr].inverse : H.edit_transform(@model).inverse
+        append = @start_link && %i[append node].include?(@start_link[:kind])
+        target = append ? @start_link : nil
+        # ending on another run's elbow/tee: join that run so its fitting
+        # becomes a tee / cross (same pipe only; different sizes start there)
+        if @end_link && @end_link[:kind] == :node
+          if append
+            warnings << 'ปลายท่อชนข้อต่อของอีกแนวท่อ – ไม่ได้รวมเป็นสามทาง (ให้เริ่มวาดจากข้อต่อนั้นแทน)'
+          elsif same_spec?(Builder.run_settings(@end_link[:run]))
+            target = @end_link
+          else
+            warnings << 'ขนาด/วัสดุต่างกัน – เริ่มวาดจากข้อต่อนั้นเพื่อใส่สามทาง + Reducer'
+          end
+        end
+        inv = target ? target[:tr].inverse : H.edit_transform(@model).inverse
         tees = []
         if @start_link && @start_link[:kind] == :tee
           if valid_branch?(@start_link[:hit], segs.first[0], segs.first[1])
@@ -461,8 +508,8 @@ module ArtK
         local = segs.map { |a, b| [H.transform_mm(inv, a), H.transform_mm(inv, b)] }
 
         warnings +=
-          if append
-            Builder.extend_run(@model, @start_link[:run], local, tees: tees)
+          if target
+            Builder.extend_run(@model, target[:run], local, tees: tees)
           else
             Builder.create_run(@model, local, @settings, tees: tees)[1]
           end

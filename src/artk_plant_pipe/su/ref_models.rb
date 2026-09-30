@@ -35,8 +35,10 @@ module ArtK
         end
 
         # Component definition for a pack item (built once per model).
-        def definition(model, item)
-          name = "PP Ref #{item['key']}"
+        # plain: faces left unpainted (decals excepted) so the part takes the
+        # instance colour – pipe fittings follow their line's colour.
+        def definition(model, item, plain: false)
+          name = "PP Ref #{item['key']}#{' (plain)' if plain}"
           defs = model.definitions
           d = defs[name]
           return d if d && d.get_attribute(H::DICT, 'type') == 'part' && H.faces?(d.entities)
@@ -45,7 +47,7 @@ module ArtK
           d.set_attribute(H::DICT, 'type', 'part')
           d.set_attribute(H::DICT, 'ref_key', item['key'])
           d.description = [item['standard'], item['src_name']].compact.join(' – ')
-          fill(model, d.entities, Refs.mesh(item))
+          fill(model, d.entities, Refs.mesh(item), plain: plain)
           unless H.faces?(d.entities)
             defs.remove(d) if defs.respond_to?(:remove)
             raise "reference model #{item['key']} produced no faces"
@@ -53,7 +55,7 @@ module ArtK
           d
         end
 
-        def fill(model, ents, mesh)
+        def fill(model, ents, mesh, plain: false)
           pts = mesh[:verts].map { |v| H.to_pt(v) }
           mats = {}
           soft = {}
@@ -74,6 +76,8 @@ module ArtK
 
             f = mesh[:faces][i]
             orient(face, f, mesh[:verts])
+            next if plain && !f[:pins]
+
             m = f[:mat] && (mats[f[:mat]] ||= source_material(model, f[:mat]))
             next unless m
 

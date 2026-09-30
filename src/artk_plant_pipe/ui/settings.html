@@ -69,14 +69,15 @@
 
 <section id="tab-pipe" class="on">
   <fieldset>
-    <legend>ระบบ (Service)</legend>
-    <label>ระบบท่อ<select id="service"></select></label>
+    <legend>ระบบ – ท่อนี้ใช้กับงานอะไร (Service)</legend>
+    <label>ระบบ<select id="service"></select></label>
     <div class="info" id="svcinfo"></div>
   </fieldset>
 
   <fieldset>
-    <legend>ท่อ (Pipe specification)</legend>
-    <label>วัสดุ/มาตรฐาน<select id="catalog"></select></label>
+    <legend>ชนิดท่อ (Pipe)</legend>
+    <label>ชนิดท่อ / วัสดุ<select id="catalog"></select></label>
+    <div class="info">PVC, HDPE แข็ง / HDPE ม้วน (ดัดโค้ง), เหล็กดำ, สแตนเลส, GI, PP-R, ทองแดง</div>
     <label>ขนาด (Size)<select id="size"></select></label>
     <label>ชั้น/Schedule<select id="rating"></select></label>
     <div class="info" id="specinfo"></div>
@@ -101,6 +102,9 @@
   <fieldset>
     <legend>การแสดงผล / BOM</legend>
     <label>สีท่อ (Colours)<select id="color_scheme"></select></label>
+    <label class="chk"><input type="checkbox" id="use_color"><span>กำหนดสีท่อเอง</span>
+      <input type="color" id="pipe_color" value="#2f80ed" style="margin-left:8px;width:48px;height:24px;padding:0"></label>
+    <div class="info">สีเองใช้กับท่อที่วาดใหม่ และท่อที่เลือกเมื่อกด "ปรับท่อที่เลือก"</div>
     <label>ระดับรายละเอียด<select id="lod">
       <option value="detailed">ละเอียด – รูน็อต, ซี่พวงมาลัย, บ่าข้อต่อ</option>
       <option value="light">เบา – สำหรับโมเดลโรงงานขนาดใหญ่</option></select></label>
@@ -194,6 +198,8 @@ const PP = (() => {
     ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
     $('segments').value = String(S.segments);
     ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
+    $('use_color').checked = !!S.pipe_color;
+    if (S.pipe_color) $('pipe_color').value = S.pipe_color;
     info();
   }
 
@@ -203,7 +209,9 @@ const PP = (() => {
     const id = z.od - 2 * wall;
     const kgm = Math.PI * wall * (z.od - wall) * c.density / 1e6;
     $('specinfo').textContent =
-      `OD ${z.od} × t ${wall} mm · ID ${id.toFixed(1)} mm · ${kgm.toFixed(2)} kg/m · ${c.joint}`;
+      `OD ${z.od} × t ${wall} mm · ID ${id.toFixed(1)} mm · ${kgm.toFixed(2)} kg/m · ${c.joint}` +
+      (c.flexible ? ` · ดัดโค้งรัศมีไม่น้อยกว่า ${Math.round(z.od * ((c.bend_factor || {})[S.rating] || 25))} mm` +
+        ` (${(c.bend_factor || {})[S.rating] || 25}×OD) · ม้วนละ ${z.od > 63 ? 50 : 100} m` : '');
     $('estwarn').hidden = !c.estimated;
     const crit = [];
     if (s.vmax) crit.push(`v ≤ ${s.vmax} m/s`);
@@ -221,11 +229,11 @@ const PP = (() => {
         ? `⚠ ความลาดต่ำกว่าขั้นต่ำสำหรับ ${S.size} (${need}%) ตาม IPC 704.1`
         : `ความลาดขั้นต่ำสำหรับ ${S.size}: ${need}% (IPC 704.1)`;
     }
-    const fam = S.catalog.split('_')[0];
+    const fam = S.catalog.startsWith('HDPEC') ? 'HDPE' : S.catalog.split('_')[0];
     const rgb = S.color_scheme === 'material'
       ? (D.painted[S.service] || D.material_colors[fam] || s.colors.distinct)
       : (s.colors[S.color_scheme] || s.colors.distinct);
-    $('swatch').style.background = `rgb(${rgb.join(',')})`;
+    $('swatch').style.background = S.pipe_color || `rgb(${rgb.join(',')})`;
   }
 
   function save() { call('save', JSON.stringify(S)); }
@@ -247,6 +255,10 @@ const PP = (() => {
     } else if (id === 'size') {
       S.size = e.target.value;
       if (!(S.rating in sizeRec().walls)) S.rating = Object.keys(sizeRec().walls)[0];
+    } else if (id === 'use_color') {
+      S.pipe_color = e.target.checked ? $('pipe_color').value : '';
+    } else if (id === 'pipe_color') {
+      S.pipe_color = e.target.value;
     } else if (['snap45', 'centerline', 'labels'].includes(id)) {
       S[id] = e.target.checked;
     } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments'].includes(id)) {

@@ -25,6 +25,7 @@ module ArtK
         'centerline'    => true,    # keep centreline edges on their own tag
         'labels'        => false,   # add line-number text labels
         'color_scheme'  => 'material',
+        'pipe_color'    => '',      # '#rrggbb' = the user's own colour for new / rebuilt runs
         'lod'           => 'detailed', # detailed | light
         'support_type'  => 'clevis',
         'waste_pct'     => 5.0,
@@ -52,11 +53,19 @@ module ArtK
         s['segments'] += 1 if s['segments'].odd? # even count keeps sections symmetric
         %w[snap45 centerline labels].each { |k| s[k] = truthy(s[k]) }
         s['color_scheme'] = Services::SCHEMES.key?(s['color_scheme']) ? s['color_scheme'] : 'material'
+        s['pipe_color'] = s['pipe_color'].to_s.downcase.match?(/\A#\h{6}\z/) ? s['pipe_color'].to_s.downcase : ''
         s['lod'] = %w[detailed light].include?(s['lod']) ? s['lod'] : 'detailed'
         s['support_type'] = 'clevis' unless Supports::TYPES.key?(s['support_type'])
         s['waste_pct'] = clamp(s['waste_pct'].to_f, 0.0, 50.0)
         s['valve_type'] = 'gate' unless FittingsData::VALVES.key?(s['valve_type'])
         s.select { |k, _| DEFAULTS.key?(k) }
+      end
+
+      # [r, g, b] of a '#rrggbb' colour, or nil.
+      def rgb(hex)
+        return nil unless hex.to_s.match?(/\A#\h{6}\z/)
+
+        [1, 3, 5].map { |i| hex[i, 2].to_i(16) }
       end
 
       def spec(settings)

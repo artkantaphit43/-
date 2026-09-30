@@ -67,6 +67,7 @@ module ArtK
             catalogs: Catalog.all.map do |key, c|
               [key, { name: c[:name], name_th: c[:name_th], material: c[:material], joint: c[:joint],
                       density: c[:density], estimated: c[:estimated] ? true : false,
+                      flexible: c[:flexible] ? true : false, bend_factor: c[:bend_factor],
                       default_rating: c[:default_rating],
                       sizes: c[:sizes].map do |z|
                         { size: z[:size], od: z[:od], walls: z[:walls],

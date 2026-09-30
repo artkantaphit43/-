@@ -44,6 +44,31 @@ module ArtK
         best
       end
 
+      # Corner / junction of a run (a centreline point shared by two or more
+      # segments – where an elbow or tee sits) near pt: clicking anywhere on
+      # that fitting counts. Returns { run:, tr:, local:, world:, arms: }.
+      def run_node(model, pt, exclude_run: nil)
+        best = nil
+        H.active_runs(model).each do |run, tr|
+          next if exclude_run && run == exclude_run
+
+          cl = H.get_json(run, 'cl', [])
+          spec = Builder.run_spec(run)
+          tol = [spec.od / 2.0 + 0.6 * spec.elbow_radius_lr, 40.0].max
+          cl.flatten(1).uniq { |p| p.map { |c| c.round(1) } }.each do |p|
+            arms = cl.count { |a, b| Vec.dist(a, p) <= 1.0 || Vec.dist(b, p) <= 1.0 }
+            next if arms < 2
+
+            w = H.transform_mm(tr, p)
+            d = Vec.dist(w, pt)
+            next if d > tol || (best && d >= best[:dist])
+
+            best = { run: run, tr: tr, local: p, world: w, arms: arms, dist: d }
+          end
+        end
+        best
+      end
+
       # Open end of a run centreline near pt. Returns { run:, tr:, local:, world: }.
       def run_end(model, pt, tol: 30.0)
         H.active_runs(model).each do |run, tr|

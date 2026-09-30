@@ -74,8 +74,8 @@ module ArtK
         nil
       end
 
-      def place_ref(ctx, item, frame, mat, scale: nil)
-        defn = RefModels.definition(ctx[:model], item)
+      def place_ref(ctx, item, frame, mat, scale: nil, plain: false)
+        defn = RefModels.definition(ctx[:model], item, plain: plain)
         tr = H.frame_transform(frame)
         tr *= Geom::Transformation.scaling(*scale) if scale && scale != [1.0, 1.0, 1.0]
         inst = ctx[:ents].add_instance(defn, tr)
@@ -89,7 +89,7 @@ module ArtK
 
       def render_ref_elbow(ctx, d, item)
         f = Mesh.frame(d[:vertex], d[:dir_in], d[:dir_out])
-        inst = place_ref(ctx, item, f, ctx[:mat])
+        inst = place_ref(ctx, item, f, ctx[:mat], plain: true)
         mark_ext(ctx, d[:start], item['ports'][0])
         mark_ext(ctx, d[:end], item['ports'][1])
         inst
@@ -99,7 +99,7 @@ module ArtK
       def render_ref_tee(ctx, d, item)
         run_a, run_b = d[:run]
         f = Mesh.frame(d[:center], run_b, d[:branch])
-        inst = place_ref(ctx, item, f, ctx[:mat])
+        inst = place_ref(ctx, item, f, ctx[:mat], plain: true)
         [[run_a, 0], [run_b, 1], [d[:branch], 2]].each do |u, i|
           mark_ext(ctx, Vec.add(d[:center], Vec.scale(u, Vec.length(item['ports'][i]['p']))), item['ports'][i])
         end
@@ -164,7 +164,7 @@ module ArtK
             face_at = Vec.add(at, Vec.scale(dir, sgn * h))
             x = Vec.scale(dir, -sgn)
             o = Vec.sub(face_at, Vec.scale(x, lf / 2.0))
-            fi = place_ref(ctx, fl, Mesh.frame(o, x, up), ctx[:mat])
+            fi = place_ref(ctx, fl, Mesh.frame(o, x, up), ctx[:mat], plain: true)
             finish_piece(ctx, fi, "Flange #{spec.size} (companion)", ctx[:mat],
                          { 'type' => 'flange', 'kind' => 'companion', 'rating' => REF_END_TYPES.dig(fl['family'], 1) ||
                            (fl['family'] == 'flgpn' ? 'PN16' : 'Class 150') }.merge(ref_attrs(fl)))

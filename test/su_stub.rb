@@ -587,7 +587,7 @@ module Sketchup
   # InputPoint whose pick position is set by the test.
   class InputPoint
     class << self
-      attr_accessor :next_position, :next_vertex
+      attr_accessor :next_position, :next_vertex, :next_dof
     end
     attr_reader :position
 
@@ -613,6 +613,8 @@ module Sketchup
     end
 
     def degrees_of_freedom
+      return InputPoint.next_dof if InputPoint.next_dof
+
       InputPoint.next_vertex ? 0 : 3
     end
 
