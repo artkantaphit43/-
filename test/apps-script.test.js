@@ -35,7 +35,15 @@ function makeEnv() {
       rich: {},
       name,
       getParent: () => parent,
-      getSheetId: () => 0,
+      gid: newId(''),
+      getSheetId: () => sheet.gid,
+      insertRowBefore: (r) => grid.splice(r - 1, 0, []),
+      copyTo: (ss) => {
+        const copy = makeSheet(sheet.name + ' copy', ss);
+        grid.forEach((row) => copy.grid.push(row.slice()));
+        ss.sheets.push(copy);
+        return copy;
+      },
       getMaxRows: () => 1000,
       setName: (n) => ((sheet.name = n), sheet),
       getLastRow: () => {
@@ -52,6 +60,27 @@ function makeEnv() {
           setValues: (vals) => (vals.forEach((row, i) => row.forEach((v, j) => put(r + i, c + j, v))), proxy),
           setFormulas: (vals) => (vals.forEach((row, i) => row.forEach((v, j) => put(r + i, c + j, v))), proxy),
           getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => cell(r + i, c + j))),
+          clearContent: () => {
+            for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) put(r + i, c + j, '');
+            return proxy;
+          },
+          sort: (specs) => {
+            const rows = grid.slice(r - 1, r - 1 + nr);
+            const val = (row, col) => row[col - 1] ?? '';
+            rows.sort((x, y) => {
+              for (const { column } of specs) {
+                const a = val(x, column);
+                const b = val(y, column);
+                if (a === b) continue;
+                if (a === '') return 1; // ช่องว่างไปท้าย (เหมือน Google Sheets)
+                if (b === '') return -1;
+                return a < b ? -1 : 1;
+              }
+              return 0;
+            });
+            grid.splice(r - 1, nr, ...rows);
+            return proxy;
+          },
           setRichTextValue: (rt) => ((sheet.rich[`${r},${c}`] = rt), put(r, c, rt.text), proxy),
         };
         // คำสั่งจัดรูปแบบอื่น ๆ (setBorder, merge, setWrap, ...) ไม่ต้องจำลอง
@@ -76,6 +105,7 @@ function makeEnv() {
         return sh;
       },
       getSheetByName: (n) => ss.sheets.find((x) => x.name === n) || null,
+      deleteSheet: (sh) => ss.sheets.splice(ss.sheets.indexOf(sh), 1),
       getId: () => id,
       getUrl: () => `https://docs.google.com/spreadsheets/d/${id}`,
       getSheets: () => ss.sheets,
@@ -199,7 +229,9 @@ function makeEnv() {
         if (/export\?format=pdf/.test(url)) {
           // เก็บหัวกระดาษ ณ ตอน export ไว้ตรวจ
           const ss = files[url.match(/\/d\/([^/]+)\//)[1]];
-          ctx.exportedHeader = ss.sheets[0].grid.slice(0, 3).flat();
+          const gid = url.match(/gid=(\d+)/)[1];
+          ctx.exportedGrid = ss.sheets.find((x) => x.gid === gid).grid.map((r) => r.slice());
+          ctx.exportedHeader = ctx.exportedGrid.slice(0, 3).flat();
           return res(200, '', blob('r.pdf'));
         }
         return res(404, 'not found');
@@ -346,7 +378,7 @@ test('Apps Script: แต่ละกลุ่มได้ไฟล์ Sheet แ
 });
 
 test('Apps Script: หลายโปรเจคในพื้นที่เดียวกัน', () => {
-  const { api, props, sent } = makeEnv();
+  const { api, ctx, props, sent } = makeEnv();
   api.doGet();
   const post = (t) =>
     api.doPost({
@@ -406,6 +438,18 @@ test('Apps Script: หลายโปรเจคในพื้นที่เ�
   const weekly = sent.filter((m) => m.kind === 'push').at(-1).messages[0].text;
   assert.match(weekly, /• ท่อประปา ค้าง 2/);
   assert.match(weekly, /• ไม่ระบุ ค้าง 3/);
+
+  // PDF: เรียงกลุ่มตามแท็บรายชื่อโปรเจค, มีแถบหัวกลุ่ม, ไม่ระบุไว้ท้าย, Sheet หลักไม่ถูกแตะ
+  const rows = ctx.exportedGrid.slice(3).map((r) => (typeof r[0] === 'number' ? `#${r[0]}` : r[0]));
+  assert.deepStrictEqual(
+    rows.map((r) => r.replace(/   —.*/, '')),
+    ['📂 ท่อประปา', '#2', '#6', '📂 ท่อน้ำเย็น', '#3', '📂 ท่อสตีม', '#5', '📂 ท่อลม', '#8',
+      '📂 ไม่ระบุโปรเจค', '#1', '#4', '#7']
+  );
+  assert.match(rows[0], /ทั้งหมด 2  ·  ค้าง 2$/);
+  const main = api.projectSheet(project);
+  assert.deepStrictEqual(api.readItems(main).map((i) => i.no), [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.strictEqual(main.getParent().sheets.length, 2, 'ลบชีตชั่วคราวแล้ว');
 });
 
 test('Apps Script parser ตรงกับเวอร์ชัน Node', () => {

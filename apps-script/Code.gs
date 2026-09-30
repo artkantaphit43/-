@@ -463,7 +463,7 @@ function formatProjectSheet(sh, title) {
     rule().whenFormulaSatisfied(`=LEFT($${DESC}${FIRST_ROW},${URGENT_TAG.length - 1})="${URGENT_TAG.trim()}"`)
       .setFontColor('#c5221f').setBold(true).setRanges([desc]).build(),
     // สลับสีแถว (เฉพาะแถวที่มีข้อมูล)
-    rule().whenFormulaSatisfied(`=AND($A${FIRST_ROW}<>"",ISEVEN(ROW()))`).setBackground(THEME.band).setRanges([all]).build(),
+    rule().whenFormulaSatisfied(`=AND(ISNUMBER($A${FIRST_ROW}),ISEVEN(ROW()))`).setBackground(THEME.band).setRanges([all]).build(),
   ]);
 
   // ปุ่มกรองที่หัวตาราง (เลือกดูทีละโปรเจค / สถานะ ได้เหมือน Excel)
@@ -853,30 +853,77 @@ function addItem(project, fields, photoIds, reporter) {
 
 /* ========================= PDF + สรุปรายสัปดาห์ ========================= */
 
+// PDF = สำเนาชั่วคราวของชีต จัดกลุ่มทีละโปรเจค (ตามลำดับในแท็บรายชื่อโปรเจค) แล้วลบทิ้ง
+// Sheet หลักไม่ถูกแตะ ยังเรียงตามลำดับที่แจ้งเหมือนเดิม
 function exportPdf(project) {
   const ss = SpreadsheetApp.openById(project.sheetId);
   const sh = ss.getSheets()[0];
   const at = now();
-
-  // พิมพ์ "สถานะ ณ วันที่" ไว้ในแถวหัว (แถว 1–3 ถูก freeze → ซ้ำทุกหน้าของ PDF)
-  // แล้วลบออกหลัง export เพื่อไม่ให้ Sheet สดแสดงวันที่เก่าค้างไว้
-  const stamp = sh.getRange(SUMMARY_ROW, STAMP_COL);
-  stamp.setValue(`สถานะ ณ วันที่ ${Utilities.formatDate(at, TZ, 'd/M/yyyy เวลา HH:mm')} น.`)
-  SpreadsheetApp.flush();
-
-  const url = `https://docs.google.com/spreadsheets/d/${project.sheetId}/export?format=pdf&gid=${sh.getSheetId()}` +
-    '&size=A4&portrait=false&fitw=true&gridlines=false&sheetnames=false&printtitle=false&pagenum=CENTER&fzr=true' +
-    '&top_margin=0.4&bottom_margin=0.4&left_margin=0.4&right_margin=0.4';
+  const tmp = sh.copyTo(ss).setName('PDF ' + Utilities.formatDate(at, TZ, 'yyMMdd-HHmmss'));
   let blob;
   try {
+    // "สถานะ ณ วันที่" อยู่ในแถวหัว (แถว 1–3 ถูก freeze → ซ้ำทุกหน้าของ PDF)
+    tmp.getRange(SUMMARY_ROW, STAMP_COL)
+      .setValue(`สถานะ ณ วันที่ ${Utilities.formatDate(at, TZ, 'd/M/yyyy เวลา HH:mm')} น.`);
+    groupByWork(tmp, readWorks(project).map((w) => w.name));
+    SpreadsheetApp.flush();
+
+    const url = `https://docs.google.com/spreadsheets/d/${project.sheetId}/export?format=pdf&gid=${tmp.getSheetId()}` +
+      '&size=A4&portrait=false&fitw=true&gridlines=false&sheetnames=false&printtitle=false&pagenum=CENTER&fzr=true' +
+      '&top_margin=0.4&bottom_margin=0.4&left_margin=0.4&right_margin=0.4';
     blob = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getBlob();
   } finally {
-    stamp.setValue('');
+    ss.deleteSheet(tmp);
   }
   blob.setName(`${project.title} ${Utilities.formatDate(at, TZ, 'yyyy-MM-dd HHmm')}.pdf`);
   const file = DriveApp.getFolderById(project.pdfFolderId).createFile(blob);
   if (SHARE_WITH_LINK) file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return file;
+}
+
+// เรียงแถวตามโปรเจค แล้วแทรกแถบหัวกลุ่ม "📂 ท่อประปา — ทั้งหมด 5 · ค้าง 2 · เลยกำหนด 1"
+function groupByWork(sh, workOrder) {
+  const n = sh.getLastRow() - FIRST_ROW + 1;
+  if (n <= 0) return;
+  const items = readItems(sh);
+  if (!items.some((i) => i.work)) return; // ไม่มีใครระบุโปรเจค → ไม่ต้องแบ่งกลุ่ม
+
+  const NO_WORK = 'ไม่ระบุโปรเจค';
+  const key = (w) => (!w ? 100000 : workOrder.indexOf(w) >= 0 ? workOrder.indexOf(w) : 50000);
+  const KEY_COL = HEADERS.length + 1;
+  const before = sh.getRange(FIRST_ROW, C.work, n, 1).getValues();
+  sh.getRange(FIRST_ROW, KEY_COL, n, 1).setValues(before.map((r) => [key(r[0])]));
+  sh.getRange(FIRST_ROW, 1, n, KEY_COL).sort([
+    { column: KEY_COL, ascending: true },
+    { column: C.work, ascending: true },
+    { column: C.no, ascending: true },
+  ]);
+  sh.getRange(FIRST_ROW, KEY_COL, n, 1).clearContent();
+
+  const today = new Date(Utilities.formatDate(now(), TZ, 'yyyy/MM/dd'));
+  const stats = {};
+  for (const i of items) {
+    const w = i.work || NO_WORK;
+    const s = stats[w] || (stats[w] = { all: 0, open: 0, late: 0 });
+    s.all++;
+    if (i.status !== ST_DONE) s.open++;
+    if (i.status !== ST_DONE && i.due && new Date(i.due) < today) s.late++;
+  }
+
+  // แทรกจากล่างขึ้นบน เลขแถวด้านบนจะได้ไม่เลื่อน
+  const works = sh.getRange(FIRST_ROW, C.work, n, 1).getValues().map((r) => r[0] || NO_WORK);
+  for (let i = n - 1; i >= 0; i--) {
+    if (i > 0 && works[i] === works[i - 1]) continue;
+    const row = FIRST_ROW + i;
+    const st = stats[works[i]];
+    sh.insertRowBefore(row);
+    sh.setRowHeight(row, 28);
+    sh.getRange(row, 1, 1, LAST_VISIBLE).merge()
+      .setValue(`📂 ${works[i]}   —   ทั้งหมด ${st.all}  ·  ค้าง ${st.open}${st.late ? `  ·  เลยกำหนด ${st.late}` : ''}`)
+      .setFontWeight('bold').setFontSize(11).setFontColor(THEME.title).setBackground('#b6d7a8')
+      .setHorizontalAlignment('left').setVerticalAlignment('middle')
+      .setBorder(true, true, true, true, false, false, THEME.border, SpreadsheetApp.BorderStyle.SOLID);
+  }
 }
 
 // ทำงานเองทุกวันจันทร์ 07:00 (ตั้งโดย ensureSetup)
