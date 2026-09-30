@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>PE Flow One Page</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .page{padding:8mm 9.5mm 10mm}
+  .pf{left:9.5mm;right:9.5mm;bottom:4.2mm}
+  .ph{margin-bottom:2.6mm;padding-bottom:2.2mm}
+  .ph h1{font-size:13.6pt}
+  .ph p{font-size:7.3pt}
+  .lgd{font-size:6.3pt;line-height:1.55;color:var(--ink2);border:.6pt solid var(--rule);border-radius:1.4mm;padding:1.2mm 2mm;align-self:start;white-space:nowrap}
+  .lgd b{color:var(--ink)}
+
+  .flow.sum{position:relative;display:grid;grid-template-columns:33mm 1.3fr 1fr 20mm;column-gap:2mm;row-gap:3.2mm;align-items:stretch}
+  .flow.sum svg.wires{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:0}
+  .flow.sum > *{position:relative;z-index:1}
+  .ch{font-size:6.8pt;font-weight:700;color:#fff;background:var(--ink);border-radius:1.2mm;padding:.9mm 1.8mm;display:flex;align-items:center;gap:1mm;letter-spacing:.02em}
+  .ch .ic{width:2.8mm;height:2.8mm}
+  .ph7{background:var(--pe-bg);border:.7pt solid var(--pe-bd);box-shadow:inset 1mm 0 0 var(--pe);border-radius:1.6mm;padding:1.4mm 1.6mm 1.5mm 2.4mm;
+    display:flex;flex-direction:column;gap:.6mm}
+  .ph7 .top{display:flex;align-items:center;gap:1.4mm}
+  .ph7 .no{flex:none;width:6.2mm;height:6.2mm;border-radius:1.2mm;background:var(--pe);color:#fff;font-weight:700;font-size:10.5pt;display:flex;align-items:center;justify-content:center;line-height:1}
+  .ph7 .nm{font-weight:700;font-size:8.2pt;line-height:1.22;color:var(--ink)}
+  .ph7 .wn{font-size:6.8pt;line-height:1.32;color:var(--ink2)}
+  .ph7 .wn b{color:var(--ink)}
+  .ph7 .gt{margin-top:auto;font-size:6.2pt;line-height:1.3;color:var(--yes);font-weight:600}
+  .cell{border:.6pt solid var(--rule);border-radius:1.4mm;padding:1.2mm 1.6mm 1.3mm;background:#fff}
+  .cell.do{background:#fbfcff}
+  .cell.bk{background:#f6fbf8;border-color:#cfe9dc}
+  .cell.fd{background:var(--scan-bg);border-color:var(--scan-bd);color:var(--scan);font-size:6.5pt;line-height:1.38;white-space:normal}
+  .cell.fd b{display:block;font-size:7pt}
+  .cell.fd span{color:var(--ink2);font-weight:400}
+  .cell ul{list-style:none;margin:0;padding:0;font-size:7.3pt;line-height:1.38;color:var(--ink2)}
+  .cell li{position:relative;padding-left:2.4mm;margin:.25mm 0}
+  .cell li::before{content:"";position:absolute;left:.4mm;top:1.35mm;width:1mm;height:1mm;border-radius:50%;background:var(--faint)}
+  .cell.bk li::before{background:var(--yes)}
+  .cell li b{color:var(--ink)}
+  .to{display:inline-block;font-size:6.1pt;font-weight:600;padding:0 .9mm;border-radius:.7mm;background:#dfe8ff;color:#1d45b0;line-height:1.5;white-space:nowrap}
+  .wr{color:var(--warn);font-weight:600}
+
+  .bot{display:grid;grid-template-columns:1.12fr 1fr 1fr;column-gap:2.6mm;margin-top:2.3mm;align-items:stretch}
+  .bot .box{padding:1.6mm 2mm 1.8mm}
+  .bot .box h3{font-size:7.6pt;margin-bottom:.8mm}
+  .steps{margin:0;padding:0;list-style:none;counter-reset:s;font-size:7.1pt;line-height:1.34;color:var(--ink2)}
+  .steps li{counter-increment:s;position:relative;padding-left:4mm;margin:.3mm 0}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:.2mm;width:3mm;height:3mm;border-radius:50%;background:var(--scan);color:#fff;font-size:5.4pt;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .bot .cl li,.bot .dl li{font-size:7.1pt;margin:.3mm 0}
+  .fleg{margin-top:1.3mm;font-size:6.3pt;color:var(--ink2);line-height:1.4}
+  .fleg b{color:var(--scan)}
+  .fnm{margin-top:1mm;font-size:6.3pt;color:var(--muted)}
+  .fnm b{color:var(--scan)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-recv" viewBox="0 0 24 24"><path d="M12 3v11"/><path d="M7.5 9.5 12 14l4.5-4.5"/><path d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M6 11V4h8l4 4v3"/><path d="M14 4v4h4"/><path d="M2.5 13.5h19"/><path d="M6 16.5V20h12v-3.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5"/><path d="M12 17.2v.3"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/></symbol>
+</svg>
+
+<section class="page">
+  <header class="ph" style="grid-template-columns:13mm 1fr auto">
+    <div class="ph-num sm">PE</div>
+    <div>
+      <div class="kicker">สรุป 1 หน้า · Project Control Flow</div>
+      <h1>ควบคุมโครงการ ตั้งแต่ทำสัญญา → ส่งมอบงาน → คืนหลักประกัน</h1>
+      <p>แต่ละขั้น: <b>ทำ/ยื่นอะไร ให้ใคร</b> → <b>ได้อะไรกลับ ต้องตรวจอะไร</b> → <b>สแกนเก็บที่ไหน</b> · รายละเอียดเต็มดูฉบับ 14 หน้า</p>
+    </div>
+    <div class="lgd"><b>01–13</b> = เลข Folder สแกนเก็บ<br><span class="to">→ ผู้ว่าจ้าง</span> = ยื่นให้ใคร<br><span class="tag gov">ภาครัฐ</span> = เฉพาะงานราชการ</div>
+  </header>
+
+  <div class="flow sum">
+    <div class="ch" style="grid-area:1/1">ขั้นตอน · เมื่อไร</div>
+    <div class="ch" style="grid-area:1/2"><svg class="ic"><use href="#i-send"/></svg>ทำ / ยื่นอะไร → ให้ใคร</div>
+    <div class="ch" style="grid-area:1/3"><svg class="ic"><use href="#i-recv"/></svg>ได้อะไรกลับ + ต้องตรวจอะไร</div>
+    <div class="ch" style="grid-area:1/4"><svg class="ic"><use href="#i-scan"/></svg>สแกนเก็บ</div>
+
+    <!-- 1 -->
+    <div class="ph7" id="s1" style="grid-area:2/1">
+      <div class="top"><span class="no">1</span><span class="nm">ทำสัญญา</span></div>
+      <div class="wn"><b>เมื่อ:</b> ได้หนังสือเชิญทำสัญญา → ก่อนวันนัดลงนาม</div>
+      <div class="gt">✓ สัญญาลงนามครบ 2 ฝ่าย</div>
+    </div>
+    <div class="cell do" style="grid-area:2/2"><ul>
+      <li>ตรวจร่างสัญญาเทียบ TOR / BOQ: วงเงิน ระยะเวลา งวดงาน ค่าปรับ ระยะรับประกัน</li>
+      <li>ขอ <b>หลักประกันสัญญา (LG)</b> <span class="tag gov">ภาครัฐ</span> 5% · หนังสือรับรองบริษัท · หนังสือมอบอำนาจ (อากร 10/30 บ.)</li>
+      <li>ยื่น + ลงนาม <span class="to">→ ผู้ว่าจ้าง</span> กรรมการผู้มีอำนาจ + ตรา (ถ้ากำหนด) + พยาน 2</li>
+      <li>บัญชีชำระอากรสัญญา 1 บ. / 1,000 บ. <span class="to">→ สรรพากร</span></li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:2/3"><ul>
+      <li><b>สัญญาคู่ฉบับ</b>: ลายเซ็นครบ 2 ฝ่าย + พยาน · ชื่อย่อทุกหน้า</li>
+      <li>เลขที่/วันที่ลงนามไม่ว่าง · ภาคผนวกครบ · จุดแก้มีลายเซ็นกำกับ</li>
+      <li>LG: ผู้รับประโยชน์ · วงเงิน · วันหมดอายุ ถูกต้อง</li>
+      <li>หลักฐานชำระอากร / e-Stamp</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:2/4"><b>01_Contract</b><span>ตัวจริงเข้าตู้เซฟ · ทำสรุปสัญญา 1 หน้า</span></div>
+
+    <!-- 2 -->
+    <div class="ph7" id="s2" style="grid-area:3/1">
+      <div class="top"><span class="no">2</span><span class="nm">เตรียมเริ่มงาน</span></div>
+      <div class="wn"><b>เมื่อ:</b> หลังลงนาม → ก่อนเข้าพื้นที่ (ตามวันในสัญญา)</div>
+      <div class="gt">✓ ได้หนังสือให้เริ่มงาน + รับมอบพื้นที่</div>
+    </div>
+    <div class="cell do" style="grid-area:3/2"><ul>
+      <li><b>แผนงาน / S-Curve</b> · ผังองค์กร + สำเนาใบ กว. · แผนความปลอดภัย · Submittal Schedule</li>
+      <li>กรมธรรม์ <b>CAR</b> (ถ้ากำหนด) · ขอเงินล่วงหน้า + LG เงินล่วงหน้า (ถ้ามี)</li>
+      <li>ยื่นพร้อมใบนำส่ง <span class="to">→ ผู้ว่าจ้าง / CM</span> · ขอไฟ–น้ำชั่วคราว ป้ายโครงการ</li>
+      <li>ตั้ง Register + Folder · ประชุม Kick-off</li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:3/3"><ul>
+      <li><b>หนังสือให้เริ่มงาน</b>: วันเริ่ม → คำนวณวันสิ้นสุดสัญญา · ผู้ลงนามมีอำนาจ</li>
+      <li><b>บันทึกส่งมอบพื้นที่</b>: ลงนาม 2 ฝ่าย + ผังหมุด BM + รูปสภาพเดิม</li>
+      <li>แผนงานที่อนุมัติ = Baseline · MOM Kick-off ลงนามทุกฝ่าย</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:3/4"><b>01 · 02 · 03 · 06</b><span>จดวันหมดอายุ LG / CAR / กว. ลงปฏิทิน</span></div>
+
+    <!-- 3 -->
+    <div class="ph7" id="s3" style="grid-area:4/1">
+      <div class="top"><span class="no">3</span><span class="nm">ขออนุมัติ<br>ก่อนทำ</span></div>
+      <div class="wn"><b>เมื่อ:</b> ก่อนสั่งของ / ก่อนทำ 2–4 สัปดาห์ · ทุกรายการ</div>
+      <div class="gt">✓ ได้สถานะ A หรือ B</div>
+    </div>
+    <div class="cell do" style="grid-area:4/2"><ul>
+      <li><b>Shop Drawing</b> · <b>วัสดุ</b> + ตัวอย่าง/มอก./ผลทดสอบ · <b>Method Statement</b></li>
+      <li>ใส่เลขที่ + Rev. จาก Register · PM ตรวจและเซ็น</li>
+      <li>ยื่นพร้อมใบนำส่ง <span class="to">→ CM</span> ให้เซ็นรับ + วันที่ · ติดตามในประชุมทุกสัปดาห์</li>
+      <li>แบบไม่ชัด/ขัดกัน → <b>RFI</b> ถามเป็นหนังสือ</li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:4/3"><ul>
+      <li>ตราสถานะ: <b>A/B = ใช้ได้</b> · <b class="wr">C/D = ห้ามใช้</b> แก้ Rev.+1 ส่งใหม่</li>
+      <li>ลายเซ็นผู้พิจารณา + วันที่ · เลขที่/Rev. ตรงที่ส่ง</li>
+      <li><b>อ่านคอมเมนต์ทุกหน้า</b> · กระทบราคา/เวลา → แจ้งเป็นหนังสือ</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:4/4"><b>03 · 04</b><span>แจกหน้างานเฉพาะ Rev. ล่าสุด · Rev. เก่าประทับ “ยกเลิก”</span></div>
+
+    <!-- 4 -->
+    <div class="ph7" id="s4" style="grid-area:5/1">
+      <div class="top"><span class="no">4</span><span class="nm">ควบคุมงาน<br>ก่อสร้าง</span></div>
+      <div class="wn"><b>เมื่อ:</b> ทุกวัน / สัปดาห์ / เดือน + ทุกครั้งที่เกิดเหตุ</div>
+      <div class="gt">✓ งานครบตามงวด + ผลทดสอบผ่าน</div>
+    </div>
+    <div class="cell do" style="grid-area:5/2"><ul>
+      <li>ทุกวัน: <b>Daily Report</b> + รูป (งานที่จะถูกปิด) <span class="to">→ CM</span></li>
+      <li>ทุกสัปดาห์: ประชุม + <b>MOM</b> · ทุกเดือน: Monthly Report + S-Curve</li>
+      <li>ก่อนเท/ก่อนปิดงาน: <b>ใบขอตรวจงาน</b> ล่วงหน้า (เช่น ≥ 24 ชม.) · ส่งตัวอย่างทดสอบ</li>
+      <li>งานเพิ่ม–ลด / ล่าช้า: แจ้ง <b>VO / EOT</b> เป็นหนังสือทันที <span class="tag gov">ภาครัฐ</span> ขอขยายเวลา ภายใน 15 วันนับถัดจากเหตุสิ้นสุด</li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:5/3"><ul>
+      <li>Daily / ใบขอตรวจงาน: CM เซ็นรับ · ผล “ผ่าน” + วัน/เวลา</li>
+      <li>MOM ลงนามทุกฝ่าย · ข้อความตรงที่ตกลง</li>
+      <li>ผลแล็บ: ลายเซ็นผู้ทดสอบ + ตราแล็บ · ค่า ≥ Spec</li>
+      <li><b>VO อนุมัติเป็นหนังสือก่อนลงมือ</b> · คำสั่งด้วยวาจา → ทำหนังสือยืนยันใน 1–2 วัน</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:5/4"><b>04 · 05 · 06 · 07 · 08 · 10</b><span>รูปแยกโฟลเดอร์ตามวันที่</span></div>
+
+    <!-- 5 -->
+    <div class="ph7" id="s5" style="grid-area:6/1">
+      <div class="top"><span class="no">5</span><span class="nm">ส่งงวด<br>&amp; เบิกเงิน</span></div>
+      <div class="wn"><b>เมื่อ:</b> เนื้องานครบตามงวดในสัญญา · ทำซ้ำทุกงวด</div>
+      <div class="gt">✓ ได้ใบตรวจรับ + ได้เงิน<br><span style="color:var(--muted)">↺ งวดถัดไป กลับขั้น 3</span></div>
+    </div>
+    <div class="cell do" style="grid-area:6/2"><ul>
+      <li>ตรวจงานภายใน + แก้ Defect ก่อนเรียกตรวจ</li>
+      <li><b>หนังสือส่งมอบงานงวด</b> (กรรมการ + ตรา) + สรุปผลงาน รูป ผลทดสอบ <span class="to">→ ผู้ว่าจ้าง / กก.ตรวจรับ</span></li>
+      <li>หลังตรวจรับ: บัญชีวางบิล <b>ใบแจ้งหนี้</b> (+ ใบกำกับภาษีตามแนวทางบัญชี)</li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:6/3"><ul>
+      <li><b>เลขรับ + วันที่</b> ของหนังสือส่งงาน = หลักฐานวันส่งงาน (ค่าปรับ)</li>
+      <li><b>ใบตรวจรับงวด</b>: ลงนามครบทุกคน · ระบุงวด + วันที่</li>
+      <li><b>50 ทวิ</b>: เลขภาษีเราถูก · ยอดตรง (หัก ภาครัฐ 1% / เอกชน 3%)</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:6/4"><b>09_Payment</b><span>/งวดN · ต้นฉบับ 50 ทวิ → บัญชี</span></div>
+
+    <!-- 6 -->
+    <div class="ph7" id="s6" style="grid-area:7/1">
+      <div class="top"><span class="no">6</span><span class="nm">ส่งมอบงาน<br>&amp; ปิดโครงการ</span></div>
+      <div class="wn"><b>เมื่อ:</b> งานเสร็จ ~90–95% → ส่งงวดสุดท้าย</div>
+      <div class="gt">✓ ได้หนังสือรับมอบงาน</div>
+    </div>
+    <div class="cell do" style="grid-area:7/2"><ul>
+      <li>ทดสอบระบบ (T&amp;C) · Punch List · ตรวจร่วมก่อนส่งมอบ</li>
+      <li>เอกสารส่งมอบ: <b>As-built</b> (วิศวกร + เลข กว.) · คู่มือ O&amp;M · ใบรับประกัน · กุญแจ/อะไหล่ · บันทึกอบรม</li>
+      <li><b>หนังสือส่งมอบงานงวดสุดท้าย</b> + ใบนำส่งแจงทุกรายการ <span class="to">→ ผู้ว่าจ้าง</span></li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:7/3"><ul>
+      <li><b>หนังสือรับมอบงาน</b>: <span class="wr">วันที่รับมอบ = วันเริ่มนับรับประกัน</span></li>
+      <li>ผู้รับเซ็นรับเอกสารส่งมอบครบทุกรายการ</li>
+      <li>ขอ<b>หนังสือรับรองผลงาน</b> · ขอคืน LG เงินล่วงหน้า · ออกจากพื้นที่</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:7/4"><b>07 · 12</b><span>ปิดแฟ้ม: Register ไม่มีค้าง</span></div>
+
+    <!-- 7 -->
+    <div class="ph7" id="s7" style="grid-area:8/1">
+      <div class="top"><span class="no">7</span><span class="nm">ระยะรับประกัน</span></div>
+      <div class="wn"><b>เมื่อ:</b> ตามสัญญา เช่น 1–2 ปี นับจากวันรับมอบ</div>
+      <div class="gt">✓ ได้หลักประกันคืน → ปิดโครงการ</div>
+    </div>
+    <div class="cell do" style="grid-area:8/2"><ul>
+      <li>รับแจ้งซ่อม → ลง Defect Log → ซ่อมในเวลาที่สัญญากำหนด</li>
+      <li>ก่อนครบ 30–60 วัน: ตรวจร่วมครั้งสุดท้าย</li>
+      <li><b>หนังสือขอคืนหลักประกันสัญญา / Retention</b> <span class="to">→ ผู้ว่าจ้าง</span> · LG ที่ได้คืน <span class="to">→ ธนาคาร</span> ยกเลิก</li>
+    </ul></div>
+    <div class="cell bk" style="grid-area:8/3"><ul>
+      <li>บันทึกการซ่อม: ผู้ว่าจ้างเซ็นรับ + รูปก่อน–หลัง</li>
+      <li>ได้<b>ต้นฉบับ LG</b> คืนจริง · เลขที่/จำนวนเงินตรง · Retention ครบ</li>
+      <li>หนังสือยืนยันยกเลิก LG จากธนาคาร</li>
+    </ul></div>
+    <div class="cell fd" style="grid-area:8/4"><b>13 · 01</b><span>Archive · เอกสารบัญชี/ภาษี เก็บ ≥ 5 ปี</span></div>
+
+    <script type="application/json" class="edges">[
+      ["s1","s2"],["s2","s3"],["s3","s4"],["s4","s5"],["s5","s6","b-t"],["s6","s7"],
+      ["s5","s3","l-l","","loop",{"off":9}]
+    ]</script>
+  </div>
+
+  <div class="bot">
+    <div class="box scanb">
+      <h3><svg class="ic"><use href="#i-loop"/></svg>วงจรเอกสาร — ใช้กับทุกฉบับ</h3>
+      <ol class="steps">
+        <li>ขอเลขที่จาก Register · ตรวจทานเอง</li>
+        <li>ผู้มีอำนาจลงนาม / ประทับตรา</li>
+        <li>สแกนฉบับที่ส่ง → ยื่นพร้อมใบนำส่ง</li>
+        <li>ให้ผู้รับเซ็นรับ + วันที่ + <b>เวลา</b> (หรือตรารับ + เลขรับ)</li>
+        <li>ลง Register + กำหนดตอบ → ติดตาม</li>
+        <li>รับกลับ → ตรวจ (กล่องกลาง) → สแกน → ตั้งชื่อ → Folder → Register</li>
+      </ol>
+      <div class="fnm">ชื่อไฟล์: <b>P2601-SD-ST-012_R1_20261005_ฐานรากF1.pdf</b><br>(โครงการ-ประเภท-สาขา-ลำดับ_Rev_วันที่_เรื่อง)</div>
+    </div>
+    <div class="box chk">
+      <h3><svg class="ic"><use href="#i-check"/></svg>ตรวจทุกเอกสารที่ได้กลับ</h3>
+      <ul class="cl">
+        <li><b>ลายเซ็น</b>หมึกจริง ครบทุกช่อง</li>
+        <li>ชื่อตัวบรรจง + ตำแหน่ง = <b>ผู้มีอำนาจ</b></li>
+        <li><b>ตราประทับ</b>ชัด (ถ้ากำหนด) · ตราสถานะ</li>
+        <li>เลขที่ / วันที่ / Rev. ตรงกับที่ส่ง</li>
+        <li>ครบทุกหน้า + สิ่งที่ส่งมาด้วย</li>
+        <li>จุดแก้ไข/ขีดฆ่า มีลายเซ็นกำกับ</li>
+        <li>ไม่ครบ → แจ้งขอแก้เป็นหนังสือ <b>ห้ามแก้เอง/เซ็นแทน</b></li>
+      </ul>
+    </div>
+    <div class="box warn">
+      <h3><svg class="ic"><use href="#i-warn"/></svg>กฎเหล็ก PE</h3>
+      <ul class="dl">
+        <li><b>ไม่มีหนังสือ = ไม่เกิดขึ้น</b> คำสั่งด้วยวาจาต้องยืนยันเป็นหนังสือ</li>
+        <li>ห้ามทำงานเพิ่ม/เปลี่ยนวัสดุ ก่อนได้อนุมัติ</li>
+        <li>ห้ามใช้แบบ/วัสดุที่ไม่ได้ A หรือ B</li>
+        <li>ถ่ายรูปงานก่อนถูกปิดเสมอ</li>
+        <li>ได้เอกสารมา → ลงรับ ตรวจ สแกน ให้<b>จบในวันเดียว</b></li>
+        <li>เฝ้าวันหมดอายุ: LG · ประกันภัย · ใบ กว.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fleg"><b>Folder:</b> 00 Register · 01 สัญญา/LG/ประกันภัย · 02 หนังสือเข้า–ออก · 03 Submittal · 04 RFI/ตรวจงาน · 05 รายงาน · 06 MOM · 07 ผลทดสอบ · 08 VO/EOT · 09 เงินงวด · 10 รูป · 11 ความปลอดภัย · 12 ส่งมอบ · 13 รับประกัน</div>
+  <footer class="pf"><span>Flow การควบคุมโครงการ สำหรับ PE · สรุป 1 หน้า · ฉบับ ก.ย. 2569</span><span>ตัวเลข/กำหนดเวลาให้ยึดตามสัญญา และระเบียบของผู้ว่าจ้าง/บริษัท เป็นหลัก</span></footer>
+</section>
+
+<script src="flow.js"></script>
+</body>
+</html>
