@@ -10,14 +10,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;600&display=swap">
 <style>
-/* Layout: one narrow clipboard sheet, fields in the order people talk (who-what-when-where), action bar at thumb reach */
+/* Layout: one short paper-form card (label | answer), fits a phone screen; one button at thumb reach */
 :root {
   --bg: #E8ECEA;
   --surface: #FFFFFF;
-  --sunk: #F2F5F4;
+  --sunk: #F1F4F3;
   --ink: #14201C;
   --muted: #55625E;
-  --rule: #C9D2CF;
+  --rule: #D5DCDA;
   --accent: #1D3E66;
   --accent-ink: #FFFFFF;
   --focus: #2F6FD0;
@@ -28,12 +28,6 @@
   --ok: #17663A;
   --ok-bg: #DCF2E3;
   --danger: #A3231F;
-  --sys-chw: #0E6A82;
-  --sys-cw: #2C7A31;
-  --sys-steam: #A3231F;
-  --sys-air: #2D56B0;
-  --sys-other: #5A6764;
-  --on-sys: #FFFFFF;
   --backdrop: rgb(8 14 12 / .55);
   --shadow: 0 -6px 18px rgb(20 32 28 / .08);
   --font-display: "Chakra Petch", "IBM Plex Sans Thai", "Noto Sans Thai", "Thonburi", system-ui, sans-serif;
@@ -42,19 +36,17 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0E1412; --surface: #161E1C; --sunk: #111816; --ink: #E4EBE8; --muted: #9AA8A3; --rule: #2C3835;
+    --bg: #0E1412; --surface: #161E1C; --sunk: #1D2725; --ink: #E4EBE8; --muted: #9AA8A3; --rule: #2C3835;
     --accent: #A9C8F0; --accent-ink: #0E1412; --focus: #7FB0FF; --line-green: #06C755; --line-ink: #06230F;
     --warn: #FFC46B; --warn-bg: #3A2A0F; --ok: #86D9A2; --ok-bg: #14301F; --danger: #FF8A80;
-    --sys-chw: #1C8BA6; --sys-cw: #3A8F40; --sys-steam: #C23A33; --sys-air: #4A74D0; --sys-other: #6F7C79; --on-sys: #FFFFFF;
     --backdrop: rgb(0 0 0 / .65); --shadow: 0 -6px 18px rgb(0 0 0 / .4);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0E1412; --surface: #161E1C; --sunk: #111816; --ink: #E4EBE8; --muted: #9AA8A3; --rule: #2C3835;
+  --bg: #0E1412; --surface: #161E1C; --sunk: #1D2725; --ink: #E4EBE8; --muted: #9AA8A3; --rule: #2C3835;
   --accent: #A9C8F0; --accent-ink: #0E1412; --focus: #7FB0FF; --line-green: #06C755; --line-ink: #06230F;
   --warn: #FFC46B; --warn-bg: #3A2A0F; --ok: #86D9A2; --ok-bg: #14301F; --danger: #FF8A80;
-  --sys-chw: #1C8BA6; --sys-cw: #3A8F40; --sys-steam: #C23A33; --sys-air: #4A74D0; --sys-other: #6F7C79; --on-sys: #FFFFFF;
   --backdrop: rgb(0 0 0 / .65); --shadow: 0 -6px 18px rgb(0 0 0 / .4);
   color-scheme: dark;
 }
@@ -62,7 +54,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px); background: var(--bg); }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
 img { max-width: 100%; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -72,92 +64,62 @@ button { cursor: pointer; }
 .app {
   max-width: 560px; margin-inline: auto;
   padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 12px 132px;
-  display: flex; flex-direction: column; gap: 20px;
+  padding-block: 10px 120px;
+  display: flex; flex-direction: column; gap: 14px;
 }
 
 /* header */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .top > div { min-width: 0; }
-h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.55rem; line-height: 1.2; text-wrap: balance; }
-.today { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; line-height: 1.2; }
+.sub { margin: 0; color: var(--muted); font-size: .88rem; }
+.sub b { color: var(--warn); font-weight: 600; }
 
-/* the sheet */
-.sheet-form { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 24px; }
-.editing { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--sunk); border: 1px dashed var(--rule); color: var(--muted); font-size: .88rem; }
-.editing b { color: var(--ink); font-weight: 600; }
-
-.label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0 0 8px; font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; line-height: 1.25; }
-.hint { font-family: var(--font-body); font-weight: 400; font-size: .86rem; color: var(--muted); letter-spacing: 0; }
+/* the form: label | answer rows */
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 4px 14px; }
+.row { display: grid; grid-template-columns: 4.1em minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.row:last-child { border-bottom: 0; }
+.row > label, .row > .lbl { padding-top: 11px; font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; line-height: 1.3; }
+.cell { min-width: 0; }
 
 input[type="text"], textarea {
   width: 100%; font-size: 17px; line-height: 1.45; color: var(--ink);
-  background: var(--sunk); border: 2px solid var(--rule); border-radius: 8px; padding: 12px 14px; min-height: 52px;
+  background: var(--sunk); border: 2px solid transparent; border-radius: 8px; padding: 10px 12px; min-height: 48px;
 }
-textarea { resize: vertical; min-height: 100px; display: block; }
+textarea { resize: none; display: block; min-height: 72px; overflow: hidden; }
 input[type="text"]:focus, textarea:focus { outline: none; border-color: var(--focus); background: var(--surface); }
-input::placeholder, textarea::placeholder { color: var(--muted); opacity: .8; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .75; }
+.row.is-missing input[type="text"], .row.is-missing textarea { border-color: var(--warn); background: var(--warn-bg); }
 
-.field.is-missing input[type="text"], .field.is-missing textarea { border-color: var(--warn); background: var(--warn-bg); }
-.miss-note { margin: 6px 0 0; color: var(--warn); font-size: .86rem; font-weight: 600; }
-.field:not(.is-missing) .miss-note { display: none; }
-
-/* pipe-marker system buttons: a band in the line's colour with a flow arrow */
-.systems { display: flex; flex-wrap: wrap; gap: 8px; }
-.sys {
-  --c: var(--sys-other);
-  display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 8px 14px 8px 10px;
-  border: 2px solid var(--c); border-radius: 4px; background: var(--surface); color: var(--ink);
-  font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; line-height: 1.2;
-}
-.sys::before, .mark::before {
-  content: ""; flex: none; width: 22px; height: 14px; background: var(--c);
-  clip-path: polygon(0 30%, 58% 30%, 58% 0, 100% 50%, 58% 100%, 58% 70%, 0 70%);
-}
-.sys[aria-pressed="true"] { background: var(--c); color: var(--on-sys); }
-.sys[aria-pressed="true"]::before { background: var(--on-sys); }
-
-/* chips */
-.quick, .recent { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+/* one-tap chips: a single row that scrolls sideways */
+.chips { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.chips::-webkit-scrollbar { display: none; }
 .chip {
-  position: relative; display: inline-block; max-width: 100%; min-height: 40px; padding: 8px 14px;
+  position: relative; flex: none; max-width: 14em; min-height: 36px; padding: 6px 12px;
   border: 1.5px solid var(--rule); border-radius: 6px; background: var(--surface); color: var(--ink);
-  font-size: .95rem; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: .92rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chip[aria-pressed="true"], .chip[data-on="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
-.chip-picker { cursor: pointer; }
+.chip-picker { display: inline-flex; align-items: center; cursor: pointer; }
 .chip-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 16px; border: 0; padding: 0; }
-.recent-label { font-size: .8rem; color: var(--muted); letter-spacing: .04em; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }
+.chips.wrap + .chips.wrap { margin-top: 6px; }
 
 /* photos */
-.photos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.ph { position: relative; aspect-ratio: 1; max-width: 100%; border-radius: 8px; overflow: hidden; background: var(--sunk); }
+.photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.ph, .add-photo { width: 64px; height: 64px; border-radius: 8px; }
+.ph { position: relative; overflow: hidden; background: var(--sunk); }
 .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ph button { position: absolute; top: 4px; right: 4px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgb(0 0 0 / .62); color: #FFFFFF; font-size: 20px; line-height: 1; }
-.add-photo {
-  aspect-ratio: 1; max-width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  border: 2px dashed var(--rule); border-radius: 8px; color: var(--muted); font-weight: 600; font-size: .95rem; text-align: center; cursor: pointer;
-}
+.ph button { position: absolute; top: 2px; right: 2px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgb(0 0 0 / .62); color: #FFFFFF; font-size: 16px; line-height: 1; }
+.add-photo { display: grid; place-items: center; border: 2px dashed var(--rule); color: var(--muted); cursor: pointer; }
 .add-photo svg { width: 28px; height: 28px; }
 .vh:focus-visible + .add-photo { outline: 3px solid var(--focus); outline-offset: 2px; }
-.kept { margin: 8px 0 0; font-size: .86rem; color: var(--muted); }
-
-/* before-you-leave checklist */
-.ask { border-top: 1px solid var(--rule); padding-top: 18px; }
-.ask-group { margin: 10px 0 2px; font-size: .78rem; font-weight: 600; letter-spacing: .06em; color: var(--muted); }
-.ask ul { list-style: none; margin: 0; padding: 0; }
-.ask label { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; font-size: 1rem; cursor: pointer; }
-.ask input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
-.ask input:checked + span { color: var(--muted); text-decoration: line-through; }
-.ask-empty { margin: 4px 0 0; font-size: .86rem; color: var(--muted); }
-
-.voice-tip { display: flex; gap: 8px; align-items: center; margin: 0; font-size: .88rem; color: var(--muted); }
-.voice-tip svg { flex: none; width: 18px; height: 18px; }
+.kept { width: 100%; margin: 0; font-size: .82rem; color: var(--muted); }
 
 /* buttons */
 .btn-primary {
-  flex: 1; min-width: 0; min-height: 56px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink);
-  font-family: var(--font-display); font-weight: 700; font-size: 1.18rem;
+  width: 100%; min-height: 56px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink);
+  font-family: var(--font-display); font-weight: 700; font-size: 1.2rem;
 }
 .btn-primary:active, .btn-line:active, .btn-secondary:active { transform: translateY(1px); }
 .btn-line {
@@ -174,7 +136,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: .8; }
   min-height: 44px; padding: 8px 14px; border: 1.5px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink);
   font-weight: 600; font-size: .95rem; line-height: 1.3;
 }
-.btn-ghost.is-next { border-color: var(--ink); }
+.btn-ghost.is-next { border-color: var(--ink); background: var(--ink); color: var(--surface); }
 .btn-ghost.is-danger { border-color: var(--danger); color: var(--danger); }
 .btn-sm { min-height: 36px; padding: 5px 12px; font-size: .88rem; }
 
@@ -183,14 +145,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: .8; }
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--rule); box-shadow: var(--shadow);
   padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
 }
-.bar-inner { max-width: 560px; margin-inline: auto; display: flex; gap: 12px; align-items: center; }
-.count {
-  flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 58px; min-height: 56px; padding: 4px 8px;
-  border-radius: 10px; background: var(--warn-bg); color: var(--warn); line-height: 1.1;
-}
-.count b { font-family: var(--font-display); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
-.count small { font-size: .72rem; }
-.count.full { background: var(--ok-bg); color: var(--ok); }
+.bar-inner { max-width: 560px; margin-inline: auto; }
 
 /* read-back sheet */
 dialog.readback {
@@ -199,56 +154,54 @@ dialog.readback {
 }
 dialog.readback::backdrop { background: var(--backdrop); }
 @media (min-width: 600px) { dialog.readback { margin: auto; border-radius: 16px; } }
-.rb { padding: 20px 16px calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
-.rb h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.4rem; line-height: 1.2; }
-.rb-sub { margin: 4px 0 0; color: var(--muted); font-size: .95rem; }
+.rb { padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+.rb h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; line-height: 1.2; }
+.rb-sub { margin: 2px 0 0; color: var(--muted); font-size: .95rem; }
 .missing { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-weight: 600; font-size: .95rem; }
 .msg {
-  margin: 0; padding: 14px; background: var(--sunk); border: 1px solid var(--rule); border-radius: 10px;
-  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-body); font-size: 1.06rem; line-height: 1.65; user-select: text; -webkit-user-select: text;
+  margin: 0; padding: 14px; background: var(--sunk); border-radius: 10px;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-body); font-size: 1.05rem; line-height: 1.6; user-select: text; -webkit-user-select: text;
 }
+.remind { margin: 0; font-size: .88rem; color: var(--muted); }
 .photo-note { margin: 0; font-size: .9rem; color: var(--warn); }
-.rb-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.rb-row .btn-ghost { flex: 1 1 auto; }
+.rb-row { display: flex; gap: 8px; }
+.rb-row .btn-ghost { flex: 1 1 0; }
 .status { margin: 0; min-height: 1.4em; font-size: .9rem; color: var(--ok); font-weight: 600; }
 
-/* log */
-.log h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; }
-.log .hint { display: block; margin-top: 2px; }
-.day { margin-top: 18px; }
+/* log (folded away: not part of filling in) */
+.log { border-top: 1px solid var(--rule); }
+.log > summary { display: flex; align-items: center; gap: 8px; min-height: 48px; cursor: pointer; font-weight: 600; list-style: none; }
+.log > summary::-webkit-details-marker { display: none; }
+.log > summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+.log[open] > summary::after { content: "▴"; }
+.log-sum { font-weight: 400; font-size: .9rem; color: var(--muted); }
+.day { margin-top: 6px; }
 .day-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
-.day-title { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; }
-.day-title span { font-family: var(--font-body); font-weight: 400; font-size: .9rem; color: var(--muted); margin-left: 4px; }
-.day-meta { font-size: .88rem; color: var(--muted); }
+.day-title { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
+.day-title span { font-family: var(--font-body); font-weight: 400; font-size: .88rem; color: var(--muted); margin-left: 4px; }
 .day-head .btn-sm { margin-left: auto; }
-.recs { list-style: none; margin: 0; padding: 0; }
-.rec { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.recs { list-style: none; margin: 0 0 14px; padding: 0; }
+.rec { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--rule); }
 .rec-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: .86rem; }
 .time { font-weight: 600; font-variant-numeric: tabular-nums; }
-.mark { --c: var(--sys-other); display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
-.mark::before { width: 16px; height: 10px; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: .8rem; font-weight: 600; }
 .pill.ok { background: var(--ok-bg); color: var(--ok); }
 .pill.warn { background: var(--warn-bg); color: var(--warn); }
-.rec-photos { color: var(--muted); }
+.muted { color: var(--muted); }
 .rec-main { margin: 0; overflow-wrap: anywhere; }
-.rec-sub { margin: 0; font-size: .9rem; color: var(--muted); overflow-wrap: anywhere; }
-.rec-actions { display: flex; gap: 8px; margin-top: 6px; }
-.empty { margin: 10px 0 0; color: var(--muted); }
-.sample { margin: 12px 0 0; }
-.sample figcaption { font-size: .78rem; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
-.sample .msg { font-size: .95rem; background: var(--surface); }
+.rec-sub { margin: 0; font-size: .88rem; color: var(--muted); overflow-wrap: anywhere; }
+.rec-actions { display: flex; gap: 8px; margin-top: 4px; }
+.empty { margin: 0 0 12px; color: var(--muted); font-size: .92rem; }
 
-/* settings */
-.settings { border-top: 1px solid var(--rule); padding-top: 6px; }
-.settings summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
-.set-body { display: flex; flex-direction: column; gap: 14px; padding: 6px 0 4px; }
-.set-body label { display: block; margin-bottom: 6px; font-weight: 600; font-size: .95rem; }
-.set-body p { margin: 0; font-size: .88rem; color: var(--muted); }
+.settings { margin: 4px 0 8px; }
+.settings > summary { min-height: 40px; display: flex; align-items: center; font-size: .92rem; color: var(--muted); cursor: pointer; }
+.set-body { display: flex; flex-direction: column; gap: 12px; padding: 6px 0 4px; }
+.set-body label { display: block; margin-bottom: 4px; font-weight: 600; font-size: .9rem; }
+.set-body p { margin: 0 0 6px; font-size: .86rem; color: var(--muted); }
 
 /* toast */
 .toast {
-  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); z-index: 20;
   width: max-content; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 8px; background: var(--ink); color: var(--surface);
   font-size: .95rem; opacity: 0; transform: translate(-50%, 8px); pointer-events: none; transition: opacity .2s, transform .2s;
 }
@@ -261,113 +214,84 @@ dialog.readback::backdrop { background: var(--backdrop); }
   <header class="top">
     <div>
       <h1>สรุปหน้างานท่อ</h1>
-      <p class="today" id="today"></p>
+      <p class="sub" id="mode"></p>
     </div>
-    <button type="button" class="btn-ghost" id="btnNew">เรื่องใหม่</button>
+    <button type="button" class="btn-ghost" id="btnNew">ใหม่</button>
   </header>
 
-  <form class="sheet-form" id="form" autocomplete="off" novalidate>
-    <p class="editing" id="editing" hidden>เรื่องนี้บันทึกแล้ว <b id="editingTime"></b> · แก้แล้วกดสร้างอีกครั้ง จะอัปเดตเรื่องเดิม</p>
-
-    <div>
-      <p class="label" id="lblSys">ระบบ <span class="hint">แตะเลือก 1 ระบบ</span></p>
-      <div class="systems" role="group" aria-labelledby="lblSys">
-        <button type="button" class="sys" data-sys="chw" style="--c: var(--sys-chw)" aria-pressed="false">น้ำเย็น</button>
-        <button type="button" class="sys" data-sys="cw" style="--c: var(--sys-cw)" aria-pressed="false">น้ำประปา</button>
-        <button type="button" class="sys" data-sys="steam" style="--c: var(--sys-steam)" aria-pressed="false">ไอน้ำ</button>
-        <button type="button" class="sys" data-sys="air" style="--c: var(--sys-air)" aria-pressed="false">ลมอัด</button>
-        <button type="button" class="sys" data-sys="other" style="--c: var(--sys-other)" aria-pressed="false">อื่นๆ</button>
+  <form class="card" id="form" autocomplete="off" novalidate>
+    <div class="row" id="f-who">
+      <label for="who">ใคร</label>
+      <div class="cell">
+        <input type="text" id="who" placeholder="ชื่อคนรับผิดชอบ" enterkeyhint="next">
+        <div class="chips" id="recent-who" hidden></div>
       </div>
     </div>
-
-    <div class="field" id="f-who">
-      <label class="label" for="who">ใคร <span class="hint">ชื่อคนเดียวที่รับผิดชอบ ไม่ใช่ "ช่าง"</span></label>
-      <input type="text" id="who" placeholder="เช่น พี่สมชาย (ผู้รับเหมา ABC)" enterkeyhint="next">
-      <p class="miss-note">ยังว่าง ถามก่อนจบ</p>
-      <div class="recent" id="recent-who" hidden></div>
-    </div>
-
-    <div class="field" id="f-what">
-      <label class="label" for="what">ทำอะไร <span class="hint">กริยา + ของ + ขนาด · 1 บรรทัด = 1 งาน</span></label>
-      <textarea id="what" rows="3" placeholder="เช่น เปลี่ยนบอลวาล์ว 2&quot; ไลน์ CHWS&#10;เทสแรงดัน 10 bar ค้าง 30 นาที"></textarea>
-      <p class="miss-note">ยังว่าง ถามก่อนจบ</p>
-    </div>
-
-    <div class="field" id="f-when">
-      <label class="label" for="when">เมื่อไร <span class="hint">วัน + เวลา ไม่ใช่ "เดี๋ยวทำ"</span></label>
-      <input type="text" id="when" placeholder="แตะปุ่มด้านล่าง หรือพิมพ์เอง" enterkeyhint="next">
-      <p class="miss-note">ยังว่าง ถามก่อนจบ</p>
-      <div class="quick" role="group" aria-label="เลือกวัน">
-        <button type="button" class="chip" data-day="0" aria-pressed="false">วันนี้</button>
-        <button type="button" class="chip" data-day="1" aria-pressed="false">พรุ่งนี้</button>
-        <button type="button" class="chip" data-day="2" aria-pressed="false">มะรืน</button>
-        <span class="chip chip-picker" id="pickDayChip" data-on="false">เลือกวัน<input type="date" id="pickDay" aria-label="เลือกวัน"></span>
-      </div>
-      <div class="quick" role="group" aria-label="เลือกเวลา">
-        <button type="button" class="chip" data-time="ก่อนเที่ยง" aria-pressed="false">ก่อนเที่ยง</button>
-        <button type="button" class="chip" data-time="ก่อน 17:00 น." aria-pressed="false">ก่อน 17:00</button>
-        <span class="chip chip-picker" id="pickTimeChip" data-on="false">เลือกเวลา<input type="time" id="pickTime" aria-label="เลือกเวลา"></span>
+    <div class="row" id="f-what">
+      <label for="what">ทำอะไร</label>
+      <div class="cell">
+        <textarea id="what" rows="2" placeholder="งานละบรรทัด เช่น เปลี่ยนวาล์ว 2&quot; ไลน์ CHWS"></textarea>
       </div>
     </div>
-
-    <div class="field" id="f-where">
-      <label class="label" for="where">ที่ไหน <span class="hint">ให้คนอื่นหาเจอ: อาคาร · แนวเสา · เลขไลน์</span></label>
-      <input type="text" id="where" placeholder="เช่น อาคาร 2 ชั้น 1 แนวเสา C-4" enterkeyhint="done">
-      <p class="miss-note">ยังว่าง ถามก่อนจบ</p>
-      <div class="recent" id="recent-where" hidden></div>
+    <div class="row" id="f-when">
+      <label for="when">เมื่อไร</label>
+      <div class="cell">
+        <input type="text" id="when" placeholder="แตะปุ่มด้านล่าง หรือพิมพ์เอง" enterkeyhint="next">
+        <div class="chips wrap" role="group" aria-label="วัน">
+          <button type="button" class="chip" data-day="0" aria-pressed="false">วันนี้</button>
+          <button type="button" class="chip" data-day="1" aria-pressed="false">พรุ่งนี้</button>
+          <span class="chip chip-picker" id="pickDayChip" data-on="false">เลือกวัน<input type="date" id="pickDay" aria-label="เลือกวัน"></span>
+        </div>
+        <div class="chips wrap" role="group" aria-label="เวลา">
+          <button type="button" class="chip" data-time="ก่อนเที่ยง" aria-pressed="false">ก่อนเที่ยง</button>
+          <button type="button" class="chip" data-time="ก่อน 17:00 น." aria-pressed="false">ก่อน 17:00</button>
+        </div>
+      </div>
     </div>
-
-    <div>
-      <p class="label" id="lblPhotos">รูป <span class="hint">จุดงาน · ป้ายวาล์ว/ไลน์ · ของที่ต้องใช้</span></p>
-      <div class="photos" id="photos">
+    <div class="row" id="f-where">
+      <label for="where">ที่ไหน</label>
+      <div class="cell">
+        <input type="text" id="where" placeholder="อาคาร · แนวเสา · เลขไลน์" enterkeyhint="done">
+        <div class="chips" id="recent-where" hidden></div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="lbl" id="lblPhotos">รูป</span>
+      <div class="cell photos" id="photos">
         <input type="file" id="photoInput" class="vh" accept="image/*" multiple aria-labelledby="lblPhotos">
-        <label class="add-photo" for="photoInput">
+        <label class="add-photo" for="photoInput" aria-label="เพิ่มรูป">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
-          เพิ่มรูป
         </label>
+        <p class="kept" id="keptNote" hidden></p>
       </div>
-      <p class="kept" id="keptNote" hidden></p>
     </div>
-
-    <div class="ask">
-      <p class="label" id="lblAsk">ก่อนจบ ถามครบยัง <span class="hint">ติ๊กเมื่อถามแล้ว</span></p>
-      <div id="askList" aria-labelledby="lblAsk"></div>
-    </div>
-
-    <p class="voice-tip">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-      พูดแทนพิมพ์ได้: แตะช่อง แล้วกดปุ่มไมค์บนคีย์บอร์ด
-    </p>
   </form>
 
-  <section class="log" aria-labelledby="lblLog">
-    <h2 id="lblLog">บันทึก</h2>
-    <span class="hint">เก็บในมือถือเครื่องนี้เท่านั้น · ก่อนเลิกงานกด "คัดลอกเป็นตาราง" ไปวางใน Excel / Google Sheets</span>
+  <details class="log" id="logBox">
+    <summary>บันทึก <span class="log-sum" id="logSum"></span></summary>
     <div id="log"></div>
-  </section>
-
-  <details class="settings">
-    <summary>ตั้งค่าข้อความ</summary>
-    <div class="set-body">
-      <div>
-        <label for="myName">ชื่อผู้ส่ง (ลงท้ายข้อความ)</label>
-        <input type="text" id="myName" placeholder="เช่น ต้น (PE งานท่อ)">
+    <details class="settings">
+      <summary>ตั้งค่าข้อความ</summary>
+      <div class="set-body">
+        <div>
+          <label for="myName">ชื่อผู้ส่ง (ลงท้ายข้อความ)</label>
+          <input type="text" id="myName" placeholder="เช่น ต้น (PE งานท่อ)">
+        </div>
+        <div>
+          <label for="closing">ประโยคท้ายข้อความ</label>
+          <input type="text" id="closing">
+        </div>
+        <div>
+          <p>ตั้งตารางครั้งแรก: คัดลอกหัวตารางไปวางเป็นแถวแรก ทุกเย็นค่อยวางต่อท้าย</p>
+          <button type="button" class="btn-ghost btn-sm" id="btnCopyHead">คัดลอกหัวตาราง</button>
+        </div>
       </div>
-      <div>
-        <label for="closing">ประโยคท้ายข้อความ</label>
-        <input type="text" id="closing">
-      </div>
-      <div>
-        <p>ตั้งตารางครั้งแรก: คัดลอกหัวตารางไปวางเป็นแถวแรก แล้วทุกเย็นค่อยวางต่อท้าย</p>
-        <button type="button" class="btn-ghost btn-sm" id="btnCopyHead" style="margin-top:8px">คัดลอกหัวตาราง</button>
-      </div>
-    </div>
+    </details>
   </details>
 </div>
 
 <div class="bar" lang="th">
   <div class="bar-inner">
-    <span class="count" id="count" aria-live="polite"><b id="countNum">0/4</b><small>ช่อง</small></span>
     <button type="button" class="btn-primary" id="btnGen">สร้างข้อความสรุป</button>
   </div>
 </div>
@@ -376,17 +300,17 @@ dialog.readback::backdrop { background: var(--backdrop); }
   <div class="rb">
     <div>
       <h2 id="sheetTitle">ทวนกลับก่อนจบ</h2>
-      <p class="rb-sub">อ่านข้อความนี้ให้อีกฝ่ายฟัง ถ้าตรงแล้วส่งเลย ถ้าไม่ตรงกด แก้ไข</p>
+      <p class="rb-sub">อ่านให้อีกฝ่ายฟัง ตรงแล้วกดส่งเลย</p>
     </div>
     <p class="missing" id="missing" hidden></p>
     <pre class="msg" id="msg"></pre>
+    <p class="remind">อย่าลืมถาม: ต้องหยุดไลน์ไหม · มีงานเชื่อม/ตัดไหม · ใครเตรียมของ</p>
     <a class="btn-line" id="btnLine" href="https://line.me/R/share" target="_blank" rel="noopener"><span class="step">1</span>ส่งข้อความเข้า LINE</a>
     <button type="button" class="btn-secondary" id="btnSharePhotos" hidden><span class="step">2</span>ส่งรูป <span id="sharePhotosCount">0</span> รูป</button>
     <p class="photo-note" id="photoNote" hidden>มือถือนี้ส่งรูปจากหน้าเว็บไม่ได้ ให้เปิดแชทเดิมใน LINE กด + แล้วเลือกรูปจากคลังภาพ</p>
     <p class="status" id="sheetStatus" role="status"></p>
     <div class="rb-row">
       <button type="button" class="btn-ghost" id="btnEdit">แก้ไข</button>
-      <button type="button" class="btn-ghost" id="btnCopy">คัดลอกข้อความ</button>
       <button type="button" class="btn-ghost" id="btnDoneNew">เสร็จ · เรื่องใหม่</button>
     </div>
   </div>
@@ -420,16 +344,6 @@ dialog.readback::backdrop { background: var(--backdrop); }
     }
   };
 
-  // ---------- what to ask before leaving, per system (edit freely) ----------
-  const SYSTEMS = {
-    chw:   { label: 'น้ำเย็น',   ask: ['ไลน์ Supply หรือ Return · ขนาดท่อเท่าไร', 'ต้องระบายน้ำ (drain) / ไล่อากาศหลังเติมน้ำไหม', 'หุ้มฉนวนคืนใครทำ (กันเหงื่อ กันหยดน้ำ)'] },
-    cw:    { label: 'น้ำประปา', ask: ['ปิดน้ำโซนไหน กี่โมงถึงกี่โมง ใครต้องรู้', 'ขนาดและวัสดุท่อ (PPR / PVC / GI)', 'เทสรั่วก่อนปิดงานไหม'] },
-    steam: { label: 'ไอน้ำ',    ask: ['ความดันไลน์ (bar) · ขนาดท่อ', 'ปิดวาล์ว + ล็อก (LOTO) ใครล็อก · รอท่อเย็นก่อนแกะ', 'หุ้มฉนวนคืน · เช็กสตีมแทรปด้วยไหม'] },
-    air:   { label: 'ลมอัด',    ask: ['ความดันใช้งาน (bar) · ขนาดท่อ', 'ปิดวาล์วแยกโซนได้ไหม · ระบายลมก่อนแกะ', 'เทสรั่ว (น้ำสบู่) หลังต่อเสร็จ'] },
-    other: { label: 'อื่นๆ',     ask: [] }
-  };
-  const ASK_COMMON = ['ต้องหยุดเครื่อง/หยุดไลน์ไหม แจ้งฝ่ายผลิตหรือยัง', 'มีงานเชื่อม/ตัดไหม → ใบอนุญาตงานร้อน', 'ของและอุปกรณ์ ใครเตรียม'];
-
   const FIELDS = [
     { key: 'who', label: 'ใคร' },
     { key: 'what', label: 'ทำอะไร' },
@@ -438,7 +352,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
   ];
   const UNSETTLED = '❓ ยังไม่ได้ตกลง';
   const DEFAULT_CLOSING = 'ถ้าไม่ตรงตามนี้ รบกวนแจ้งกลับครับ 🙏';
-  const TABLE_HEAD = ['วันที่คุย', 'เวลา', 'ระบบ', 'ใคร', 'ทำอะไร', 'เมื่อไร', 'กำหนดวันที่', 'ที่ไหน', 'รูป', 'เปิด LINE'];
+  const TABLE_HEAD = ['วันที่คุย', 'เวลา', 'ใคร', 'ทำอะไร', 'เมื่อไร', 'กำหนดวันที่', 'ที่ไหน', 'รูป', 'เปิด LINE'];
   const KEEP_DAYS = 60;
   const SHOW_DAYS = 14;
 
@@ -449,27 +363,22 @@ dialog.readback::backdrop { background: var(--backdrop); }
   const fromIso = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
   const daysFromToday = n => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; };
   const fmtDay = new Intl.DateTimeFormat('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
-  const fmtWeekday = new Intl.DateTimeFormat('th-TH', { weekday: 'short' });
-  const fmtLong = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const thDay = iso => fmtDay.format(fromIso(iso));
 
   // ---------- elements & state ----------
   const el = {
     form: $('#form'), who: $('#who'), what: $('#what'), when: $('#when'), where: $('#where'),
-    ask: $('#askList'), photos: $('#photos'), photoInput: $('#photoInput'), keptNote: $('#keptNote'),
-    count: $('#count'), countNum: $('#countNum'), gen: $('#btnGen'), newBtn: $('#btnNew'),
-    editing: $('#editing'), editingTime: $('#editingTime'), today: $('#today'),
-    pickDay: $('#pickDay'), pickTime: $('#pickTime'), pickDayChip: $('#pickDayChip'), pickTimeChip: $('#pickTimeChip'),
+    photos: $('#photos'), photoInput: $('#photoInput'), keptNote: $('#keptNote'),
+    gen: $('#btnGen'), newBtn: $('#btnNew'), mode: $('#mode'),
+    pickDay: $('#pickDay'), pickDayChip: $('#pickDayChip'),
     sheet: $('#sheet'), msg: $('#msg'), missing: $('#missing'), line: $('#btnLine'),
     sharePhotos: $('#btnSharePhotos'), sharePhotosCount: $('#sharePhotosCount'), photoNote: $('#photoNote'),
-    status: $('#sheetStatus'), copy: $('#btnCopy'), edit: $('#btnEdit'), doneNew: $('#btnDoneNew'),
-    log: $('#log'), toast: $('#toast'), myName: $('#myName'), closing: $('#closing'), copyHead: $('#btnCopyHead')
+    status: $('#sheetStatus'), edit: $('#btnEdit'), doneNew: $('#btnDoneNew'),
+    log: $('#log'), logSum: $('#logSum'), toast: $('#toast'),
+    myName: $('#myName'), closing: $('#closing'), copyHead: $('#btnCopyHead')
   };
 
-  const state = {
-    system: '', dueDate: '', datePart: '', timePart: '',
-    recordId: null, keptPhotos: 0, photos: [], asked: new Set(), dirty: false, text: ''
-  };
+  const state = { dueDate: '', datePart: '', timePart: '', recordId: null, keptPhotos: 0, photos: [], dirty: false, text: '' };
 
   const settings = () => ({ name: '', closing: DEFAULT_CLOSING, ...store.get(K.settings, {}) });
 
@@ -483,9 +392,8 @@ dialog.readback::backdrop { background: var(--backdrop); }
     const s = settings();
     const d = new Date(r.createdAt);
     const items = whatItems(r.what);
-    const out = [`📋 สรุปที่คุยกัน (${fmtDay.format(d)} ${hhmm(d)} น.)`];
-    if (SYSTEMS[r.system] && r.system !== 'other') out.push(`ระบบ: ${SYSTEMS[r.system].label}`);
-    out.push('', `👤 ใคร: ${(r.who || '').trim() || UNSETTLED}`);
+    const out = [`📋 สรุปที่คุยกัน (${fmtDay.format(d)} ${hhmm(d)} น.)`, ''];
+    out.push(`👤 ใคร: ${(r.who || '').trim() || UNSETTLED}`);
     if (items.length > 1) {
       out.push('🔧 ทำอะไร:');
       items.forEach((t, i) => out.push(`${i + 1}) ${t}`));
@@ -535,9 +443,8 @@ dialog.readback::backdrop { background: var(--backdrop); }
     return list.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(r => {
       const d = new Date(r.createdAt);
       return [
-        isoDate(d), hhmm(d), SYSTEMS[r.system] ? SYSTEMS[r.system].label : '',
-        r.who, whatItems(r.what).join(' / '), r.when, r.dueDate || '', r.where, r.photoCount || 0,
-        r.openedAt ? hhmm(new Date(r.openedAt)) : 'ยังไม่ส่ง'
+        isoDate(d), hhmm(d), r.who, whatItems(r.what).join(' / '), r.when, r.dueDate || '', r.where,
+        r.photoCount || 0, r.openedAt ? hhmm(new Date(r.openedAt)) : 'ยังไม่ส่ง'
       ].map(cell).join('\t');
     }).join('\n');
   }
@@ -577,7 +484,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
   // ---------- draft (survives screen lock / reload; photos excepted) ----------
   function saveDraft() {
     store.set(K.draft, {
-      system: state.system, who: el.who.value, what: el.what.value, when: el.when.value, where: el.where.value,
+      who: el.who.value, what: el.what.value, when: el.when.value, where: el.where.value,
       dueDate: state.dueDate, datePart: state.datePart, timePart: state.timePart,
       recordId: state.recordId, keptPhotos: state.keptPhotos, dirty: state.dirty
     });
@@ -586,45 +493,30 @@ dialog.readback::backdrop { background: var(--backdrop); }
     const d = store.get(K.draft, null);
     if (!d) return;
     el.who.value = d.who || ''; el.what.value = d.what || ''; el.when.value = d.when || ''; el.where.value = d.where || '';
-    state.system = SYSTEMS[d.system] ? d.system : '';
     state.dueDate = d.dueDate || ''; state.datePart = d.datePart || ''; state.timePart = d.timePart || '';
     state.recordId = d.recordId || null; state.keptPhotos = d.keptPhotos || 0; state.dirty = !!d.dirty;
     if (state.recordId && !loadRecords().some(r => r.id === state.recordId)) { state.recordId = null; state.keptPhotos = 0; }
   }
 
   // ---------- rendering ----------
-  function renderSystem() {
-    $$('.sys').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sys === state.system)));
-    renderAsk();
+  function fitWhat() {
+    el.what.style.height = 'auto';
+    el.what.style.height = `${el.what.scrollHeight + 4}px`;
   }
 
-  function renderAsk() {
-    const sys = SYSTEMS[state.system];
-    const groups = [];
-    if (sys && sys.ask.length) groups.push({ id: state.system, title: sys.label, items: sys.ask });
-    groups.push({ id: 'all', title: 'ทุกงาน', items: ASK_COMMON });
-    el.ask.innerHTML = groups.map(g => `<p class="ask-group">${esc(g.title)}</p><ul>${g.items.map((t, i) => {
-      const k = `${g.id}:${i}`;
-      return `<li><label><input type="checkbox" data-ask="${k}"${state.asked.has(k) ? ' checked' : ''}><span>${esc(t)}</span></label></li>`;
-    }).join('')}</ul>`).join('') + (state.system ? '' : '<p class="ask-empty">เลือกระบบด้านบน จะมีคำถามเฉพาะระบบเพิ่ม</p>');
-  }
-
-  function labelDayChips() {
-    const names = ['วันนี้', 'พรุ่งนี้', 'มะรืน'];
-    $$('[data-day]').forEach(b => {
-      const n = +b.dataset.day;
-      b.textContent = `${names[n]} · ${fmtWeekday.format(daysFromToday(n))}`;
-    });
+  function renderMode() {
+    const rec = state.recordId ? loadRecords().find(r => r.id === state.recordId) : null;
+    el.mode.innerHTML = rec
+      ? `<b>กำลังแก้เรื่อง ${hhmm(new Date(rec.createdAt))}</b>`
+      : esc(fmtDay.format(new Date()));
   }
 
   function renderWhenChips() {
-    const presetDay = [0, 1, 2].some(n => state.dueDate === isoDate(daysFromToday(n)));
+    const preset = [0, 1].some(n => state.dueDate === isoDate(daysFromToday(n)));
     $$('[data-day]').forEach(b => b.setAttribute('aria-pressed',
       String(!!state.datePart && state.dueDate === isoDate(daysFromToday(+b.dataset.day)))));
-    el.pickDayChip.dataset.on = String(!!state.datePart && !!state.dueDate && !presetDay);
-    const timeChips = $$('[data-time]');
-    timeChips.forEach(b => b.setAttribute('aria-pressed', String(state.timePart === b.dataset.time)));
-    el.pickTimeChip.dataset.on = String(!!state.timePart && !timeChips.some(b => b.dataset.time === state.timePart));
+    el.pickDayChip.dataset.on = String(!!state.datePart && !!state.dueDate && !preset);
+    $$('[data-time]').forEach(b => b.setAttribute('aria-pressed', String(state.timePart === b.dataset.time)));
   }
 
   function renderPhotos() {
@@ -638,20 +530,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
     });
     el.photos.insertBefore(frag, el.photoInput);
     el.keptNote.hidden = !state.keptPhotos;
-    el.keptNote.textContent = state.keptPhotos ? `เรื่องนี้มีรูปเดิม ${state.keptPhotos} รูป (อยู่ในแชท LINE แล้ว)` : '';
-  }
-
-  function renderCount() {
-    const n = FIELDS.filter(f => el[f.key].value.trim()).length;
-    el.countNum.textContent = `${n}/4`;
-    el.count.classList.toggle('full', n === 4);
-    el.count.setAttribute('aria-label', `กรอกแล้ว ${n} จาก 4 ช่อง`);
-  }
-
-  function renderEditing() {
-    const rec = state.recordId ? loadRecords().find(r => r.id === state.recordId) : null;
-    el.editing.hidden = !rec;
-    if (rec) { const d = new Date(rec.createdAt); el.editingTime.textContent = `(${fmtDay.format(d)} ${hhmm(d)})`; }
+    el.keptNote.textContent = state.keptPhotos ? `มีรูปเดิม ${state.keptPhotos} รูป อยู่ในแชท LINE แล้ว` : '';
   }
 
   function renderRecent() {
@@ -660,9 +539,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
       const box = $(`#recent-${k}`);
       const list = Array.isArray(rec[k]) ? rec[k] : [];
       box.hidden = !list.length;
-      box.innerHTML = list.length
-        ? '<span class="recent-label">ล่าสุด</span>' + list.map(v => `<button type="button" class="chip" data-fill="${k}">${esc(v)}</button>`).join('')
-        : '';
+      box.innerHTML = list.map(v => `<button type="button" class="chip" data-fill="${k}">${esc(v)}</button>`).join('');
     });
   }
 
@@ -678,16 +555,14 @@ dialog.readback::backdrop { background: var(--backdrop); }
 
   function recHTML(r) {
     const d = new Date(r.createdAt);
-    const sys = SYSTEMS[r.system];
-    const lines = whatItems(r.what);
+    const items = whatItems(r.what);
     return `<li class="rec">
       <div class="rec-top">
         <span class="time">${hhmm(d)}</span>
-        ${sys ? `<span class="mark" style="--c: var(--sys-${r.system})">${esc(sys.label)}</span>` : ''}
         ${r.openedAt ? `<span class="pill ok">เปิด LINE ${hhmm(new Date(r.openedAt))}</span>` : '<span class="pill warn">ยังไม่ส่ง</span>'}
-        ${r.photoCount ? `<span class="rec-photos">รูป ${r.photoCount}</span>` : ''}
+        ${r.photoCount ? `<span class="muted">รูป ${r.photoCount}</span>` : ''}
       </div>
-      <p class="rec-main"><b>${esc(r.who || 'ยังไม่ระบุใคร')}</b> — ${esc(lines.length ? lines.join(' · ') : 'ยังไม่ระบุงาน')}</p>
+      <p class="rec-main"><b>${esc(r.who || 'ยังไม่ระบุใคร')}</b> — ${esc(items.length ? items.join(' · ') : 'ยังไม่ระบุงาน')}</p>
       <p class="rec-sub">เมื่อไร: ${esc(r.when || '—')} · ที่ไหน: ${esc(r.where || '—')}</p>
       <div class="rec-actions">
         <button type="button" class="btn-ghost btn-sm" data-open="${r.id}">เปิดแก้</button>
@@ -696,37 +571,29 @@ dialog.readback::backdrop { background: var(--backdrop); }
     </li>`;
   }
 
-  function emptyLog() {
-    const sample = buildMessage({
-      createdAt: new Date().toISOString(), system: 'steam',
-      who: 'พี่สมชาย (ผู้รับเหมา ABC)',
-      what: 'ปิดวาล์ว + ล็อก LOTO ไลน์ไอน้ำ 4"\nเปลี่ยนแกสเก็ตหน้าแปลน',
-      when: `${thDay(isoDate(daysFromToday(1)))} ก่อนเที่ยง`,
-      where: 'ห้องบอยเลอร์ หน้า Header',
-      photoCount: 2
-    });
-    return `<p class="empty">ยังไม่มีบันทึก กรอก 4 ช่องแล้วกด <b>สร้างข้อความสรุป</b> เรื่องที่สร้างจะมาเรียงอยู่ตรงนี้</p>
-      <figure class="sample"><figcaption>ตัวอย่างข้อความที่จะได้</figcaption><pre class="msg">${esc(sample)}</pre></figure>`;
-  }
-
   function renderLog() {
     const recs = loadRecords().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    if (!recs.length) { el.log.innerHTML = emptyLog(); return; }
+    const today = isoDate(new Date());
+    const yesterday = isoDate(daysFromToday(-1));
+    const todays = recs.filter(r => isoDate(new Date(r.createdAt)) === today);
+    const pending = todays.filter(r => !r.openedAt).length;
+    el.logSum.textContent = `วันนี้ ${todays.length} เรื่อง${pending ? ` · ยังไม่ส่ง ${pending}` : ''}`;
+
+    if (!recs.length) {
+      el.log.innerHTML = '<p class="empty">ยังไม่มีบันทึก ทุกเรื่องที่กดสร้างข้อความจะมาอยู่ตรงนี้ ก่อนเลิกงานกด "คัดลอกเป็นตาราง" ไปวางใน Excel / Google Sheets</p>';
+      return;
+    }
     const days = new Map();
     recs.forEach(r => {
       const k = isoDate(new Date(r.createdAt));
       if (!days.has(k)) days.set(k, []);
       days.get(k).push(r);
     });
-    const today = isoDate(new Date());
-    const yesterday = isoDate(daysFromToday(-1));
     el.log.innerHTML = [...days].slice(0, SHOW_DAYS).map(([day, list]) => {
       const rel = day === today ? 'วันนี้' : day === yesterday ? 'เมื่อวาน' : '';
-      const pending = list.filter(r => !r.openedAt).length;
       return `<section class="day">
         <div class="day-head">
-          <h3 class="day-title">${rel ? `${rel}<span>${esc(thDay(day))}</span>` : esc(thDay(day))}</h3>
-          <span class="day-meta">${list.length} เรื่อง${pending ? ` · <span class="pill warn">ยังไม่ส่ง ${pending}</span>` : ''}</span>
+          <h3 class="day-title">${rel ? `${rel}<span>${esc(thDay(day))} · ${list.length} เรื่อง</span>` : `${esc(thDay(day))}<span>${list.length} เรื่อง</span>`}</h3>
           <button type="button" class="btn-ghost btn-sm" data-copy-day="${day}">คัดลอกเป็นตาราง</button>
         </div>
         <ul class="recs">${list.map(recHTML).join('')}</ul>
@@ -735,11 +602,10 @@ dialog.readback::backdrop { background: var(--backdrop); }
   }
 
   function renderAll() {
-    renderSystem();
+    fitWhat();
+    renderMode();
     renderWhenChips();
     renderPhotos();
-    renderCount();
-    renderEditing();
     renderRecent();
     renderLog();
   }
@@ -748,7 +614,6 @@ dialog.readback::backdrop { background: var(--backdrop); }
   function onField(key) {
     $(`#f-${key}`).classList.remove('is-missing');
     state.dirty = true;
-    renderCount();
     saveDraft();
   }
 
@@ -770,10 +635,8 @@ dialog.readback::backdrop { background: var(--backdrop); }
   function clearForm() {
     FIELDS.forEach(f => { el[f.key].value = ''; $(`#f-${f.key}`).classList.remove('is-missing'); });
     state.photos.forEach(p => URL.revokeObjectURL(p.url));
-    Object.assign(state, { system: '', dueDate: '', datePart: '', timePart: '', recordId: null, keptPhotos: 0, photos: [], dirty: false, text: '' });
-    state.asked.clear();
+    Object.assign(state, { dueDate: '', datePart: '', timePart: '', recordId: null, keptPhotos: 0, photos: [], dirty: false, text: '' });
     el.pickDay.value = '';
-    el.pickTime.value = '';
     renderAll();
     saveDraft();
   }
@@ -782,11 +645,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
     const r = loadRecords().find(x => x.id === id);
     if (!r) return;
     state.photos.forEach(p => URL.revokeObjectURL(p.url));
-    Object.assign(state, {
-      system: SYSTEMS[r.system] ? r.system : '', dueDate: r.dueDate || '', datePart: '', timePart: '',
-      recordId: r.id, keptPhotos: r.photoCount || 0, photos: [], dirty: false, text: ''
-    });
-    state.asked.clear();
+    Object.assign(state, { dueDate: r.dueDate || '', datePart: '', timePart: '', recordId: r.id, keptPhotos: r.photoCount || 0, photos: [], dirty: false, text: '' });
     el.who.value = r.who || ''; el.what.value = r.what || ''; el.when.value = r.when || ''; el.where.value = r.where || '';
     if (r.dueDate && (r.when || '').startsWith(thDay(r.dueDate))) {
       state.datePart = thDay(r.dueDate);
@@ -810,10 +669,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
   }
 
   function generate() {
-    const data = {
-      system: state.system, who: el.who.value.trim(), what: el.what.value.trim(),
-      when: el.when.value.trim(), dueDate: state.dueDate, where: el.where.value.trim()
-    };
+    const data = { who: el.who.value.trim(), what: el.what.value.trim(), when: el.when.value.trim(), dueDate: state.dueDate, where: el.where.value.trim() };
     const missing = FIELDS.filter(f => !data[f.key]);
     FIELDS.forEach(f => $(`#f-${f.key}`).classList.toggle('is-missing', !data[f.key]));
 
@@ -831,7 +687,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
     el.line.href = 'https://line.me/R/share?text=' + encodeURIComponent(state.text);
     el.missing.hidden = !missing.length;
     el.missing.textContent = missing.length
-      ? `ยังขาด: ${missing.map(f => f.label).join(' · ')} — ถามตอนนี้เลย หรือส่งไปพร้อม ❓ แล้วตามต่อ`
+      ? `ยังขาด: ${missing.map(f => f.label).join(' · ')} — ถามตอนนี้ หรือส่งไปพร้อม ❓ แล้วตามต่อ`
       : '';
     el.sharePhotos.hidden = !state.photos.length;
     el.sharePhotosCount.textContent = state.photos.length;
@@ -841,7 +697,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
 
     pushRecent(data);
     openSheet();
-    renderEditing();
+    renderMode();
     renderRecent();
     renderLog();
     saveDraft();
@@ -850,14 +706,8 @@ dialog.readback::backdrop { background: var(--backdrop); }
   // ---------- wiring ----------
   el.form.addEventListener('submit', e => e.preventDefault());
 
-  $$('.sys').forEach(b => b.addEventListener('click', () => {
-    state.system = state.system === b.dataset.sys ? '' : b.dataset.sys;
-    state.dirty = true;
-    renderSystem();
-    saveDraft();
-  }));
-
   FIELDS.forEach(f => el[f.key].addEventListener('input', () => onField(f.key)));
+  el.what.addEventListener('input', fitWhat);
 
   el.when.addEventListener('input', () => {
     state.datePart = '';
@@ -883,11 +733,6 @@ dialog.readback::backdrop { background: var(--backdrop); }
     composeWhen();
   });
   $$('[data-time]').forEach(b => b.addEventListener('click', () => setTime(b.dataset.time)));
-  el.pickTime.addEventListener('change', () => {
-    if (!el.pickTime.value) return;
-    state.timePart = `${el.pickTime.value} น.`;
-    composeWhen();
-  });
 
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-fill]');
@@ -911,12 +756,6 @@ dialog.readback::backdrop { background: var(--backdrop); }
     const [p] = state.photos.splice(+b.dataset.remove, 1);
     if (p) URL.revokeObjectURL(p.url);
     renderPhotos();
-  });
-
-  el.ask.addEventListener('change', e => {
-    const k = e.target.dataset.ask;
-    if (!k) return;
-    if (e.target.checked) state.asked.add(k); else state.asked.delete(k);
   });
 
   el.gen.addEventListener('click', generate);
@@ -944,10 +783,6 @@ dialog.readback::backdrop { background: var(--backdrop); }
     }
   });
 
-  el.copy.addEventListener('click', () => {
-    copyText(state.text).then(ok => { el.status.textContent = ok ? 'คัดลอกข้อความแล้ว' : 'คัดลอกไม่สำเร็จ กดค้างที่ข้อความเพื่อเลือกเอง'; });
-  });
-
   el.edit.addEventListener('click', () => {
     closeSheet();
     const first = FIELDS.find(f => !el[f.key].value.trim());
@@ -964,9 +799,9 @@ dialog.readback::backdrop { background: var(--backdrop); }
   el.sheet.addEventListener('click', e => { if (e.target === el.sheet) closeSheet(); });
 
   let armTimer;
-  const disarm = () => { el.newBtn.dataset.armed = ''; el.newBtn.textContent = 'เรื่องใหม่'; el.newBtn.classList.remove('is-danger'); };
+  const disarm = () => { el.newBtn.dataset.armed = ''; el.newBtn.textContent = 'ใหม่'; el.newBtn.classList.remove('is-danger'); };
   el.newBtn.addEventListener('click', () => {
-    const hasContent = state.system || state.photos.length || FIELDS.some(f => el[f.key].value.trim());
+    const hasContent = state.photos.length || FIELDS.some(f => el[f.key].value.trim());
     if (hasContent && state.dirty && el.newBtn.dataset.armed !== '1') {
       el.newBtn.dataset.armed = '1';
       el.newBtn.textContent = 'แตะอีกครั้งเพื่อล้าง';
@@ -1009,7 +844,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
     }
     const id = delBtn.dataset.del;
     store.set(K.records, loadRecords().filter(r => r.id !== id));
-    if (state.recordId === id) { state.recordId = null; state.keptPhotos = 0; renderEditing(); renderPhotos(); saveDraft(); }
+    if (state.recordId === id) { state.recordId = null; state.keptPhotos = 0; renderMode(); renderPhotos(); saveDraft(); }
     renderLog();
     toast('ลบแล้ว');
   });
@@ -1018,10 +853,7 @@ dialog.readback::backdrop { background: var(--backdrop); }
     const s = settings();
     el.myName.value = s.name;
     el.closing.value = s.closing;
-    const save = () => {
-      store.set(K.settings, { name: el.myName.value, closing: el.closing.value });
-      if (!loadRecords().length) renderLog();
-    };
+    const save = () => store.set(K.settings, { name: el.myName.value, closing: el.closing.value });
     el.myName.addEventListener('input', save);
     el.closing.addEventListener('input', save);
     el.copyHead.addEventListener('click', () => {
@@ -1030,8 +862,6 @@ dialog.readback::backdrop { background: var(--backdrop); }
   }
 
   // ---------- start ----------
-  el.today.textContent = fmtLong.format(new Date());
-  labelDayChips();
   prune();
   loadDraft();
   initSettings();
