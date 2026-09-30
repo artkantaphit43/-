@@ -23,7 +23,7 @@ function makeEnv() {
   const sent = [];
   const props = {};
 
-  function makeSheet() {
+  function makeSheet(name, parent) {
     const grid = [];
     const cell = (r, c) => (grid[r - 1] || [])[c - 1] ?? '';
     const put = (r, c, v) => {
@@ -33,9 +33,11 @@ function makeEnv() {
     const sheet = {
       grid,
       rich: {},
+      name,
+      getParent: () => parent,
       getSheetId: () => 0,
       getMaxRows: () => 1000,
-      setName: () => sheet,
+      setName: (n) => ((sheet.name = n), sheet),
       getLastRow: () => {
         for (let r = grid.length; r > 0; r--) if ((grid[r - 1] || []).some((v) => v !== '' && v != null)) return r;
         return 0;
@@ -48,6 +50,7 @@ function makeEnv() {
           setValue: (v) => (put(r, c, v), proxy),
           setFormula: (v) => (put(r, c, v), proxy),
           setValues: (vals) => (vals.forEach((row, i) => row.forEach((v, j) => put(r + i, c + j, v))), proxy),
+          setFormulas: (vals) => (vals.forEach((row, i) => row.forEach((v, j) => put(r + i, c + j, v))), proxy),
           getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => cell(r + i, c + j))),
           setRichTextValue: (rt) => ((sheet.rich[`${r},${c}`] = rt), put(r, c, rt.text), proxy),
         };
@@ -64,8 +67,15 @@ function makeEnv() {
 
   function makeSpreadsheet(name) {
     const id = newId('ss');
-    const ss = { id, name, sheets: [makeSheet()] };
+    const ss = { id, name, sheets: [] };
+    ss.sheets.push(makeSheet('Sheet1', ss));
     Object.assign(ss, {
+      insertSheet: (n) => {
+        const sh = makeSheet(n, ss);
+        ss.sheets.push(sh);
+        return sh;
+      },
+      getSheetByName: (n) => ss.sheets.find((x) => x.name === n) || null,
       getId: () => id,
       getUrl: () => `https://docs.google.com/spreadsheets/d/${id}`,
       getSheets: () => ss.sheets,
@@ -243,8 +253,8 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   const sh = api.projectSheet(project);
   assert.strictEqual(sh.grid[0][0], 'PUNCH LIST : คอนโด ABC');
   assert.deepStrictEqual(
-    sh.grid[2].slice(0, 13),
-    ['ลำดับ', 'รูปก่อนแก้ไข', 'พื้นที่ / ตำแหน่ง', 'รายการแก้ไข', 'ผู้รับผิดชอบ', 'กำหนดวันเริ่ม', 'กำหนดแล้วเสร็จ',
+    sh.grid[2].slice(0, 14),
+    ['ลำดับ', 'โปรเจค', 'รูปก่อนแก้ไข', 'พื้นที่ / ตำแหน่ง', 'รายการแก้ไข', 'ผู้รับผิดชอบ', 'กำหนดวันเริ่ม', 'กำหนดแล้วเสร็จ',
       'สถานะ', 'รูปหลังแก้ไข', 'วันที่แล้วเสร็จจริง', 'หมายเหตุ', 'ผู้แจ้ง / วันที่แจ้ง', 'ลิงก์รูปทั้งหมด']
   );
   let items = api.readItems(sh);
@@ -253,7 +263,8 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   assert.strictEqual(it.no, 1);
   assert.strictEqual(it.location, 'ห้อง 301');
   assert.strictEqual(it.description, 'สีผนังไม่เรียบ');
-  assert.strictEqual(sh.grid[3][3], '[ด่วน] สีผนังไม่เรียบ', 'ด่วนแสดงในรายการแก้ไข');
+  assert.strictEqual(sh.grid[3][4], '[ด่วน] สีผนังไม่เรียบ', 'ด่วนแสดงในรายการแก้ไข');
+  assert.strictEqual(it.work, '', 'ไม่ได้ระบุโปรเจค');
   assert.strictEqual(it.priority, 'ด่วน');
   assert.strictEqual(it.assignee, 'ทีมสี');
   assert.strictEqual(it.status, 'รอดำเนินการ');
@@ -261,9 +272,9 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   assert.strictEqual(`${it.start.getDate()}/${it.start.getMonth() + 1}`, '5/10');
   assert.strictEqual(`${it.due.getDate()}/${it.due.getMonth() + 1}/${it.due.getFullYear()}`, '12/10/2026', '69 = พ.ศ. 2569');
   assert.strictEqual(it.beforeIds.length, 2);
-  assert.match(sh.grid[3][1], /^=IMAGE\("https:\/\/drive\.google\.com\/thumbnail\?id=f\d+&sz=h600"\)$/);
-  assert.strictEqual(sh.grid[3][8], '', 'ยังไม่มีรูปหลังแก้ไข');
-  assert.deepStrictEqual(sh.rich['4,13'].links.map((l) => l[0]), ['ก่อน 1', 'ก่อน 2']);
+  assert.match(sh.grid[3][2], /^=IMAGE\("https:\/\/drive\.google\.com\/thumbnail\?id=f\d+&sz=h600"\)$/);
+  assert.strictEqual(sh.grid[3][9], '', 'ยังไม่มีรูปหลังแก้ไข');
+  assert.deepStrictEqual(sh.rich['4,14'].links.map((l) => l[0]), ['ก่อน 1', 'ก่อน 2']);
   const card = sent.at(-1).messages[0];
   assert.strictEqual(card.type, 'flex');
   walkNoEmptyText(card);
@@ -276,9 +287,9 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   items = api.readItems(sh);
   assert.strictEqual(items[0].status, 'เสร็จแล้ว');
   assert.ok(items[0].beforeIds.length === 2 && items[0].afterIds.length === 1, 'รูปหลังแก้ไขแยกคอลัมน์');
-  assert.match(sh.grid[3][8], /^=IMAGE\(/, 'รูปหลังแก้ไขขึ้นในตาราง');
-  assert.strictEqual(Object.prototype.toString.call(sh.grid[3][9]), '[object Date]', 'บันทึกวันที่แล้วเสร็จจริง');
-  assert.deepStrictEqual(sh.rich['4,13'].links.map((l) => l[0]), ['ก่อน 1', 'ก่อน 2', 'หลัง 1']);
+  assert.match(sh.grid[3][9], /^=IMAGE\(/, 'รูปหลังแก้ไขขึ้นในตาราง');
+  assert.strictEqual(Object.prototype.toString.call(sh.grid[3][10]), '[object Date]', 'บันทึกวันที่แล้วเสร็จจริง');
+  assert.deepStrictEqual(sh.rich['4,14'].links.map((l) => l[0]), ['ก่อน 1', 'ก่อน 2', 'หลัง 1']);
   assert.match(items[0].notes, /สมชาย: ปิดงาน — ทาใหม่แล้ว/);
   assert.strictEqual(items[1].status, 'กำลังแก้ไข');
   assert.strictEqual(items[1].due.getDate(), 20, 'แก้กำหนดเสร็จผ่าน #2');
@@ -332,6 +343,69 @@ test('Apps Script: แต่ละกลุ่มได้ไฟล์ Sheet แ
   const b = JSON.parse(props['chat:G2']);
   assert.notStrictEqual(a.sheetId, b.sheetId);
   assert.strictEqual(api.readItems(api.projectSheet(b))[0].description, 'งาน B');
+});
+
+test('Apps Script: หลายโปรเจคในพื้นที่เดียวกัน', () => {
+  const { api, props, sent } = makeEnv();
+  api.doGet();
+  const post = (t) =>
+    api.doPost({
+      parameter: { key: props.KEY },
+      postData: { contents: JSON.stringify({ events: [{ type: 'message', replyToken: 'r', source: { type: 'group', groupId: 'G1', userId: 'U' }, message: { type: 'text', text: t } }] }) },
+    });
+  const last = () => sent.at(-1).messages[0];
+
+  post('+ งานแรก');
+  const project = JSON.parse(props['chat:G1']);
+  const ss = api.projectSheet(project).getParent();
+  const ws = ss.getSheetByName('รายชื่อโปรเจค');
+  assert.ok(ws, 'สร้างแท็บรายชื่อโปรเจค');
+  assert.deepStrictEqual(ws.grid.slice(1, 4).map((r) => r[0]), ['ท่อประปา', 'ท่อน้ำเย็น', 'ท่อสตีม']);
+  assert.match(ws.grid[1][2], /^=IF\(\$A2="","",COUNTIF\('Punch List'!\$B\$4:\$B,\$A2\)\)$/);
+  ws.grid[2][1] = 'CHW'; // ผู้ใช้ใส่คำย่อเองใน Sheet
+
+  post('+ ท่อประปา ห้อง 301 / รั่วซึม');
+  post('+ CHW ชั้น 3 / ฉนวนหลุด');
+  post('+ ท่อ 1/2 นิ้ว รั่ว');
+  post('โปรเจค ท่อสตีม');
+  assert.match(last().text, /ท่อสตีม/);
+  post('+ ห้องเครื่อง / วาล์วรั่ว');
+  post('+ ท่อประปา ห้อง 302 / ก๊อกหลวม'); // พิมพ์ชื่อในข้อความ = ข้ามค่าที่ตั้งไว้
+  post('โปรเจค ไม่ระบุ');
+  post('+ งานสุดท้าย');
+
+  const items = api.readItems(api.projectSheet(project));
+  assert.deepStrictEqual(
+    items.map((i) => [i.work, i.location, i.description]),
+    [
+      ['', '', 'งานแรก'],
+      ['ท่อประปา', 'ห้อง 301', 'รั่วซึม'],
+      ['ท่อน้ำเย็น', 'ชั้น 3', 'ฉนวนหลุด'],
+      ['', '', 'ท่อ 1/2 นิ้ว รั่ว'],
+      ['ท่อสตีม', 'ห้องเครื่อง', 'วาล์วรั่ว'],
+      ['ท่อประปา', 'ห้อง 302', 'ก๊อกหลวม'],
+      ['', '', 'งานสุดท้าย'],
+    ]
+  );
+
+  post('โปรเจค ท่อลม');
+  assert.match(last().text, /ไม่มี "ท่อลม"/);
+  post('เพิ่มโปรเจค ท่อลม');
+  assert.strictEqual(ws.grid[4][0], 'ท่อลม');
+  post('+ ท่อลม ชั้น 5 / หัวจ่ายหลวม');
+  assert.strictEqual(api.readItems(api.projectSheet(project)).at(-1).work, 'ท่อลม');
+
+  post('รายการ ท่อประปา');
+  assert.match(last().altText, /ท่อประปา — งานค้าง: ค้าง 2/);
+  post('รายการ อะไรก็ไม่รู้');
+  assert.match(last().text, /ไม่พบโปรเจค/);
+  post('โปรเจค');
+  assert.match(last().text, /ท่อประปา[\s\S]*ท่อน้ำเย็น \(CHW\)[\s\S]*ท่อลม/);
+
+  api.weeklyReport();
+  const weekly = sent.filter((m) => m.kind === 'push').at(-1).messages[0].text;
+  assert.match(weekly, /• ท่อประปา ค้าง 2/);
+  assert.match(weekly, /• ไม่ระบุ ค้าง 3/);
 });
 
 test('Apps Script parser ตรงกับเวอร์ชัน Node', () => {

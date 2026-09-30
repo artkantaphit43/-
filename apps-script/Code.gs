@@ -21,13 +21,22 @@ const PENDING_TTL_MS = 30 * 60 * 1000;
 
 // ชีตโครงการ: แถว 1 = ชื่อรายงาน, แถว 2 = สรุปจำนวน, แถว 3 = หัวตาราง, ข้อมูลเริ่มแถว 4
 // หัวข้อตามฟอร์มบริษัท: ลำดับ, รายการแก้ไข, กำหนดวันเริ่ม, กำหนดแล้วเสร็จ, สถานะ, หมายเหตุ
-// + ที่เพิ่ม: รูปก่อน/หลังแก้ไข (หลักฐาน), พื้นที่ (หาจุดเจอ), ผู้รับผิดชอบ, วันที่เสร็จจริง (เทียบกับแผน), ผู้แจ้ง
-const HEADERS = ['ลำดับ', 'รูปก่อนแก้ไข', 'พื้นที่ / ตำแหน่ง', 'รายการแก้ไข', 'ผู้รับผิดชอบ',
+// + ที่เพิ่ม: โปรเจค (หลายโปรเจคในพื้นที่เดียวกัน เช่น ท่อประปา / ท่อน้ำเย็น), รูปก่อน/หลังแก้ไข (หลักฐาน),
+//   พื้นที่ (หาจุดเจอ), ผู้รับผิดชอบ, วันที่เสร็จจริง (เทียบกับแผน), ผู้แจ้ง
+const HEADERS = ['ลำดับ', 'โปรเจค', 'รูปก่อนแก้ไข', 'พื้นที่ / ตำแหน่ง', 'รายการแก้ไข', 'ผู้รับผิดชอบ',
   'กำหนดวันเริ่ม', 'กำหนดแล้วเสร็จ', 'สถานะ', 'รูปหลังแก้ไข', 'วันที่แล้วเสร็จจริง', 'หมายเหตุ',
   'ผู้แจ้ง / วันที่แจ้ง', 'ลิงก์รูปทั้งหมด', 'beforeIds', 'afterIds'];
-const C = { no: 1, before: 2, loc: 3, desc: 4, who: 5, start: 6, due: 7, status: 8, after: 9,
-  closed: 10, notes: 11, reporter: 12, links: 13, beforeIds: 14, afterIds: 15 };
+const C = { no: 1, work: 2, before: 3, loc: 4, desc: 5, who: 6, start: 7, due: 8, status: 9, after: 10,
+  closed: 11, notes: 12, reporter: 13, links: 14, beforeIds: 15, afterIds: 16 };
 const LAST_VISIBLE = C.links;
+const STAMP_COL = C.after; // "สถานะ ณ วันที่" ใน PDF (แถว 2 ด้านขวา)
+const colL = (c) => String.fromCharCode(64 + c); // 1 → A
+
+// แท็บรายชื่อโปรเจค: ผู้ใช้พิมพ์ชื่อเอง (คอลัมน์ A) + คำย่อ (B), คอลัมน์ C–F นับให้อัตโนมัติ
+const WORKS_SHEET = 'รายชื่อโปรเจค';
+const WORKS_HEADERS = ['ชื่อโปรเจค (พิมพ์เพิ่มได้เลย)', 'คำย่อ (ไม่บังคับ)', 'ทั้งหมด', 'ค้าง', 'เสร็จแล้ว', 'เลยกำหนด'];
+const WORKS_EXAMPLES = ['ท่อประปา', 'ท่อน้ำเย็น', 'ท่อสตีม'];
+const WORKS_ROWS = 50;
 const TITLE_ROW = 1;
 const SUMMARY_ROW = 2;
 const HEADER_ROW = 3;
@@ -50,10 +59,16 @@ const HELP = `📋 วิธีใช้ Punch List Bot
    (ใส่แค่บางส่วนก็ได้, พิมพ์ "ด่วน" ถ้าเร่ง)
 → บอทบันทึกลง Google Sheet พร้อมลำดับให้
 
+โปรเจค (เช่น ท่อประปา / ท่อน้ำเย็น)
+• ใส่ชื่อหรือคำย่อในข้อความ: ท่อประปา ห้อง 301 / รั่วซึม
+• หรือตั้งไว้ครั้งเดียว: โปรเจค ท่อประปา (รายการต่อไปเข้าโปรเจคนี้เอง)
+• โปรเจค — ดูรายชื่อ + จำนวนค้าง
+• เพิ่มโปรเจค ท่อลม — เพิ่มชื่อใหม่
+
 ไม่มีรูป: ขึ้นต้นด้วย + เช่น "+ ห้องน้ำ 2 / ยาแนวหลุด"
 
 คำสั่ง
-• รายการ — ดูงานค้าง
+• รายการ — ดูงานค้าง (รายการ ท่อประปา = เฉพาะโปรเจค)
 • ทั้งหมด — ดูทุกรายการ
 • ลิงก์ — ลิงก์ Google Sheet ของโครงการนี้
 • รายงาน — ทำ PDF ตอนนี้เลย
@@ -154,8 +169,10 @@ function ensureSetup() {
 
 const COMMANDS = [
   { type: 'help', re: /^(help|วิธีใช้|ช่วยด้วย|\?)$/i },
-  { type: 'list', re: /^(list|รายการ|ค้าง|งานค้าง)$/i },
-  { type: 'listAll', re: /^(list all|ทั้งหมด|รายการทั้งหมด)$/i },
+  { type: 'listAll', re: /^(list all|ทั้งหมด|รายการทั้งหมด)(?:\s+([\s\S]+))?$/i },
+  { type: 'list', re: /^(list|รายการ|ค้าง|งานค้าง)(?:\s+([\s\S]+))?$/i },
+  { type: 'addWork', re: /^(เพิ่มโปรเจค|เพิ่มโปรเจ็ค|add project)\s+([\s\S]+)$/i },
+  { type: 'work', re: /^(โปรเจค|โปรเจ็ค|project)(?:\s+([\s\S]+))?$/i },
   { type: 'link', re: /^(link|ลิงก์|ลิงค์|sheet|ชีท)$/i },
   { type: 'report', re: /^(report|รายงาน|สรุป|pdf)$/i },
   { type: 'cancel', re: /^(ยกเลิก|cancel)$/i },
@@ -164,7 +181,7 @@ const COMMANDS = [
   { type: 'reopen', re: /^(เปิด|เปิดใหม่|reopen)\s*#?(\d+)\s*([\s\S]*)$/i },
   { type: 'delete', re: /^(ลบ|delete)\s*#?(\d+)$/i },
   { type: 'note', re: /^#(\d+)\s+([\s\S]+)$/ },
-  { type: 'setTitle', re: /^(ตั้งชื่อ|ชื่อโครงการ|project)\s+([\s\S]+)$/i },
+  { type: 'setTitle', re: /^(ตั้งชื่อ|ชื่อโครงการ)\s+([\s\S]+)$/i },
 ];
 const HIGH_PRIORITY = /(^|\s)(ด่วน(มาก)?|urgent|!!)(?=\s|$)/i;
 const ITEM_PREFIX = /^(\+|punch\b|แจ้ง\b)\s*/i;
@@ -178,6 +195,9 @@ function parseCommand(text) {
     if (type === 'delete' || type === 'start') return { type, no: Number(m[2]) };
     if (type === 'note') return { type, no: Number(m[1]), note: m[2].trim() };
     if (type === 'setTitle') return { type, title: m[2].trim() };
+    if (type === 'list' || type === 'listAll' || type === 'work' || type === 'addWork') {
+      return { type, arg: (m[2] || '').trim() };
+    }
     return { type };
   }
   return null;
@@ -242,6 +262,27 @@ function parseItem(text) {
     location: clean(location), description: clean(t), assignee: assignees.join(', '), priority,
     start: dates.start, due: dates.due,
   };
+}
+
+// หาโปรเจคในข้อความ (ชื่อหรือคำย่อ ต้องมีเว้นวรรคคั่น) → { work, rest }
+function matchWork(text, works) {
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tokens = [];
+  for (const w of works) {
+    tokens.push([w.name, w.name]);
+    if (w.abbr) tokens.push([w.abbr, w.name]);
+  }
+  tokens.sort((a, b) => b[0].length - a[0].length); // ชื่อยาวก่อน กัน "ท่อ" ชน "ท่อประปา"
+  for (const [token, name] of tokens) {
+    const re = new RegExp(`(^|\\s)${esc(token)}(?=\\s|/|\\||$)`, 'i');
+    if (re.test(text)) return { work: name, rest: text.replace(re, '$1') };
+  }
+  return { work: '', rest: text };
+}
+
+function findWork(arg, works) {
+  const a = String(arg || '').trim().toLowerCase();
+  return works.find((w) => w.name.toLowerCase() === a || (w.abbr && w.abbr.toLowerCase() === a)) || null;
 }
 
 /* ========================= LINE API ========================= */
@@ -374,14 +415,15 @@ function formatProjectSheet(sh, title) {
 
   // แถว 2: สรุปจำนวน (สูตรนับเอง) + ช่องวันที่ของ PDF ทางขวา
   const rng = (col) => `${col}${FIRST_ROW}:${col}`;
-  sh.getRange(SUMMARY_ROW, 1, 1, 8).merge().setFormula(
-    `="${ST_WAIT} "&COUNTIF(${rng('H')},"${ST_WAIT}")` +
-    `&"   •   ${ST_WIP} "&COUNTIF(${rng('H')},"${ST_WIP}")` +
-    `&"   •   ${ST_DONE} "&COUNTIF(${rng('H')},"${ST_DONE}")` +
-    `&"   •   เลยกำหนด "&COUNTIFS(${rng('G')},"<"&TODAY(),${rng('H')},"<>${ST_DONE}")` +
+  const ST = colL(C.status);
+  sh.getRange(SUMMARY_ROW, 1, 1, STAMP_COL - 1).merge().setFormula(
+    `="${ST_WAIT} "&COUNTIF(${rng(ST)},"${ST_WAIT}")` +
+    `&"   •   ${ST_WIP} "&COUNTIF(${rng(ST)},"${ST_WIP}")` +
+    `&"   •   ${ST_DONE} "&COUNTIF(${rng(ST)},"${ST_DONE}")` +
+    `&"   •   เลยกำหนด "&COUNTIFS(${rng(colL(C.due))},"<"&TODAY(),${rng(ST)},"<>${ST_DONE}")` +
     `&"   •   ทั้งหมด "&COUNT(${rng('A')})`
   ).setFontColor('#555555');
-  sh.getRange(SUMMARY_ROW, 9, 1, LAST_VISIBLE - 8).merge().setHorizontalAlignment('right').setFontWeight('bold');
+  sh.getRange(SUMMARY_ROW, STAMP_COL, 1, LAST_VISIBLE - STAMP_COL + 1).merge().setHorizontalAlignment('right').setFontWeight('bold');
 
   // แถว 3: หัวตาราง (สีเขียวตามฟอร์มเดิม)
   sh.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
@@ -392,34 +434,97 @@ function formatProjectSheet(sh, title) {
   sh.setRowHeight(HEADER_ROW, 40);
   sh.setFrozenRows(HEADER_ROW);
 
-  const widths = { [C.no]: 50, [C.before]: 110, [C.loc]: 120, [C.desc]: 240, [C.who]: 100, [C.start]: 90,
+  const widths = { [C.no]: 50, [C.work]: 100, [C.before]: 110, [C.loc]: 120, [C.desc]: 240, [C.who]: 100, [C.start]: 90,
     [C.due]: 90, [C.status]: 100, [C.after]: 110, [C.closed]: 95, [C.notes]: 260, [C.reporter]: 110, [C.links]: 90 };
   for (const col in widths) sh.setColumnWidth(Number(col), widths[col]);
 
   const col = (c) => sh.getRange(FIRST_ROW, c, sh.getMaxRows() - FIRST_ROW + 1, 1);
-  sh.getRange(`A${FIRST_ROW}:M`).setVerticalAlignment('middle').setWrap(true).setFontSize(10);
+  const LAST = colL(LAST_VISIBLE);
+  sh.getRange(`A${FIRST_ROW}:${LAST}`).setVerticalAlignment('middle').setWrap(true).setFontSize(10);
   for (const c of [C.no, C.start, C.due, C.status, C.closed]) col(c).setHorizontalAlignment('center');
   for (const c of [C.start, C.due, C.closed]) col(c).setNumberFormat('d/m/yy');
   col(C.status).setDataValidation(SpreadsheetApp.newDataValidation()
     .requireValueInList([ST_WAIT, ST_WIP, ST_DONE], true).setAllowInvalid(false).build());
 
-  const all = sh.getRange(`A${FIRST_ROW}:M`);
-  const status = sh.getRange(`H${FIRST_ROW}:H`);
-  const due = sh.getRange(`G${FIRST_ROW}:G`);
-  const desc = sh.getRange(`D${FIRST_ROW}:D`);
+  const all = sh.getRange(`A${FIRST_ROW}:${LAST}`);
+  const status = sh.getRange(`${ST}${FIRST_ROW}:${ST}`);
+  const DUE = colL(C.due);
+  const DESC = colL(C.desc);
+  const due = sh.getRange(`${DUE}${FIRST_ROW}:${DUE}`);
+  const desc = sh.getRange(`${DESC}${FIRST_ROW}:${DESC}`);
   const rule = () => SpreadsheetApp.newConditionalFormatRule();
   sh.setConditionalFormatRules([
     rule().whenTextEqualTo(ST_DONE).setBackground('#d9f2e3').setFontColor('#137333').setBold(true).setRanges([status]).build(),
     rule().whenTextEqualTo(ST_WIP).setBackground('#fff2cc').setFontColor('#9a6700').setBold(true).setRanges([status]).build(),
     rule().whenTextEqualTo(ST_WAIT).setBackground('#fce8e6').setFontColor('#c5221f').setBold(true).setRanges([status]).build(),
     // เลยกำหนดแล้วยังไม่เสร็จ → กำหนดแล้วเสร็จเป็นสีแดง
-    rule().whenFormulaSatisfied(`=AND($G${FIRST_ROW}<>"",$G${FIRST_ROW}<TODAY(),$H${FIRST_ROW}<>"${ST_DONE}")`)
+    rule().whenFormulaSatisfied(`=AND($${DUE}${FIRST_ROW}<>"",$${DUE}${FIRST_ROW}<TODAY(),$${ST}${FIRST_ROW}<>"${ST_DONE}")`)
       .setBackground('#c5221f').setFontColor('#ffffff').setBold(true).setRanges([due]).build(),
-    rule().whenFormulaSatisfied(`=LEFT($D${FIRST_ROW},${URGENT_TAG.length - 1})="${URGENT_TAG.trim()}"`)
+    rule().whenFormulaSatisfied(`=LEFT($${DESC}${FIRST_ROW},${URGENT_TAG.length - 1})="${URGENT_TAG.trim()}"`)
       .setFontColor('#c5221f').setBold(true).setRanges([desc]).build(),
     // สลับสีแถว (เฉพาะแถวที่มีข้อมูล)
     rule().whenFormulaSatisfied(`=AND($A${FIRST_ROW}<>"",ISEVEN(ROW()))`).setBackground(THEME.band).setRanges([all]).build(),
   ]);
+
+  // ปุ่มกรองที่หัวตาราง (เลือกดูทีละโปรเจค / สถานะ ได้เหมือน Excel)
+  sh.getRange(HEADER_ROW, 1, sh.getMaxRows() - HEADER_ROW + 1, LAST_VISIBLE).createFilter();
+
+  const works = createWorksSheet(sh.getParent());
+  // dropdown โปรเจคจากแท็บรายชื่อ (พิมพ์ชื่อที่ไม่มีในรายชื่อก็ได้)
+  col(C.work).setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInRange(works.getRange(2, 1, WORKS_ROWS, 1), true).setAllowInvalid(true).build());
+}
+
+function worksRowFormulas(r) {
+  const P = `'Punch List'!`;
+  const rng = (c) => `${P}$${colL(c)}$${FIRST_ROW}:$${colL(c)}`;
+  const W = rng(C.work);
+  const S = rng(C.status);
+  const guard = (f) => `=IF($A${r}="","",${f})`;
+  return [
+    guard(`COUNTIF(${W},$A${r})`),
+    guard(`COUNTIFS(${W},$A${r},${S},"<>${ST_DONE}")`),
+    guard(`COUNTIFS(${W},$A${r},${S},"${ST_DONE}")`),
+    guard(`COUNTIFS(${W},$A${r},${rng(C.due)},"<"&TODAY(),${S},"<>${ST_DONE}")`),
+  ];
+}
+
+function createWorksSheet(ss) {
+  const ws = ss.insertSheet(WORKS_SHEET);
+  ws.getRange(1, 1, 1, WORKS_HEADERS.length).setValues([WORKS_HEADERS])
+    .setFontWeight('bold').setBackground(THEME.header).setHorizontalAlignment('center');
+  ws.setFrozenRows(1);
+  ws.setColumnWidth(1, 220);
+  ws.setColumnWidth(2, 130);
+  const rows = [];
+  for (let r = 2; r < 2 + WORKS_ROWS; r++) rows.push(worksRowFormulas(r));
+  ws.getRange(2, 3, WORKS_ROWS, 4).setFormulas(rows).setHorizontalAlignment('center');
+  ws.getRange(2, 1, WORKS_EXAMPLES.length, 1).setValues(WORKS_EXAMPLES.map((w) => [w]));
+  ws.getRange(2, 1, WORKS_ROWS, 2).setBackground('#fffdf2'); // ช่องให้พิมพ์เอง
+  return ws;
+}
+
+function worksSheet(project) {
+  return SpreadsheetApp.openById(project.sheetId).getSheetByName(WORKS_SHEET);
+}
+
+function readWorks(project) {
+  const ws = worksSheet(project);
+  if (!ws) return [];
+  return ws.getRange(2, 1, WORKS_ROWS, 6).getValues()
+    .map((r) => ({ name: String(r[0] || '').trim(), abbr: String(r[1] || '').trim(),
+      all: r[2], open: r[3], done: r[4], late: r[5] }))
+    .filter((w) => w.name);
+}
+
+function addWork(project, name) {
+  const ws = worksSheet(project);
+  const names = ws.getRange(2, 1, WORKS_ROWS, 1).getValues().map((r) => String(r[0] || '').trim());
+  const at = names.indexOf('');
+  if (at >= 0) return ws.getRange(2 + at, 1).setValue(name);
+  const r = ws.getLastRow() + 1;
+  ws.getRange(r, 1).setValue(name);
+  ws.getRange(r, 3, 1, 4).setFormulas([worksRowFormulas(r)]);
 }
 
 function projectSheet(project) {
@@ -437,6 +542,7 @@ function readItems(sh) {
       return {
         row: FIRST_ROW + i,
         no: Number(r[C.no - 1]),
+        work: r[C.work - 1],
         location: r[C.loc - 1],
         description: urgent ? desc.slice(URGENT_TAG.length) : desc,
         priority: urgent ? 'ด่วน' : 'ปกติ',
@@ -577,9 +683,11 @@ function onText(ev) {
     // ข้อความทั่วไปในกลุ่ม: สร้างรายการเมื่อมีรูปค้างอยู่ หรือขึ้นต้นด้วย "+" เท่านั้น
     const photos = pendingPhotos(chatId, userId);
     if (!photos.length && !hasItemPrefix(msg)) return null;
-    const fields = parseItem(msg);
-    if (!fields.description) return [text('กรุณาพิมพ์รายละเอียดด้วย เช่น: ห้อง 301 / สีผนังไม่เรียบ')];
     const project = getProject(chatId, ev.source);
+    const found = matchWork(String(msg).replace(ITEM_PREFIX, ''), readWorks(project));
+    const fields = parseItem(found.rest);
+    if (!fields.description) return [text('กรุณาพิมพ์รายละเอียดด้วย เช่น: ห้อง 301 / สีผนังไม่เรียบ')];
+    fields.work = found.work || project.defaultWork || '';
     const item = addItem(project, fields, photos, displayName(ev.source));
     clearPending(chatId, userId);
     return [itemBubble(item, project, '🆕 บันทึกแล้ว')];
@@ -591,9 +699,43 @@ function onText(ev) {
   switch (cmd.type) {
     case 'list':
     case 'listAll': {
-      const all = readItems(sh);
+      let all = readItems(sh);
+      let scope = project.title;
+      if (cmd.arg) {
+        const w = findWork(cmd.arg, readWorks(project));
+        if (!w) return [text(`ไม่พบโปรเจค "${cmd.arg}"\nพิมพ์ "โปรเจค" เพื่อดูรายชื่อ`)];
+        all = all.filter((i) => i.work === w.name);
+        scope += ' · ' + w.name;
+      }
       const items = cmd.type === 'list' ? all.filter((i) => i.status !== ST_DONE) : all;
-      return [listBubble(`${project.title} — ${cmd.type === 'list' ? 'งานค้าง' : 'ทั้งหมด'}`, items, all, project)];
+      return [listBubble(`${scope} — ${cmd.type === 'list' ? 'งานค้าง' : 'ทั้งหมด'}`, items, all, project)];
+    }
+
+    case 'work': {
+      const works = readWorks(project);
+      if (!cmd.arg) {
+        const lines = works.map((w) => `• ${w.name}${w.abbr ? ` (${w.abbr})` : ''} — ค้าง ${w.open || 0}${w.late ? ` · เลยกำหนด ${w.late}` : ''}`);
+        return [text(`📂 โปรเจคใน ${project.title}\n${lines.join('\n') || '(ยังไม่มี)'}\n\n` +
+          `ตอนนี้แจ้งเข้า: ${project.defaultWork || 'ไม่ระบุ'}\n` +
+          `เปลี่ยน: โปรเจค ชื่อ · เลิกตั้ง: โปรเจค ไม่ระบุ · เพิ่ม: เพิ่มโปรเจค ชื่อ`)];
+      }
+      if (/^(ไม่ระบุ|ยกเลิก|-|none)$/i.test(cmd.arg)) {
+        project.defaultWork = '';
+        setJson('chat:' + chatId, project);
+        return [text('เลิกตั้งโปรเจคแล้ว รายการต่อไปจะไม่ระบุโปรเจค (ยกเว้นพิมพ์ชื่อในข้อความ)')];
+      }
+      const w = findWork(cmd.arg, works);
+      if (!w) return [text(`ไม่มี "${cmd.arg}" ในรายชื่อ\nเพิ่มด้วย: เพิ่มโปรเจค ${cmd.arg}`)];
+      project.defaultWork = w.name;
+      setJson('chat:' + chatId, project);
+      return [text(`📂 รายการที่แจ้งต่อจากนี้จะเข้าโปรเจค "${w.name}"\n(พิมพ์ชื่อโปรเจคอื่นในข้อความเพื่อแจ้งข้ามได้)`)];
+    }
+
+    case 'addWork': {
+      const name = cmd.arg.replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (findWork(name, readWorks(project))) return [text(`มี "${name}" อยู่แล้ว`)];
+      addWork(project, name);
+      return [text(`➕ เพิ่มโปรเจค "${name}" แล้ว\nใส่คำย่อได้ที่แท็บ "${WORKS_SHEET}" ใน Sheet`)];
     }
 
     case 'link':
@@ -698,8 +840,8 @@ function addItem(project, fields, photoIds, reporter) {
 
   const desc = (fields.priority === 'ด่วน' ? URGENT_TAG : '') + fields.description;
   const reporterCell = [reporter, fmtDate(now())].filter(Boolean).join('\n');
-  sh.appendRow([project.seq, '', fields.location, desc, fields.assignee, fields.start || '', fields.due || '',
-    ST_WAIT, '', '', '', reporterCell, '', '', '']);
+  sh.appendRow([project.seq, fields.work || '', '', fields.location, desc, fields.assignee, fields.start || '',
+    fields.due || '', ST_WAIT, '', '', '', reporterCell, '', '', '']);
   const row = sh.getLastRow();
   sh.getRange(row, 1, 1, LAST_VISIBLE)
     .setBorder(true, true, true, true, true, false, THEME.border, SpreadsheetApp.BorderStyle.SOLID);
@@ -718,7 +860,7 @@ function exportPdf(project) {
 
   // พิมพ์ "สถานะ ณ วันที่" ไว้ในแถวหัว (แถว 1–3 ถูก freeze → ซ้ำทุกหน้าของ PDF)
   // แล้วลบออกหลัง export เพื่อไม่ให้ Sheet สดแสดงวันที่เก่าค้างไว้
-  const stamp = sh.getRange(SUMMARY_ROW, 9);
+  const stamp = sh.getRange(SUMMARY_ROW, STAMP_COL);
   stamp.setValue(`สถานะ ณ วันที่ ${Utilities.formatDate(at, TZ, 'd/M/yyyy เวลา HH:mm')} น.`)
   SpreadsheetApp.flush();
 
@@ -749,8 +891,13 @@ function weeklyReport() {
       const open = items.filter((i) => i.status !== ST_DONE).length;
       const pdf = exportPdf(project);
       updateIndex(project);
+      // แยกตามโปรเจค: นับงานค้าง
+      const byWork = {};
+      for (const i of items) if (i.status !== ST_DONE) byWork[i.work || 'ไม่ระบุ'] = (byWork[i.work || 'ไม่ระบุ'] || 0) + 1;
+      const workLines = Object.keys(byWork).map((w) => `• ${w} ค้าง ${byWork[w]}`).join('\n');
       push(project.chatId, [text(
-        `📅 สรุปประจำสัปดาห์: ${project.title}\nค้าง ${open} · เสร็จ ${items.length - open} · ทั้งหมด ${items.length}\n\n📄 PDF\n${pdf.getUrl()}\n\n📊 Sheet ล่าสุด\n${project.sheetUrl}`
+        `📅 สรุปประจำสัปดาห์: ${project.title}\nค้าง ${open} · เสร็จ ${items.length - open} · ทั้งหมด ${items.length}` +
+        `${workLines ? '\n' + workLines : ''}\n\n📄 PDF\n${pdf.getUrl()}\n\n📊 Sheet ล่าสุด\n${project.sheetUrl}`
       )]);
     } catch (err) {
       console.error(key, err);
@@ -808,6 +955,7 @@ function itemBubble(item, project, heading) {
           {
             type: 'box', layout: 'vertical', spacing: 'xs',
             contents: [
+              flexRow('โปรเจค', item.work),
               flexRow('พื้นที่', item.location),
               flexRow('ผู้รับผิดชอบ', item.assignee),
               flexRow('กำหนดวันเริ่ม', fmtDay(item.start)),
@@ -834,7 +982,7 @@ function listBubble(title, items, all, project) {
       contents: [
         { type: 'text', text: `#${i.no}`, size: 'sm', color: COLORS.muted, flex: 1 },
         {
-          type: 'text', text: trunc([i.location, i.description].filter(Boolean).join(' · '), 60) || '-',
+          type: 'text', text: trunc([i.work, i.location, i.description].filter(Boolean).join(' · '), 60) || '-',
           size: 'sm', flex: 6, wrap: true, color: done ? COLORS.muted : COLORS.text,
           decoration: done ? 'line-through' : 'none',
         },
