@@ -117,11 +117,17 @@ module ArtK
       # [axial, radial] scale of a real valve used for another size (1, 1
       # when the size matches).
       def valve_scale(type, spec, item)
-        return [1.0, 1.0] if item['size'] == spec.size
+        return [1.0, 1.0] if item['size'] == spec.size && !item['scalable']
 
-        src = Catalog.spec('CS_B36_10', item['size'])
-        ff = FittingsData.face_to_face(type, spec.od, :flanged)
-        [ff / port_gap(item), FittingsData.flange(spec.od).od / FittingsData.flange(src.od).od]
+        if Refs::SCALABLE[item['type']] == [item['family'], item['operator']] && FittingsData::VALVES.key?(type)
+          # flanged gate: standard face-to-face along the pipe, standard
+          # flange diameter across it
+          src = Catalog.spec('CS_B36_10', item['size'])
+          ff = FittingsData.face_to_face(type, spec.od, :flanged)
+          return [ff / port_gap(item), FittingsData.flange(spec.od).od / FittingsData.flange(src.od).od]
+        end
+        k = Refs.scale_for(item, spec.od)
+        [k, k]
       rescue ArgumentError
         [1.0, 1.0]
       end

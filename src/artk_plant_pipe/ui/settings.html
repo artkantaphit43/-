@@ -135,21 +135,13 @@
     <button class="btn sec" data-cmd="clear_support" style="margin-top:6px">ลบซัพพอร์ตของแนวท่อที่เลือก</button>
   </fieldset>
   <fieldset>
-    <legend>วาล์ว (Valves)</legend>
-    <div class="row"><select id="valve_type"></select>
-      <button class="btn" data-cmd="valve" style="flex:none">ใส่วาล์ว</button></div>
-    <div class="info">คลิกบนท่อตรง – วาล์วจะถูกจัดให้อยู่บนท่อตรงเสมอ, ก้านวาล์วชี้ขึ้น. Tab = เปลี่ยนชนิด.
-      ระดับรายละเอียด "ละเอียด" ใช้วาล์ว/ข้อต่อจริงที่คัดลอกจากไฟล์ตัวอย่าง (ตามวัสดุท่อ: เหล็ก / GI / PVC) พร้อมหน้าแปลนประกบ</div>
-    <button class="btn" data-cmd="parts" style="margin-top:8px">คลังอุปกรณ์จริง (659 รายการ)<small>Reference library – GI, steel, PVC, valves</small></button>
-    <div class="grid2" style="margin-top:8px">
-      <button class="btn sec" data-cmd="register">ใช้โมเดลวาล์วของฉัน<small>Register valve model</small></button>
-      <button class="btn sec" data-cmd="library">รายการโมเดล<small>Model library</small></button>
-    </div>
-    <div class="info">ต้องการโมเดลของผู้ผลิตอื่นที่ไม่มีในคลัง: วาง Component วาล์วในโมเดล → เลือก →
-      "ใช้โมเดลวาล์วของฉัน" → คลิกศูนย์กลางขาเข้าและขาออก → เลือกชนิด. จากนั้นวาล์วชนิดนั้นจะใช้โมเดลนี้ทุกขนาด</div>
+    <legend>วาล์วและอุปกรณ์ (Valves & fittings)</legend>
+    <button class="btn" data-cmd="parts">คลังอุปกรณ์จริง<small>Reference library – วาล์ว ข้อต่อ มิเตอร์ ก๊อก เกจ</small></button>
+    <div class="info">เลือกอุปกรณ์ → ชี้ที่ท่อ: วาล์ว/มิเตอร์สแนปเข้าแนวท่อ, ข้องอ/ก๊อก/ฝาครอบสแนปที่ปลายท่อ, เกจติดบนท่อ ·
+      ขนาดปรับตามท่อที่ชี้ให้อัตโนมัติ · ← → หมุน 90°</div>
   </fieldset>
   <div class="note tip">
-    <b>ลำดับงานที่แนะนำ:</b> เลือกระบบ → คำนวณขนาด → วาดท่อ (หรือแปลงเส้นจากแบบ CAD) → ใส่วาล์ว →
+    <b>ลำดับงานที่แนะนำ:</b> เลือกระบบ → คำนวณขนาด → วาดท่อ (หรือแปลงเส้นจากแบบ CAD) → ใส่อุปกรณ์จากคลัง →
     กำหนดอัตราไหล → ตรวจไฮดรอลิก → ตรวจการชนกัน → ถอดวัสดุ
   </div>
 </section>
@@ -196,7 +188,6 @@ const PP = (() => {
     fill($('size'), cat().sizes.map((z) => [z.size, z.size]), S.size);
     fill($('rating'), Object.keys(sizeRec().walls).map((r) => [r, r]), S.rating);
     fill($('color_scheme'), Object.entries(D.schemes), S.color_scheme);
-    fill($('valve_type'), D.valves.map((v) => [v.type, `${v.th}`]), S.valve_type);
     fill($('support_type'), D.supports.map((v) => [v.type, v.th + (v.multi ? ' – หลายท่อ' : '')]), S.support_type);
     $('lod').value = S.lod;
     ['insulation_mm', 'slope_pct', 'waste_pct'].forEach((k) => { $(k).value = S[k]; });

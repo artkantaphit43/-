@@ -28,21 +28,27 @@ module ArtK
     # reference files against their embedded thumbnails.
     module SkpReader
       class Doc
-        attr_reader :defs, :root, :materials, :colors
+        attr_reader :defs, :root, :materials, :colors, :textures
 
         def initialize(path)
           raw = File.binread(path)
           zip = Zip.new(raw[raw.index("PK\x03\x04".b)..])
           @d = zip.read('model.dat')
           @colors = {}
+          @textures = {}
           zip.names.grep(%r{\Amaterials/(.+)/material\.xml\z}).each do |n|
             xml = zip.read(n).force_encoding('UTF-8')
             m = xml.match(/colorRed="(\d+)" colorGreen="(\d+)" colorBlue="(\d+)"/)
             next unless m
 
             # keyed by folder name = material name as stored in model.dat
-            a = xml[/trans="([\d.]+)"[^>]*useTrans="1"/, 1]
-            @colors[n.split('/')[1]] = [m[1].to_i, m[2].to_i, m[3].to_i, a ? a.to_f : 1.0]
+            folder = n.split('/')[1]
+            # material.xml "trans" is the transparency (glass 0.8 = mostly clear)
+            t = xml[/trans="([\d.]+)"[^>]*useTrans="1"/, 1]
+            @colors[folder] = [m[1].to_i, m[2].to_i, m[3].to_i, t ? (1.0 - t.to_f).round(3) : 1.0]
+            img = xml[/<mat:image [^>]*path="\.\/([^"]+)"/, 1]
+            path = img && "materials/#{folder}/#{img}"
+            @textures[folder] = [img, zip.read(path)] if path && zip.names.include?(path)
           end
           decode
         end
@@ -50,15 +56,37 @@ module ArtK
         # Flattened faces of a definition: [{loops: [[[x,y,z] mm …] …],
         # soft: [[bool …] …], mat: name|nil}], nested instances resolved.
         def flatten(def_id, tr = IDENTITY, mat = nil, out = [])
-          g = @defs[def_id]
+          flatten_geom(@defs[def_id], tr, mat, out)
+        end
+
+        # The whole model (root faces + everything placed) as one part –
+        # for files that are a single product made of loose groups.
+        def flatten_model
+          flatten_geom(@root, IDENTITY, nil, [])
+        end
+
+        def flatten_geom(g, tr, mat, out)
+          # a mirroring transform reverses loop winding: undo it so the
+          # outer loop order still gives the front side
+          mirror = det(tr).negative?
           g[:faces].each do |f|
             loops = f[:loops].map { |lp| lp.map { |vid| apply(tr, g[:verts][vid]) } }
-            out << { loops: loops, soft: f[:soft], mat: f[:mat] || mat }
+            soft = f[:soft]
+            if mirror
+              loops = loops.map(&:reverse)
+              # reversed loop w_j = v_(n-1-j): edge w_j→w_j+1 is old edge n-2-j
+              soft = soft.map { |sf| sf.reverse.rotate(1) }
+            end
+            out << { loops: loops, soft: soft, mat: f[:mat] || mat, tex: f[:tex] }
           end
           g[:inst].each do |i|
-            flatten(i[:def], compose(tr, i[:tr]), i[:mat] || mat, out)
+            flatten_geom(@defs[i[:def]], compose(tr, i[:tr]), i[:mat] || mat, out)
           end
           out
+        end
+
+        def det(t)
+          t[0] * (t[4] * t[8] - t[5] * t[7]) - t[3] * (t[1] * t[8] - t[2] * t[7]) + t[6] * (t[1] * t[5] - t[2] * t[4])
         end
 
         # Names of all nested definitions (for identifying anonymous items).
@@ -226,9 +254,18 @@ module ArtK
               loops << pts
               soft << sf
             end
-            g[:faces] << { loops: loops, soft: soft, mat: mat_name(header_material(r)) }
+            hd = kid(r, 0x07d0)
+            tex = hd && @d.byteslice(hd[0], hd[1] - hd[0]).include?("\x11\x27".b) && textured_mapping?(hd)
+            g[:faces] << { loops: loops, soft: soft, mat: mat_name(header_material(r)), tex: tex }
           end
           g
+        end
+
+        # Face header carries a front texture mapping record (0x2711).
+        def textured_mapping?(rec, depth = 0)
+          (parse(*rec) || []).any? do |t, a, b|
+            t == 0x2711 || (depth < 6 && b - a > 6 && textured_mapping?([a, b], depth + 1))
+          end
         end
 
         def mat_name(id)

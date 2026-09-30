@@ -56,7 +56,7 @@ const PP = {
   init(items) {
     this.items = items;
     document.getElementById('count').textContent =
-      `${items.length} รายการ – คัดลอก 1:1 จากไฟล์อ้างอิง · คลิกเพื่อวาง (อุปกรณ์อินไลน์จะสแนปเข้าท่อขนาดเดียวกัน)`;
+      `${items.length} รายการ คัดลอก 1:1 จากไฟล์ตัวอย่าง · คลิกเลือก แล้วชี้ที่ท่อ: วาล์ว/มิเตอร์ = บนท่อตรง, ข้องอ/ก๊อก/ฝาครอบ = ปลายท่อ, เกจ = บนท่อ · ขนาดปรับตามท่อที่ชี้`;
     const fams = [...new Map(items.map(i => [i.family, i.family_name])).entries()];
     document.getElementById('fam').innerHTML = '<option value="">ทุกระบบ / วัสดุ</option>' +
       fams.map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -87,7 +87,8 @@ const PP = {
         `<div class="card" data-k="${esc(i.key)}" title="${esc(i.standard)}\n${esc(i.src)}">` +
         `<img loading="lazy" src="../refs/thumbs/${i.thumb}.jpg" alt="">` +
         `<div class="n">${esc(i.name.split(' – ')[0])}</div><div class="s">${esc(i.standard)}</div>` +
-        (i.snap ? '<div class="snap">สแนปเข้าแนวท่อได้</div>' : '') + '</div>').join('') + '</div>').join('')
+        (i.snap ? `<div class="snap">${esc(i.snap)}${i.sized ? ' · ทุกขนาด (ปรับตามท่อ)' : ' · ใช้ขนาดตามท่ออัตโนมัติ'}</div>` : '') +
+        '</div>').join('') + '</div>').join('')
       : '<div class="empty">ไม่พบรายการ</div>';
     document.querySelectorAll('.card').forEach(c => c.onclick = () => sketchup.insert(c.dataset.k));
   }

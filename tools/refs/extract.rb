@@ -18,7 +18,10 @@
 
 require 'json'
 require 'zlib'
+require 'fileutils'
 require_relative 'skp_reader'
+$LOAD_PATH.unshift File.expand_path('../../src', __dir__)
+%w[vec catalog].each { |f| require "artk_plant_pipe/lib/#{f}" }
 
 module ArtK
   module PlantPipe
@@ -213,12 +216,56 @@ module ArtK
         nil
       end
 
+      # Single products supplied in one size; placed on any pipe size by
+      # scaling to that pipe (pipe_od = the pipe the model was drawn for).
+      def classify_meter(_name, _doc, _inst)
+        { type: 'water_meter', family: 'meter', size: '1/2"', material: 'bronze', discs: true, textures: true,
+          scalable: true, pipe_od: 21.4,
+          standard: 'Water meter DN15 (multi-jet), brass body, union tails – shown ½"; sized to the pipe' }
+      end
+
+      def classify_faucet(_name, _doc, _inst)
+        { type: 'faucet', family: 'tap', size: '1/2"', material: 'chrome', discs: true, scalable: true,
+          pipe_od: 21.4, normalize_od: 20.96, # model was drawn ~12× oversize: ½" BSP male thread = 20.96 mm
+          standard: 'Bib tap (ก๊อกสนาม) ½" BSP male, quarter-turn lever – sized to the pipe' }
+      end
+
+      GAUGE_RANGES = { 'Grouper 8#23' => '0-4', 'Grouper 8#22' => '0-6', 'Grouper 8#21' => '0-10',
+                       'Grouper 8#20' => '0-16', 'Grouper 8#19' => '0-25' }.freeze
+
+      def classify_gauge(name, _doc, _inst)
+        range = GAUGE_RANGES[name] or return nil
+        { type: 'gauge', family: 'instrument', size: nil, variant: "#{range} bar", material: 'steel_ss', discs: true,
+          standard: "Pressure gauge Ø100 (EN 837-1) #{range} bar, stainless case, bottom ½\" BSP – mounted on the pipe" }
+      end
+
       SOURCES = {
         'piping' => { label: 'Steel / GI piping components', rule: :classify_piping },
         'pvc' => { label: 'PVC fittings (TIS 17)', rule: :classify_pvc },
         'sch40' => { label: 'PVC Sch40 DWV fittings', rule: :classify_s40 },
-        'valves' => { label: 'Valve database', rule: :classify_valves }
+        'valves' => { label: 'Valve database', rule: :classify_valves },
+        'meter' => { label: 'Water meter', rule: :classify_meter, whole: true },
+        'faucet' => { label: 'Faucet', rule: :classify_faucet },
+        'gauge' => { label: 'Pressure gauges', rule: :classify_gauge }
       }.freeze
+
+      # Pipe the part connects to (mm OD) – the base for scaling it to
+      # another pipe size.
+      PIPE_CATALOG = {
+        'gi_thrd' => 'GSP_BS1387', 'cs_sw' => 'CS_B36_10', 'cs_bw' => 'CS_B36_10', 'flg150' => 'CS_B36_10',
+        'flgpn' => 'CS_B36_10', 'lug150' => 'CS_B36_10', 'wafer150' => 'CS_B36_10', 'jis10k' => 'CS_B36_10',
+        'pvc_tis' => 'PVC_TIS17', 'pvc_tis_dwv' => 'PVC_TIS17', 'pl_flg' => 'PVC_TIS17', 'pvc_s40' => 'PVCS40_ASTM'
+      }.freeze
+
+      def pipe_od_for(meta, size, ports)
+        return meta[:pipe_od] if meta[:pipe_od]
+        return (ports.first['ri'] * 2.0).round(1) if meta[:family] == 'pl_union' && ports.any?
+
+        key = PIPE_CATALOG[meta[:family]]
+        key && size ? Catalog.spec(key, size).od : nil
+      rescue ArgumentError
+        nil
+      end
 
       # ---------------------------------------------------------------
       # Geometry helpers
@@ -280,25 +327,35 @@ module ArtK
       end
 
       # Annular end faces standing at an extreme of the part.
-      def port_candidates(faces, verts, center, diag)
+      # relax: ignore material well outside the bore (a body lip standing
+      #        proud of a recessed seat face);
+      # discs: also accept solid circular end faces (male thread tails).
+      def port_candidates(faces, verts, center, diag, relax: false, discs: false)
         tol = [0.6, diag * 0.002].max
         cands = []
         faces.each do |f|
-          next if f[:loops].size < 2
-
           outer = f[:loops][0]
           n = newell(outer)
-          oc = centroid(outer)
-          hole = f[:loops][1..].filter_map { |lp| (ci = circle(lp)) && [ci, len(sub(ci[0], oc))] }
-                                .select { |(c, r), off| off < 0.08 * r + 0.3 && c }
-                                .min_by { |_, off| off }
-          next unless hole
+          if f[:loops].size < 2
+            next unless discs && (ci = circle(outer))
 
-          (c, ri), = hole
-          ro = outer.map { |p| len(sub(p, c)) }.max
+            c, ri = ci
+            ro = ri
+            solid = true
+          else
+            oc = centroid(outer)
+            hole = f[:loops][1..].filter_map { |lp| (ci = circle(lp)) && [ci, len(sub(ci[0], oc))] }
+                                  .select { |(c, r), off| off < 0.08 * r + 0.3 && c }
+                                  .min_by { |_, off| off }
+            next unless hole
+
+            (c, ri), = hole
+            ro = outer.map { |p| len(sub(p, c)) }.max
+            solid = false
+          end
           # outward = the side with no material in front of the face (a
           # socket mouth / weld end / flange face has the body only behind)
-          reach = ro * 1.03
+          reach = relax ? ri * 1.25 : ro * 1.03
           free = [n, mul(n, -1.0)].select do |dir|
             verts.none? do |v|
               t = dot(sub(v, c), dir)
@@ -306,13 +363,13 @@ module ArtK
 
               radial = len(sub(sub(v, c), mul(dir, t)))
               # internals inside the bore (open butterfly disc, ball) don't count
-              radial < reach && radial > ri * 1.02
+              radial < reach && (solid || radial > ri * 1.02)
             end
           end
           next unless free.size == 1
 
           s = free[0]
-          cands << { p: c, d: s, ri: ri, ro: ro }
+          cands << { p: c, d: s, ri: ri, ro: ro, solid: solid }
         end
         # merge coplanar duplicates, keep the smallest bore
         cands.sort_by { |c| c[:ri] }.each_with_object([]) do |c, acc|
@@ -344,7 +401,7 @@ module ArtK
 
       ONE_PORT = %w[cap blind].freeze
       TWO_INLINE = %w[coupling union hex_nipple nipple flange flange_wn reducer hose gate globe ball butterfly check
-                      strainer steam_trap prv diaphragm flowmeter].freeze
+                      strainer steam_trap prv diaphragm flowmeter water_meter].freeze
       ANGLED = { 'elbow90' => 90.0, 'elbow45' => 45.0, 'p_trap' => nil, 'u_trap' => nil }.freeze
       BRANCHED = %w[tee san_tee wye cross san_cross double_wye].freeze
 
@@ -352,6 +409,19 @@ module ArtK
       # frame = [origin, x, y] of the canonical placement frame.
       def resolve(meta, cands, up_hint, verts = [])
         t = meta[:type]
+        if t == 'gauge'
+          # bottom connection: the end face pointing most downward
+          pt = cands.max_by { |c| -dot(c[:d], up_hint) - c[:ri] * 1e-3 } or return nil
+          return nil if dot(pt[:d], up_hint) > -0.9
+
+          # canonical: port at origin facing −X, gauge along +X, dial facing +Y
+          return [[pt], [pt[:p], mul(pt[:d], -1.0), perp(mul(pt[:d], -1.0), meta[:dial] || [0.0, -1.0, 0.0])]]
+        end
+        if t == 'faucet'
+          # inlet = the horizontal end face standing furthest out
+          pt = cands.select { |c| dot(c[:d], up_hint).abs < 0.1 }.max_by { |c| dot(c[:p], c[:d]) } or return nil
+          return [[pt], [pt[:p], mul(pt[:d], -1.0), perp(mul(pt[:d], -1.0), up_hint)]]
+        end
         if ONE_PORT.include?(t)
           pt = cands.max_by { |c| c[:ri] } or return nil
           return [[pt], [pt[:p], mul(pt[:d], -1.0), perp(pt[:d], up_hint)]]
@@ -506,25 +576,41 @@ module ArtK
         bin = +''.b
         seen = {}
         keys = Hash.new(0)
+        FileUtils.mkdir_p(File.join(out_dir, 'textures'))
         files.each do |src, path|
           doc = SkpReader::Doc.new(path)
-          rule = SOURCES.fetch(src)[:rule]
+          conf = SOURCES.fetch(src)
+          rule = conf[:rule]
           doc.colors.each do |n, (r, g, b, a)|
             next if n.start_with?('Layer_')
 
             index['materials']["#{src}:#{n}"] = [r, g, b, a]
           end
-          doc.root[:inst].each do |inst|
-            defn = doc.defs[inst[:def]]
-            key0 = "#{src}/#{defn[:name]}"
+          insts = conf[:whole] ? [{ def: nil, tr: SkpReader::Doc::IDENTITY, whole: true }] : doc.root[:inst]
+          insts.each do |inst|
+            name = inst[:whole] ? conf[:label] : doc.defs[inst[:def]][:name]
+            key0 = "#{src}/#{name}"
             next if seen[key0]
 
-            meta = send(rule, defn[:name], doc, inst) or next
-            faces = doc.flatten(inst[:def])
+            meta = send(rule, name, doc, inst) or next
+            faces = inst[:whole] ? doc.flatten_model : doc.flatten(inst[:def])
             next if faces.empty?
 
+            if meta[:textures]
+              # only opaque decals carry information (dial faces); glass
+              # keeps its tint
+              faces.select { |f| f[:tex] && doc.textures[f[:mat]] && doc.colors[f[:mat]][3] >= 1.0 }
+                   .map { |f| f[:mat] }.uniq.each_with_index do |m, j|
+                file, bytes = doc.textures[m]
+                fname = "#{src}_#{j + 1}#{File.extname(file).downcase}"
+                File.binwrite(File.join(out_dir, 'textures', fname), bytes)
+                index['materials']["#{src}:#{m}"] = index['materials']["#{src}:#{m}"].first(4) + [fname]
+              end
+            end
+            faces.each { |f| f[:tex] = false unless meta[:textures] && index['materials']["#{src}:#{f[:mat]}"]&.at(4) }
+
             seen[key0] = true
-            item = build_item(src, defn[:name], meta, faces, inst) or next
+            item = build_item(src, name, meta, faces, inst) or next
             item['key'] += "##{keys[item['key']]}" if (keys[item['key']] += 1) > 1
             block = encode(item[:faces], src)
             item.delete(:faces)
@@ -548,8 +634,17 @@ module ArtK
         # world Z (the model is laid out upright) expressed in part axes
         tr = inst[:tr]
         up = unit([tr[2], tr[5], tr[8]])
-        cands = port_candidates(faces, verts.uniq, center, diag)
-        res = resolve(meta, cands, up, verts.uniq)
+        uverts = verts.uniq
+        nom = meta[:size] && DEC.key(meta[:size])
+        # a valve / fitting end carries (nearly) the full bore: small coaxial
+        # rings (actuator couplings, bushes) are never its connection
+        min_ri = nom && TWO_INLINE.include?(meta[:type]) ? 0.275 * nom * 25.4 : 0.0
+        find = lambda do |relax|
+          cs = port_candidates(faces, uverts, center, diag, relax: relax, discs: meta[:discs]).select { |c| c[:ri] >= min_ri }
+          [cs, resolve(meta, cs, up, uverts)]
+        end
+        cands, res = find.call(false)
+        cands, res = find.call(true) unless res
         warn "no ports: #{src}/#{name} (#{meta[:type]}, #{cands.size} candidates)" unless res
         nps = meta[:size] && DEC.key(meta[:size])
         if res && nps && res[0].map { |pt| pt[:ri] }.max * 2 < 0.55 * nps * 25.4
@@ -569,13 +664,21 @@ module ArtK
         base_pt = add(sub(center, mul(up, dot(center, up))), mul(up, base))
         ports, frame = res || [[], [base_pt, perp(up, [1.0, 0.0, 0.0]), up]]
         frame = [frame[0], frame[1], frame[2]]
+        # a model drawn at the wrong scale is brought to real size from its
+        # connection (e.g. the faucet's ½" thread)
+        k = meta[:normalize_od] && ports.any? ? meta[:normalize_od] / (2.0 * ports[0][:ri]) : 1.0
+        warn "#{src}/#{name}: scaled ×#{k.round(4)} to real size" if k != 1.0
+        pins = texture_pins(faces) if meta[:textures]
         ports = ports.map do |p|
           depth = socket_depth(p, faces)
-          { 'p' => transform_to(frame, p[:p]).map { |v| v.round(2) }, 'd' => rotate_to(frame, p[:d]).map { |v| v.round(5) },
-            'ri' => p[:ri].round(2), 'ro' => p[:ro].round(2), 'depth' => depth&.round(2) }
+          { 'p' => transform_to(frame, p[:p]).map { |v| (v * k).round(2) }, 'd' => rotate_to(frame, p[:d]).map { |v| v.round(5) },
+            'ri' => (p[:ri] * k).round(2), 'ro' => (p[:ro] * k).round(2), 'depth' => depth && (depth * k).round(2),
+            'solid' => p[:solid] || nil }.compact
         end
-        local = faces.map do |f|
-          { loops: f[:loops].map { |lp| lp.map { |v| transform_to(frame, v) } }, soft: f[:soft], mat: f[:mat] }
+        local = faces.each_with_index.map do |f, i|
+          lf = { loops: f[:loops].map { |lp| lp.map { |v| mul(transform_to(frame, v), k) } }, soft: f[:soft], mat: f[:mat] }
+          lf[:pins] = pins[i].map { |pt, uv| [mul(transform_to(frame, pt), k), uv] } if pins && pins[i]
+          lf
         end
         if STEMMED.include?(meta[:type]) && ports.size == 2
           hangs = %w[strainer steam_trap].include?(meta[:type]) # basket / trap body hangs down
@@ -594,9 +697,10 @@ module ArtK
           end
         end
         lv = local.flat_map { |f| f[:loops].flatten(1) }
-        size = meta[:size] || size_from_bore(ports, meta)
+        size = meta[:size] || (meta[:family] == 'pl_union' ? size_from_bore(ports, meta) : nil)
         nps = size && DEC.key(size)
         item = {
+          'pipe_od' => pipe_od_for(meta, size, ports), 'scalable' => meta[:scalable] || nil,
           'key' => "#{src}:#{meta[:family]}/#{meta[:type]}/#{meta[:variant] || meta[:operator] || '-'}/#{size}#{"x#{meta[:size2]}" if meta[:size2]}",
           'src' => src, 'src_name' => name, 'type' => meta[:type], 'family' => meta[:family],
           'size' => size, 'size2' => meta[:size2], 'nps' => nps, 'dn' => meta[:dn], 'variant' => meta[:variant],
@@ -606,6 +710,34 @@ module ArtK
         }.compact
         item[:faces] = local
         item
+      end
+
+      # Textured faces (decals such as the water-meter dial): the image is
+      # fitted to the face, u along the first world axis lying in the face
+      # plane, v along the second. Returns {face index => [[point, [u, v]] ×3]}.
+      def texture_pins(faces)
+        out = {}
+        faces.each_with_index do |f, i|
+          next unless f[:tex] && f[:mat]
+
+          n = newell(f[:loops][0])
+          e1, e2 = [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]].sort_by { |a| dot(a, n).abs }.first(2)
+                                                          .sort_by { |a| a.index(1.0) }
+          e1 = unit(sub(e1, mul(n, dot(e1, n))))
+          e2 = unit(sub(e2, mul(n, dot(e2, n))))
+          pts = f[:loops][0]
+          us = pts.map { |p| dot(p, e1) }
+          vs = pts.map { |p| dot(p, e2) }
+          w = us.max - us.min
+          h = vs.max - vs.min
+          next if w < 1e-6 || h < 1e-6
+
+          a = pts[0]
+          b = pts.max_by { |p| len(sub(p, a)) }
+          c = pts.max_by { |p| len(cross(sub(b, a), sub(p, a))) }
+          out[i] = [a, b, c].map { |p| [p, [(dot(p, e1) - us.min) / w, (dot(p, e2) - vs.min) / h]] }
+        end
+        out
       end
 
       STEMMED = %w[gate globe ball butterfly check strainer steam_trap prv diaphragm].freeze
@@ -669,8 +801,9 @@ module ArtK
       end
 
       # Block: zlib(verts int32 ×3 at 0.01 mm, faces). Face: u16 material
-      # index (0xFFFF = none), u16 loop count; loop: u16 n, n × u32 vertex
-      # index with bit 31 set when the edge from that vertex is soft.
+      # index (0xFFFF = none), u16 loop count (bit 15: texture pins follow);
+      # loop: u16 n, n × u32 vertex index with bit 31 set when the edge
+      # from that vertex is soft.
       def encode(faces, src)
         vidx = {}
         verts = []
@@ -678,7 +811,9 @@ module ArtK
         body = +''.b
         faces.each do |f|
           mi = f[:mat] ? (mats.index("#{src}:#{f[:mat]}") || (mats << "#{src}:#{f[:mat]}").size - 1) : 0xFFFF
-          body << [mi, f[:loops].size].pack('vv')
+          body << [mi, f[:loops].size | (f[:pins] ? 0x8000 : 0)].pack('vv')
+          # texture pins: 3 × (3 × int32 at 0.01 mm, 2 × float32 uv)
+          f[:pins]&.each { |pt, uv| body << pt.map { |c| (c * 100).round }.pack('l<3') << uv.pack('e2') }
           f[:loops].each_with_index do |lp, li|
             body << [lp.size].pack('v')
             lp.each_with_index do |v, k|
@@ -700,7 +835,7 @@ end
 
 if $PROGRAM_NAME == __FILE__
   out = ARGV.shift
-  srcs = %w[piping pvc sch40 valves]
+  srcs = %w[piping pvc sch40 valves meter faucet gauge]
   files = srcs.zip(ARGV).reject { |_, p| p.nil? }
   idx = ArtK::PlantPipe::RefExtract.run(out, files)
   by = idx['items'].group_by { |i| [i['family'], i['type']] }

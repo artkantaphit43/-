@@ -217,7 +217,13 @@ module Sketchup
   end
 
   class Face < Entity
-    attr_accessor :back_material
+    attr_accessor :back_material, :pins
+
+    def position_material(mat, pins, _front)
+      self.material = mat
+      @pins = pins
+      true
+    end
 
     def followme(path)
       $followme_calls = ($followme_calls || 0) + 1
@@ -436,7 +442,7 @@ module Sketchup
   end
 
   class Material
-    attr_accessor :color, :alpha, :name
+    attr_accessor :color, :alpha, :name, :texture
 
     def initialize(n)
       @name = n

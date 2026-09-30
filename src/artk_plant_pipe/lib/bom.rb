@@ -145,7 +145,8 @@ module ArtK
       def inline_category(type)
         case type.to_s
         when 'flange', 'flange_wn', 'blind' then 'flange'
-        when 'union', 'coupling', 'hex_nipple', 'nipple', 'hose', 'reducer', 'cap', 'flowmeter', 'gauge' then 'fitting'
+        when 'union', 'coupling', 'hex_nipple', 'nipple', 'hose', 'reducer', 'cap', 'flowmeter', 'gauge', 'water_meter'
+          'fitting'
         else 'valve'
         end
       end

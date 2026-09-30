@@ -24,7 +24,8 @@ module ArtK
         'pvc_grey' => ['PP_Ref_PVC_Grey', [140, 144, 146]],       # PVC-U RAL 7011 grey
         'pp_black' => ['PP_Ref_PP_Black', [52, 52, 54]],          # PP-H / PE black
         'pvc_clear' => ['PP_Ref_Clear', [214, 228, 236]],         # rotameter tube
-        'steel_ss' => ['PP_Ref_Stainless', [205, 207, 210]]
+        'steel_ss' => ['PP_Ref_Stainless', [205, 207, 210]],
+        'chrome' => ['PP_Ref_Chrome', [200, 203, 207]]              # chromed brass (taps)
       }.freeze
 
       class << self
@@ -74,8 +75,16 @@ module ArtK
             f = mesh[:faces][i]
             orient(face, f, mesh[:verts])
             m = f[:mat] && (mats[f[:mat]] ||= source_material(model, f[:mat]))
-            face.material = m if m
-            face.back_material = m if m
+            next unless m
+
+            if f[:pins] && m.texture && face.respond_to?(:position_material)
+              # decal (e.g. meter dial): place the image exactly as in the source
+              pins = f[:pins].flat_map { |pt, (u, v)| [H.to_pt(pt), Geom::Point3d.new(u, v, 1.0)] }
+              face.position_material(m, pins, true)
+            else
+              face.material = m
+            end
+            face.back_material = m
           end
           smooth_edges(ents, soft, mesh[:verts])
         end
@@ -149,7 +158,10 @@ module ArtK
         def source_material(model, key)
           rgb = Refs.materials[key] or return nil
           name = "PP_Src #{key.split(':', 2).last}"
-          H.material(model, name, rgb[0, 3], rgb[3] || 1.0)
+          mat = H.material(model, name, rgb[0, 3], rgb[3] || 1.0)
+          tex = Refs.texture_path(key)
+          mat.texture = tex if tex && File.exist?(tex) && mat.respond_to?(:texture=) && mat.texture.nil?
+          mat
         end
 
         # Transformation placing the canonical frame at world frame +f+

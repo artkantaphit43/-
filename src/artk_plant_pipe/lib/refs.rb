@@ -92,7 +92,8 @@ module ArtK
         'butterfly' => ['บัตเตอร์ฟลายวาล์ว', 'Butterfly valve'], 'check' => ['เช็ควาล์ว', 'Check valve'],
         'strainer' => ['วายสเตรนเนอร์', 'Y-strainer'], 'steam_trap' => ['สตีมแทรป', 'Steam trap'],
         'prv' => ['วาล์วลดแรงดัน (PRV)', 'Pressure reducing valve'], 'diaphragm' => ['ไดอะแฟรมวาล์ว', 'Diaphragm valve'],
-        'flowmeter' => ['โฟลว์มิเตอร์', 'Flowmeter (rotameter)'], 'gauge' => ['เกจวัดแรงดัน', 'Pressure gauge']
+        'flowmeter' => ['โฟลว์มิเตอร์', 'Flowmeter (rotameter)'], 'gauge' => ['เกจวัดแรงดัน', 'Pressure gauge'],
+        'water_meter' => ['มิเตอร์น้ำ', 'Water meter'], 'faucet' => ['ก๊อกน้ำ', 'Faucet / bib tap']
       }.freeze
 
       FAMILY_NAMES = {
@@ -100,10 +101,16 @@ module ArtK
         'flg150' => 'หน้าแปลน Class 150', 'flgpn' => 'หน้าแปลน PN16', 'lug150' => 'Lug Class 150',
         'wafer150' => 'Wafer Class 150', 'jis10k' => 'Wafer JIS 10K', 'pl_flg' => 'PVC หน้าแปลน PN10',
         'pl_union' => 'พลาสติก ยูเนี่ยน', 'pvc_tis' => 'PVC ฟ้า มอก.17 (หนา)', 'pvc_tis_dwv' => 'PVC ฟ้า มอก.17 (บาง/ระบายน้ำ)',
-        'pvc_s40' => 'PVC Sch40 ขาว (DWV)', 'instrument' => 'เครื่องวัด'
+        'pvc_s40' => 'PVC Sch40 ขาว (DWV)', 'instrument' => 'เครื่องวัด',
+        'meter' => 'มิเตอร์น้ำ ทองเหลือง', 'tap' => 'ก๊อกน้ำ ชุบโครเมียม'
       }.freeze
 
       OPERATORS = { 'wheel' => 'พวงมาลัย', 'lever' => 'ก้านโยก', 'gear' => 'เกียร์', 'actuator' => 'หัวขับไฟฟ้า' }.freeze
+
+      # Types whose real model exists only in small sizes; larger sizes use
+      # the largest real one, scaled along the pipe to the standard
+      # face-to-face and across it to the standard flange diameter.
+      SCALABLE = { 'gate' => %w[flg150 wheel] }.freeze
 
       # Companion flanges bolted to each end of a flanged / wafer / lug valve.
       FLANGED = %w[flg150 lug150 wafer150 jis10k flgpn pl_flg].freeze
@@ -162,11 +169,6 @@ module ArtK
           end
           nil
         end
-
-        # Types whose real model exists only in small sizes; larger sizes use
-        # the largest real one, scaled along the pipe to the standard
-        # face-to-face and across it to the standard flange diameter.
-        SCALABLE = { 'gate' => %w[flg150 wheel] }.freeze
 
         # [item, source size] or nil.
         def scalable_valve(type, spec)
@@ -231,6 +233,16 @@ module ArtK
           faces = Array.new(nf) do
             mi, nl = raw.unpack("@#{p}vv")
             p += 4
+            pins = nil
+            if nl & 0x8000 != 0
+              nl &= 0x7fff
+              pins = Array.new(3) do
+                pt = raw.unpack("@#{p}l<3").map { |v| v / 100.0 }
+                uv = raw.unpack("@#{p + 12}e2")
+                p += 20
+                [pt, uv]
+              end
+            end
             loops = []
             soft = []
             nl.times do
@@ -240,9 +252,75 @@ module ArtK
               loops << idx.map { |i| i & 0x7fffffff }
               soft << idx.map { |i| i & 0x80000000 != 0 }
             end
-            { mat: mi == 0xFFFF ? nil : mats[mi], loops: loops, soft: soft }
+            { mat: mi == 0xFFFF ? nil : mats[mi], loops: loops, soft: soft, pins: pins }
           end
           { verts: verts, faces: faces }
+        end
+
+        # Image file of a textured source material (refs/textures), or nil.
+        def texture_path(mat_key)
+          f = materials.dig(mat_key, 4)
+          f && File.join(DIR, 'textures', f)
+        end
+
+        # How a part goes onto a pipe:
+        #   :inline – two opposite ends on one axis (valves, unions, meters…)
+        #   :top    – bottom connection into the top of a pipe (gauges)
+        #   :end    – first port onto an open pipe end (elbows, tees, caps,
+        #             flanges, faucets…)
+        #   nil     – placed freely
+        def mount(item)
+          ps = item['ports']
+          return nil if ps.empty?
+          return :top if item['type'] == 'gauge'
+          return :inline if ps.size == 2 && ps[0]['d'].zip(ps[1]['d']).sum { |a, b| a * b } < -0.99
+
+          :end
+        end
+
+        # The same part in the pipe's size (same family, type and operator /
+        # variant), or nil.
+        def variant_for(item, spec)
+          return item if item['size'] == spec.size
+
+          items.select do |i|
+            i['type'] == item['type'] && i['family'] == item['family'] && i['operator'] == item['operator'] &&
+              i['variant'] == item['variant'] && i['size'] == spec.size && i['size2'].nil? && !i['ports'].empty?
+          end.min_by { |i| i['src'] == item['src'] ? 0 : 1 }
+        end
+
+        # Uniform scale that fits +item+ to a pipe of +od+ mm (1.0 when the
+        # part was modelled for that pipe).
+        def scale_for(item, od)
+          base = item['pipe_od'].to_f
+          return 1.0 unless base.positive? && od.to_f.positive?
+
+          k = od.to_f / base
+          (k - 1.0).abs < 0.03 ? 1.0 : k
+        end
+
+        # Placement frame (Mesh.frame-style hash, mm) that puts port +i+ of
+        # +item+ (scaled by k) at point +m+, facing −u – i.e. looking into a
+        # pipe whose end points along u – with canonical +Y toward +y_hint.
+        # Ports of end-mounted parts face −X in the canonical frame, so +X
+        # maps onto u.
+        def port_frame(item, i, m, u, y_hint, k = 1.0)
+          x = Vec.unit(u)
+          y = Vec.sub(y_hint, Vec.scale(x, Vec.dot(y_hint, x)))
+          y = Vec.perpendicular(x) if Vec.length(y) < 1e-6
+          y = Vec.unit(y)
+          z = Vec.cross(x, y)
+          p = item['ports'][i]['p'].map { |c| c * k }
+          off = Vec.add(Vec.add(Vec.scale(x, p[0]), Vec.scale(y, p[1])), Vec.scale(z, p[2]))
+          { o: Vec.sub(m, off), x: x, y: y, z: z }
+        end
+
+        # Where the port face sits for a pipe ending at +e+ (pointing along
+        # u): a socket swallows the pipe, so its mouth is one socket depth
+        # back; weld, thread and flange faces meet the pipe end itself.
+        def mouth_point(item, i, e, u, k = 1.0)
+          depth = item['ports'][i]['depth'].to_f * k
+          Vec.sub(e, Vec.scale(Vec.unit(u), depth))
         end
 
         # File name (without .jpg) of the item's preview in refs/thumbs.
@@ -252,9 +330,10 @@ module ArtK
 
         def display_name(item)
           th, en = TYPE_NAMES.fetch(item['type'], [item['type'], item['type']])
-          size = [item['size'], item['size2']].compact.join(' x ')
-          extra = [OPERATORS[item['operator']], { 'lr' => 'รัศมียาว', 'sr' => 'รัศมีสั้น' }[item['variant']]].compact
-          "#{th} #{size} #{FAMILY_NAMES[item['family']]}#{" (#{extra.join(', ')})" unless extra.empty?} – #{en}".squeeze(' ')
+          size = item['scalable'] ? 'ทุกขนาด' : [item['size'], item['size2']].compact.join(' x ')
+          extra = [OPERATORS[item['operator']], { 'lr' => 'รัศมียาว', 'sr' => 'รัศมีสั้น' }.fetch(item['variant'], item['variant'])].compact
+          fam = item['scalable'] ? nil : FAMILY_NAMES[item['family']]
+          "#{th} #{size} #{fam}#{" (#{extra.join(', ')})" unless extra.empty?} – #{en}".squeeze(' ')
         end
 
         def reset!

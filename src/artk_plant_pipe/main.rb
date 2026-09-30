@@ -50,9 +50,8 @@ module ArtK
       cmds = {
         settings: command('Settings & Sizing / ตั้งค่า', 'เลือกระบบ วัสดุ ขนาด และคำนวณขนาดท่อ', 'settings') { SettingsDialog.show },
         draw: command('Draw Pipe / วาดท่อ', 'วาดแนวท่อพร้อมข้องอ/Tee อัตโนมัติ', 'draw') { Commands.draw_pipe },
-        valve: command('Insert Valve / ใส่วาล์ว', 'คลิกบนท่อตรงเพื่อใส่วาล์ว (Tab เปลี่ยนชนิด)', 'valve') { Commands.insert_valve },
         parts: command('Reference Library / คลังอุปกรณ์จริง',
-                       'อุปกรณ์ทั้งหมดที่คัดลอกจากไฟล์ตัวอย่าง (GI, เหล็ก, PVC, วาล์ว) – คลิกเพื่อวาง', 'library') { RefBrowser.show },
+                       'วาล์ว ข้อต่อ มิเตอร์ ก๊อก เกจ จากไฟล์ตัวอย่าง – เลือกแล้วชี้ที่ท่อ ขนาดปรับตามท่อ', 'library') { RefBrowser.show },
         convert: command('Convert Edges to Pipe / แปลงเส้นเป็นท่อ', 'แปลงเส้นที่เลือกเป็นท่อ', 'convert') { Commands.convert_selection },
         rebuild: command('Rebuild Selected Runs / ปรับท่อที่เลือก', 'เปลี่ยนขนาด/วัสดุ/ระบบ ของท่อที่เลือก', 'rebuild') { Commands.rebuild_selection },
         flow: command('Set Design Flow / กำหนดอัตราไหล', 'กำหนดอัตราการไหลออกแบบให้ท่อที่เลือก', 'flow') { Commands.set_design_flow },
@@ -67,19 +66,11 @@ module ArtK
         style: command('Technical Line Style / ลายเส้นแบบเทคนิค', 'เส้นขอบดำคม + Profile แบบแบบก่อสร้าง',
                        'style') { Commands.technical_style },
         help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help },
-        register: command('Register Valve Model / ใช้โมเดลวาล์วของฉัน',
-                          'เลือก Component วาล์ว แล้วคลิกศูนย์กลางขาเข้า-ขาออก') { Commands.register_model },
-        library: command('My Registered Valves / โมเดลวาล์วที่ลงทะเบียนเอง', 'ดูโมเดลวาล์วที่ลงทะเบียนไว้') { SettingsDialog.library },
         diag: command('Diagnostics / ตรวจสอบระบบ', 'ทดสอบการสร้างข้อต่อในเครื่องนี้ และแสดงคำเตือนของแนวท่อ') { Commands.diagnostics }
       }
 
       menu = UI.menu('Extensions').add_submenu('Plant Piping TH')
-      %i[settings draw valve parts convert].each { |k| menu.add_item(cmds[k]) }
-      valves = menu.add_submenu('Insert Valve Type / ชนิดวาล์ว')
-      FittingsData::VALVES.each do |type, info|
-        valves.add_item("#{info[:name]} – #{info[:th]}") { Commands.insert_valve(type) }
-      end
-      %i[register library].each { |k| valves.add_item(cmds[k]) }
+      %i[settings draw parts convert].each { |k| menu.add_item(cmds[k]) }
       menu.add_separator
       %i[auto_support support clear_support].each { |k| menu.add_item(cmds[k]) }
       sups = menu.add_submenu('Support Type / ชนิดซัพพอร์ต')
@@ -93,7 +84,7 @@ module ArtK
       menu.add_item(cmds[:diag])
 
       tb = UI::Toolbar.new('Plant Piping TH')
-      %i[settings draw valve parts convert auto_support support rebuild flow hydraulic clash bom style].each do |k|
+      %i[settings draw parts convert auto_support support rebuild flow hydraulic clash bom style].each do |k|
         tb.add_item(cmds[k])
       end
       tb.get_last_state == TB_NEVER_SHOWN ? tb.show : tb.restore
