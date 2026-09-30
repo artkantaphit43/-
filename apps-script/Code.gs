@@ -19,14 +19,24 @@ const LINE_API = 'https://api.line.me/v2/bot';
 const LINE_DATA_API = 'https://api-data.line.me/v2/bot';
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
-// คอลัมน์ในชีตโครงการ (แถว 1 = หัวรายงาน, แถว 2 = หัวตาราง, ข้อมูลเริ่มแถว 3)
-const HEADERS = ['#', 'รูป', 'ตำแหน่ง', 'รายละเอียด', 'ผู้รับผิดชอบ', 'ความสำคัญ', 'สถานะ',
-  'ผู้แจ้ง', 'วันที่แจ้ง', 'วันที่ปิด', 'ความคิดเห็น / ประวัติ', 'รูปทั้งหมด', 'photoIds'];
-const C = { no: 1, thumb: 2, loc: 3, desc: 4, who: 5, pri: 6, status: 7, reporter: 8,
-  created: 9, closed: 10, notes: 11, links: 12, ids: 13 };
-const FIRST_ROW = 3;
-const ST_OPEN = 'ค้าง';
+// ชีตโครงการ: แถว 1 = ชื่อรายงาน, แถว 2 = สรุปจำนวน, แถว 3 = หัวตาราง, ข้อมูลเริ่มแถว 4
+// หัวข้อตามฟอร์มบริษัท: ลำดับ, รายการแก้ไข, กำหนดวันเริ่ม, กำหนดแล้วเสร็จ, สถานะ, หมายเหตุ
+// + ที่เพิ่ม: รูปก่อน/หลังแก้ไข (หลักฐาน), พื้นที่ (หาจุดเจอ), ผู้รับผิดชอบ, วันที่เสร็จจริง (เทียบกับแผน), ผู้แจ้ง
+const HEADERS = ['ลำดับ', 'รูปก่อนแก้ไข', 'พื้นที่ / ตำแหน่ง', 'รายการแก้ไข', 'ผู้รับผิดชอบ',
+  'กำหนดวันเริ่ม', 'กำหนดแล้วเสร็จ', 'สถานะ', 'รูปหลังแก้ไข', 'วันที่แล้วเสร็จจริง', 'หมายเหตุ',
+  'ผู้แจ้ง / วันที่แจ้ง', 'ลิงก์รูปทั้งหมด', 'beforeIds', 'afterIds'];
+const C = { no: 1, before: 2, loc: 3, desc: 4, who: 5, start: 6, due: 7, status: 8, after: 9,
+  closed: 10, notes: 11, reporter: 12, links: 13, beforeIds: 14, afterIds: 15 };
+const LAST_VISIBLE = C.links;
+const TITLE_ROW = 1;
+const SUMMARY_ROW = 2;
+const HEADER_ROW = 3;
+const FIRST_ROW = 4;
+const ST_WAIT = 'รอดำเนินการ';
+const ST_WIP = 'กำลังแก้ไข';
 const ST_DONE = 'เสร็จแล้ว';
+const URGENT_TAG = '[ด่วน] ';
+const THEME = { header: '#d9ead3', title: '#274e13', band: '#f6faf4', border: '#c9d6c3' };
 
 // ชีตภาพรวม (Sheet ที่ใส่โค้ดนี้)
 const INDEX_HEADERS = ['โครงการ', 'ค้าง', 'เสร็จ', 'ทั้งหมด', 'อัปเดตล่าสุด', 'Google Sheet', 'โฟลเดอร์รูป / PDF', 'chatId'];
@@ -35,9 +45,10 @@ const HELP = `📋 วิธีใช้ Punch List Bot
 
 ➊ ส่งรูปหน้างาน (กี่รูปก็ได้)
 ➋ พิมพ์รายละเอียดตามหลังรูป
-   ตำแหน่ง / รายละเอียด @ผู้รับผิดชอบ ด่วน
-   เช่น: ห้อง 301 / สีผนังไม่เรียบ @ทีมสี ด่วน
-→ บอทบันทึกลง Google Sheet พร้อมเลขที่ให้
+   พื้นที่ / รายการแก้ไข @ผู้รับผิดชอบ เริ่ม วันที่ ภายใน วันที่
+   เช่น: ห้อง 301 / สีผนังไม่เรียบ @ทีมสี เริ่ม 5/10 ภายใน 12/10
+   (ใส่แค่บางส่วนก็ได้, พิมพ์ "ด่วน" ถ้าเร่ง)
+→ บอทบันทึกลง Google Sheet พร้อมลำดับให้
 
 ไม่มีรูป: ขึ้นต้นด้วย + เช่น "+ ห้องน้ำ 2 / ยาแนวหลุด"
 
@@ -46,9 +57,11 @@ const HELP = `📋 วิธีใช้ Punch List Bot
 • ทั้งหมด — ดูทุกรายการ
 • ลิงก์ — ลิงก์ Google Sheet ของโครงการนี้
 • รายงาน — ทำ PDF ตอนนี้เลย
-• เสร็จ 3 — ปิดรายการ #3 (ส่งรูปก่อนได้ = รูปหลังแก้)
+• เริ่ม 3 — รายการ #3 กำลังแก้ไข
+• เสร็จ 3 — ปิดรายการ #3 (ส่งรูปก่อน = รูปหลังแก้ไข)
 • เปิด 3 — เปิดรายการ #3 ใหม่
-• #3 ข้อความ — เพิ่มความคิดเห็นในรายการ #3
+• #3 ข้อความ — เพิ่มหมายเหตุในรายการ #3
+• #3 เริ่ม 5/10 ภายใน 12/10 — แก้กำหนดวัน
 • ลบ 3 — ลบรายการ #3
 • ตั้งชื่อ ชื่อโครงการ — เปลี่ยนชื่อโครงการ
 • ยกเลิก — ล้างรูปที่ส่งค้างไว้`;
@@ -146,6 +159,7 @@ const COMMANDS = [
   { type: 'link', re: /^(link|ลิงก์|ลิงค์|sheet|ชีท)$/i },
   { type: 'report', re: /^(report|รายงาน|สรุป|pdf)$/i },
   { type: 'cancel', re: /^(ยกเลิก|cancel)$/i },
+  { type: 'start', re: /^(เริ่ม|เริ่มงาน|start)\s*#?(\d+)$/i },
   { type: 'done', re: /^(ปิด|เสร็จ|done|close)\s*#?(\d+)\s*([\s\S]*)$/i },
   { type: 'reopen', re: /^(เปิด|เปิดใหม่|reopen)\s*#?(\d+)\s*([\s\S]*)$/i },
   { type: 'delete', re: /^(ลบ|delete)\s*#?(\d+)$/i },
@@ -161,7 +175,7 @@ function parseCommand(text) {
     const m = t.match(re);
     if (!m) continue;
     if (type === 'done' || type === 'reopen') return { type, no: Number(m[2]), note: m[3].trim() };
-    if (type === 'delete') return { type, no: Number(m[2]) };
+    if (type === 'delete' || type === 'start') return { type, no: Number(m[2]) };
     if (type === 'note') return { type, no: Number(m[1]), note: m[2].trim() };
     if (type === 'setTitle') return { type, title: m[2].trim() };
     return { type };
@@ -173,9 +187,39 @@ function hasItemPrefix(text) {
   return ITEM_PREFIX.test(String(text || '').trim());
 }
 
-// "ตำแหน่ง / รายละเอียด @ผู้รับผิดชอบ ด่วน"
+// วันที่แบบไทย: 5/10, 5/10/26, 5/10/69 (พ.ศ.), 5/10/2026, 5/10/2569
+const DATE = '(\\d{1,2})[/.-](\\d{1,2})(?:[/.-](\\d{2,4}))?';
+const START_RE = new RegExp(`(^|\\s)(?:เริ่ม|เริ่มงาน|start)\\s*${DATE}(?=\\s|$)`, 'i');
+const DUE_RE = new RegExp(`(^|\\s)(?:ภายใน|เสร็จภายใน|กำหนดเสร็จ|ถึง|due)\\s*${DATE}(?=\\s|$)`, 'i');
+
+function toDate(d, m, y) {
+  let year = y ? Number(y) : Number(Utilities.formatDate(now(), TZ, 'yyyy'));
+  if (y && y.length === 2) year = year >= 50 ? 2500 + year - 543 : 2000 + year; // 69 = พ.ศ. 2569
+  if (year > 2400) year -= 543;
+  const date = new Date(year, Number(m) - 1, Number(d), 12); // เที่ยงวัน กันวันเลื่อนเพราะ timezone
+  return date.getMonth() === Number(m) - 1 && date.getDate() === Number(d) ? date : null;
+}
+
+// ดึง "เริ่ม 5/10" และ "ภายใน 12/10" ออกจากข้อความ
+function extractDates(text) {
+  let t = String(text || '');
+  const out = { start: null, due: null };
+  for (const [key, re] of [['start', START_RE], ['due', DUE_RE]]) {
+    const m = t.match(re);
+    if (!m) continue;
+    const date = toDate(m[2], m[3], m[4]);
+    if (!date) continue;
+    out[key] = date;
+    t = t.replace(re, '$1');
+  }
+  out.rest = t;
+  return out;
+}
+
+// "พื้นที่ / รายการแก้ไข @ผู้รับผิดชอบ เริ่ม 5/10 ภายใน 12/10 ด่วน"
 function parseItem(text) {
-  let t = String(text || '').trim().replace(ITEM_PREFIX, '');
+  const dates = extractDates(String(text || '').trim().replace(ITEM_PREFIX, ''));
+  let t = dates.rest;
   let priority = 'ปกติ';
   if (HIGH_PRIORITY.test(t)) {
     priority = 'ด่วน';
@@ -194,7 +238,10 @@ function parseItem(text) {
     t = t.slice(sep.index + sep[0].length);
   }
   const clean = (s) => s.split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n');
-  return { location: clean(location), description: clean(t), assignee: assignees.join(', '), priority };
+  return {
+    location: clean(location), description: clean(t), assignee: assignees.join(', '), priority,
+    start: dates.start, due: dates.due,
+  };
 }
 
 /* ========================= LINE API ========================= */
@@ -316,29 +363,62 @@ function createProject(chatId, source) {
 
 function formatProjectSheet(sh, title) {
   sh.setName('Punch List');
-  sh.getRange(1, 1).setValue('Punch List — ' + title).setFontSize(14).setFontWeight('bold');
-  sh.getRange(1, C.desc).setFormula(
-    `="ค้าง "&COUNTIF(G${FIRST_ROW}:G,"${ST_OPEN}")&"   เสร็จ "&COUNTIF(G${FIRST_ROW}:G,"${ST_DONE}")&"   ทั้งหมด "&COUNT(A${FIRST_ROW}:A)`
-  ).setFontWeight('bold');
-  sh.getRange(2, 1, 1, HEADERS.length).setValues([HEADERS])
-    .setFontWeight('bold').setBackground('#eef2f7').setVerticalAlignment('middle');
-  sh.setFrozenRows(2);
-  const widths = { [C.no]: 40, [C.thumb]: 130, [C.loc]: 120, [C.desc]: 260, [C.who]: 110, [C.pri]: 80,
-    [C.status]: 85, [C.reporter]: 100, [C.created]: 105, [C.closed]: 105, [C.notes]: 300, [C.links]: 110 };
-  for (const col in widths) sh.setColumnWidth(Number(col), widths[col]);
-  sh.hideColumns(C.ids);
-  sh.getRange(`A${FIRST_ROW}:M`).setVerticalAlignment('top').setWrap(true);
-  sh.getRange(`I${FIRST_ROW}:J`).setNumberFormat('d/m/yy HH:mm');
+  sh.setHiddenGridlines(true);
+  sh.hideColumns(C.beforeIds, 2);
 
-  const status = sh.getRange(`G${FIRST_ROW}:G`);
-  const pri = sh.getRange(`F${FIRST_ROW}:F`);
+  // แถว 1: ชื่อรายงาน
+  sh.getRange(TITLE_ROW, 1, 1, LAST_VISIBLE).merge()
+    .setValue('PUNCH LIST : ' + title)
+    .setFontSize(16).setFontWeight('bold').setFontColor(THEME.title).setVerticalAlignment('middle');
+  sh.setRowHeight(TITLE_ROW, 36);
+
+  // แถว 2: สรุปจำนวน (สูตรนับเอง) + ช่องวันที่ของ PDF ทางขวา
+  const rng = (col) => `${col}${FIRST_ROW}:${col}`;
+  sh.getRange(SUMMARY_ROW, 1, 1, 8).merge().setFormula(
+    `="${ST_WAIT} "&COUNTIF(${rng('H')},"${ST_WAIT}")` +
+    `&"   •   ${ST_WIP} "&COUNTIF(${rng('H')},"${ST_WIP}")` +
+    `&"   •   ${ST_DONE} "&COUNTIF(${rng('H')},"${ST_DONE}")` +
+    `&"   •   เลยกำหนด "&COUNTIFS(${rng('G')},"<"&TODAY(),${rng('H')},"<>${ST_DONE}")` +
+    `&"   •   ทั้งหมด "&COUNT(${rng('A')})`
+  ).setFontColor('#555555');
+  sh.getRange(SUMMARY_ROW, 9, 1, LAST_VISIBLE - 8).merge().setHorizontalAlignment('right').setFontWeight('bold');
+
+  // แถว 3: หัวตาราง (สีเขียวตามฟอร์มเดิม)
+  sh.getRange(HEADER_ROW, 1, 1, HEADERS.length).setValues([HEADERS]);
+  sh.getRange(HEADER_ROW, 1, 1, LAST_VISIBLE)
+    .setFontWeight('bold').setBackground(THEME.header).setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setWrap(true)
+    .setBorder(true, true, true, true, true, false, THEME.border, SpreadsheetApp.BorderStyle.SOLID);
+  sh.setRowHeight(HEADER_ROW, 40);
+  sh.setFrozenRows(HEADER_ROW);
+
+  const widths = { [C.no]: 50, [C.before]: 110, [C.loc]: 120, [C.desc]: 240, [C.who]: 100, [C.start]: 90,
+    [C.due]: 90, [C.status]: 100, [C.after]: 110, [C.closed]: 95, [C.notes]: 260, [C.reporter]: 110, [C.links]: 90 };
+  for (const col in widths) sh.setColumnWidth(Number(col), widths[col]);
+
+  const col = (c) => sh.getRange(FIRST_ROW, c, sh.getMaxRows() - FIRST_ROW + 1, 1);
+  sh.getRange(`A${FIRST_ROW}:M`).setVerticalAlignment('middle').setWrap(true).setFontSize(10);
+  for (const c of [C.no, C.start, C.due, C.status, C.closed]) col(c).setHorizontalAlignment('center');
+  for (const c of [C.start, C.due, C.closed]) col(c).setNumberFormat('d/m/yy');
+  col(C.status).setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInList([ST_WAIT, ST_WIP, ST_DONE], true).setAllowInvalid(false).build());
+
+  const all = sh.getRange(`A${FIRST_ROW}:M`);
+  const status = sh.getRange(`H${FIRST_ROW}:H`);
+  const due = sh.getRange(`G${FIRST_ROW}:G`);
+  const desc = sh.getRange(`D${FIRST_ROW}:D`);
+  const rule = () => SpreadsheetApp.newConditionalFormatRule();
   sh.setConditionalFormatRules([
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(ST_OPEN)
-      .setBackground('#fff1e6').setFontColor('#c2410c').setRanges([status]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(ST_DONE)
-      .setBackground('#e7f7ee').setFontColor('#15803d').setRanges([status]).build(),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('ด่วน')
-      .setFontColor('#b91c1c').setBold(true).setRanges([pri]).build(),
+    rule().whenTextEqualTo(ST_DONE).setBackground('#d9f2e3').setFontColor('#137333').setBold(true).setRanges([status]).build(),
+    rule().whenTextEqualTo(ST_WIP).setBackground('#fff2cc').setFontColor('#9a6700').setBold(true).setRanges([status]).build(),
+    rule().whenTextEqualTo(ST_WAIT).setBackground('#fce8e6').setFontColor('#c5221f').setBold(true).setRanges([status]).build(),
+    // เลยกำหนดแล้วยังไม่เสร็จ → กำหนดแล้วเสร็จเป็นสีแดง
+    rule().whenFormulaSatisfied(`=AND($G${FIRST_ROW}<>"",$G${FIRST_ROW}<TODAY(),$H${FIRST_ROW}<>"${ST_DONE}")`)
+      .setBackground('#c5221f').setFontColor('#ffffff').setBold(true).setRanges([due]).build(),
+    rule().whenFormulaSatisfied(`=LEFT($D${FIRST_ROW},${URGENT_TAG.length - 1})="${URGENT_TAG.trim()}"`)
+      .setFontColor('#c5221f').setBold(true).setRanges([desc]).build(),
+    // สลับสีแถว (เฉพาะแถวที่มีข้อมูล)
+    rule().whenFormulaSatisfied(`=AND($A${FIRST_ROW}<>"",ISEVEN(ROW()))`).setBackground(THEME.band).setRanges([all]).build(),
   ]);
 }
 
@@ -349,19 +429,27 @@ function projectSheet(project) {
 function readItems(sh) {
   const n = sh.getLastRow() - FIRST_ROW + 1;
   if (n <= 0) return [];
+  const ids = (v) => String(v || '').split(',').filter(Boolean);
   return sh.getRange(FIRST_ROW, 1, n, HEADERS.length).getValues()
-    .map((r, i) => ({
-      row: FIRST_ROW + i,
-      no: Number(r[C.no - 1]),
-      location: r[C.loc - 1],
-      description: r[C.desc - 1],
-      assignee: r[C.who - 1],
-      priority: r[C.pri - 1],
-      status: r[C.status - 1],
-      reporter: r[C.reporter - 1],
-      notes: r[C.notes - 1],
-      photoIds: String(r[C.ids - 1] || '').split(',').filter(Boolean),
-    }))
+    .map((r, i) => {
+      const desc = String(r[C.desc - 1] || '');
+      const urgent = desc.indexOf(URGENT_TAG) === 0;
+      return {
+        row: FIRST_ROW + i,
+        no: Number(r[C.no - 1]),
+        location: r[C.loc - 1],
+        description: urgent ? desc.slice(URGENT_TAG.length) : desc,
+        priority: urgent ? 'ด่วน' : 'ปกติ',
+        assignee: r[C.who - 1],
+        start: r[C.start - 1] || null,
+        due: r[C.due - 1] || null,
+        status: r[C.status - 1],
+        notes: r[C.notes - 1],
+        reporter: String(r[C.reporter - 1] || '').split('\n')[0],
+        beforeIds: ids(r[C.beforeIds - 1]),
+        afterIds: ids(r[C.afterIds - 1]),
+      };
+    })
     .filter((i) => i.no);
 }
 
@@ -369,21 +457,27 @@ function findItem(sh, no) {
   return readItems(sh).find((i) => i.no === no) || null;
 }
 
+// รูปแนวตั้ง: ขอรูปย่อตามความสูง แล้วให้ IMAGE() ย่อพอดีช่อง (คงสัดส่วน)
 function thumbFormula(fileId) {
-  return fileId ? `=IMAGE("https://drive.google.com/thumbnail?id=${fileId}&sz=w400")` : '';
+  return fileId ? `=IMAGE("https://drive.google.com/thumbnail?id=${fileId}&sz=h600")` : '';
 }
 
-function setPhotoCells(sh, row, ids) {
-  sh.getRange(row, C.ids).setValue(ids.join(','));
-  if (!ids.length) return sh.getRange(row, C.links).setValue('');
-  const labels = ids.map((_, i) => `รูป ${i + 1}`);
-  const text = labels.join('\n');
-  const rich = SpreadsheetApp.newRichTextValue().setText(text);
+const PHOTO_ROW_HEIGHT = 150;
+
+function setPhotoCells(sh, row, beforeIds, afterIds) {
+  sh.getRange(row, C.beforeIds, 1, 2).setValues([[beforeIds.join(','), afterIds.join(',')]]);
+  sh.getRange(row, C.before).setFormula(thumbFormula(beforeIds[0]));
+  sh.getRange(row, C.after).setFormula(thumbFormula(afterIds[afterIds.length - 1]));
+  if (beforeIds.length || afterIds.length) sh.setRowHeight(row, PHOTO_ROW_HEIGHT);
+
+  const links = beforeIds.map((id, i) => [`ก่อน ${i + 1}`, id]).concat(afterIds.map((id, i) => [`หลัง ${i + 1}`, id]));
+  if (!links.length) return sh.getRange(row, C.links).setValue('');
+  const rich = SpreadsheetApp.newRichTextValue().setText(links.map((l) => l[0]).join('\n'));
   let pos = 0;
-  ids.forEach((id, i) => {
-    rich.setLinkUrl(pos, pos + labels[i].length, `https://drive.google.com/file/d/${id}/view`);
-    pos += labels[i].length + 1;
-  });
+  for (const [label, id] of links) {
+    rich.setLinkUrl(pos, pos + label.length, `https://drive.google.com/file/d/${id}/view`);
+    pos += label.length + 1;
+  }
   sh.getRange(row, C.links).setRichTextValue(rich.build());
 }
 
@@ -392,6 +486,10 @@ function appendNote(sh, item, text, by) {
   const notes = item.notes ? item.notes + '\n' + line : line;
   sh.getRange(item.row, C.notes).setValue(notes);
   return notes;
+}
+
+function fmtDay(d) {
+  return d ? Utilities.formatDate(new Date(d), TZ, 'd/M/yy') : '';
 }
 
 function updateIndex(project) {
@@ -464,7 +562,7 @@ function onImage(ev) {
   // ส่งหลายรูปพร้อมกัน ไลน์ส่ง imageSet มา → ตอบครั้งเดียวที่รูปแรก
   const set = ev.message.imageSet;
   const first = set ? set.index === 1 : ids.length === 1;
-  return first ? [text('📷 รับรูปแล้ว พิมพ์รายละเอียดต่อได้เลย\nเช่น: ห้อง 301 / สีผนังไม่เรียบ @ทีมสี')] : null;
+  return first ? [text('📷 รับรูปแล้ว พิมพ์รายละเอียดต่อได้เลย\nเช่น: ห้อง 301 / สีผนังไม่เรียบ @ทีมสี ภายใน 12/10')] : null;
 }
 
 function onText(ev) {
@@ -512,21 +610,31 @@ function onText(ev) {
       return [text(n ? `ล้างรูปที่ค้างไว้ ${n} รูปแล้ว` : 'ไม่มีรูปค้างอยู่')];
     }
 
+    case 'start': {
+      const item = findItem(sh, cmd.no);
+      if (!item) return [text(`ไม่พบรายการ #${cmd.no}`)];
+      item.status = ST_WIP;
+      sh.getRange(item.row, C.status).setValue(ST_WIP);
+      item.notes = appendNote(sh, item, 'เริ่มแก้ไข', displayName(ev.source));
+      updateIndex(project);
+      return [itemBubble(item, project, '🔧 เริ่มแก้ไข')];
+    }
+
     case 'done':
     case 'reopen': {
       const item = findItem(sh, cmd.no);
       if (!item) return [text(`ไม่พบรายการ #${cmd.no}`)];
       const done = cmd.type === 'done';
-      item.status = done ? ST_DONE : ST_OPEN;
+      item.status = done ? ST_DONE : ST_WAIT;
       sh.getRange(item.row, C.status).setValue(item.status);
       sh.getRange(item.row, C.closed).setValue(done ? now() : '');
       const label = done ? 'ปิดงาน' : 'เปิดใหม่';
       item.notes = appendNote(sh, item, cmd.note ? `${label} — ${cmd.note}` : label, displayName(ev.source));
-      // รูปที่ส่งก่อนพิมพ์ "เสร็จ N" = รูปหลังแก้
+      // รูปที่ส่งก่อนพิมพ์ "เสร็จ N" = รูปหลังแก้ไข
       const after = done ? pendingPhotos(chatId, userId) : [];
       if (after.length) {
-        item.photoIds = item.photoIds.concat(after);
-        setPhotoCells(sh, item.row, item.photoIds);
+        item.afterIds = item.afterIds.concat(after);
+        setPhotoCells(sh, item.row, item.beforeIds, item.afterIds);
         clearPending(chatId, userId);
       }
       updateIndex(project);
@@ -537,7 +645,7 @@ function onText(ev) {
       const item = findItem(sh, cmd.no);
       if (!item) return [text(`ไม่พบรายการ #${cmd.no}`)];
       sh.deleteRow(item.row);
-      for (const id of item.photoIds) {
+      for (const id of item.beforeIds.concat(item.afterIds)) {
         try {
           DriveApp.getFileById(id).setTrashed(true);
         } catch (err) {
@@ -551,8 +659,21 @@ function onText(ev) {
     case 'note': {
       const item = findItem(sh, cmd.no);
       if (!item) return [text(`ไม่พบรายการ #${cmd.no}`)];
-      appendNote(sh, item, cmd.note, displayName(ev.source));
-      return [text(`📝 เพิ่มความคิดเห็นใน #${cmd.no} แล้ว`)];
+      // "#3 เริ่ม 5/10 ภายใน 12/10" = แก้กำหนดวัน, ข้อความที่เหลือ = หมายเหตุ
+      const d = extractDates(cmd.note);
+      const changes = [];
+      if (d.start) {
+        sh.getRange(item.row, C.start).setValue(d.start);
+        changes.push(`กำหนดวันเริ่ม ${fmtDay(d.start)}`);
+      }
+      if (d.due) {
+        sh.getRange(item.row, C.due).setValue(d.due);
+        changes.push(`กำหนดแล้วเสร็จ ${fmtDay(d.due)}`);
+      }
+      const rest = d.rest.replace(/\s+/g, ' ').trim();
+      const note = changes.concat(rest ? [rest] : []).join(' — ');
+      appendNote(sh, item, note, displayName(ev.source));
+      return [text(changes.length ? `📅 #${cmd.no}: ${changes.join(', ')}` : `📝 เพิ่มหมายเหตุใน #${cmd.no} แล้ว`)];
     }
 
     case 'setTitle': {
@@ -561,7 +682,7 @@ function onText(ev) {
       project.title = title;
       setJson('chat:' + chatId, project);
       SpreadsheetApp.openById(project.sheetId).rename('Punch List - ' + title);
-      sh.getRange(1, 1).setValue('Punch List — ' + title);
+      sh.getRange(TITLE_ROW, 1).setValue('PUNCH LIST : ' + title);
       DriveApp.getFolderById(project.folderId).setName(title);
       updateIndex(project);
       return [text(`ตั้งชื่อโครงการเป็น "${title}" แล้ว`)];
@@ -575,15 +696,17 @@ function addItem(project, fields, photoIds, reporter) {
   project.seq = Math.max(project.seq || 0, ...readItems(sh).map((i) => i.no)) + 1;
   setJson('chat:' + project.chatId, project);
 
-  const created = now();
-  sh.appendRow([project.seq, thumbFormula(photoIds[0]), fields.location, fields.description, fields.assignee,
-    fields.priority, ST_OPEN, reporter, created, '', '', '', '']);
+  const desc = (fields.priority === 'ด่วน' ? URGENT_TAG : '') + fields.description;
+  const reporterCell = [reporter, fmtDate(now())].filter(Boolean).join('\n');
+  sh.appendRow([project.seq, '', fields.location, desc, fields.assignee, fields.start || '', fields.due || '',
+    ST_WAIT, '', '', '', reporterCell, '', '', '']);
   const row = sh.getLastRow();
-  setPhotoCells(sh, row, photoIds);
-  if (photoIds.length) sh.setRowHeight(row, 100);
+  sh.getRange(row, 1, 1, LAST_VISIBLE)
+    .setBorder(true, true, true, true, true, false, THEME.border, SpreadsheetApp.BorderStyle.SOLID);
+  setPhotoCells(sh, row, photoIds, []);
   updateIndex(project);
 
-  return { row, no: project.seq, ...fields, status: ST_OPEN, reporter, photoIds, notes: '' };
+  return { row, no: project.seq, ...fields, status: ST_WAIT, reporter, beforeIds: photoIds, afterIds: [], notes: '' };
 }
 
 /* ========================= PDF + สรุปรายสัปดาห์ ========================= */
@@ -593,15 +716,14 @@ function exportPdf(project) {
   const sh = ss.getSheets()[0];
   const at = now();
 
-  // พิมพ์ "สถานะ ณ วันที่" ไว้ในแถวหัว (แถว 1–2 ถูก freeze → ซ้ำทุกหน้าของ PDF)
+  // พิมพ์ "สถานะ ณ วันที่" ไว้ในแถวหัว (แถว 1–3 ถูก freeze → ซ้ำทุกหน้าของ PDF)
   // แล้วลบออกหลัง export เพื่อไม่ให้ Sheet สดแสดงวันที่เก่าค้างไว้
-  const stamp = sh.getRange(1, C.notes);
+  const stamp = sh.getRange(SUMMARY_ROW, 9);
   stamp.setValue(`สถานะ ณ วันที่ ${Utilities.formatDate(at, TZ, 'd/M/yyyy เวลา HH:mm')} น.`)
-    .setFontWeight('bold').setHorizontalAlignment('right');
   SpreadsheetApp.flush();
 
   const url = `https://docs.google.com/spreadsheets/d/${project.sheetId}/export?format=pdf&gid=${sh.getSheetId()}` +
-    '&size=A4&portrait=false&fitw=true&gridlines=true&sheetnames=false&printtitle=false&pagenum=CENTER&fzr=true' +
+    '&size=A4&portrait=false&fitw=true&gridlines=false&sheetnames=false&printtitle=false&pagenum=CENTER&fzr=true' +
     '&top_margin=0.4&bottom_margin=0.4&left_margin=0.4&right_margin=0.4';
   let blob;
   try {
@@ -638,7 +760,7 @@ function weeklyReport() {
 
 /* ========================= Flex Message ========================= */
 
-const COLORS = { open: '#E0752D', done: '#2E9E5B', high: '#D93025', muted: '#8A8F98', text: '#1F2328' };
+const COLORS = { open: '#C5221F', wip: '#9A6700', done: '#2E9E5B', high: '#D93025', muted: '#8A8F98', text: '#1F2328' };
 
 function trunc(s, n) {
   s = String(s || '');
@@ -676,17 +798,22 @@ function itemBubble(item, project, heading) {
             type: 'box', layout: 'horizontal',
             contents: [
               { type: 'text', text: heading, size: 'xs', color: COLORS.muted, weight: 'bold' },
-              { type: 'text', text: item.status, size: 'xs', weight: 'bold', align: 'end', color: done ? COLORS.done : COLORS.open },
+              {
+                type: 'text', text: item.status, size: 'xs', weight: 'bold', align: 'end',
+                color: done ? COLORS.done : item.status === ST_WIP ? COLORS.wip : COLORS.open,
+              },
             ],
           },
-          { type: 'text', text: `#${item.no} ${trunc(item.description, 120)}`, weight: 'bold', size: 'lg', wrap: true },
+          { type: 'text', text: `#${item.no} ${trunc(item.description, 120) || '-'}`, weight: 'bold', size: 'lg', wrap: true },
           {
             type: 'box', layout: 'vertical', spacing: 'xs',
             contents: [
-              flexRow('ตำแหน่ง', item.location),
+              flexRow('พื้นที่', item.location),
               flexRow('ผู้รับผิดชอบ', item.assignee),
-              flexRow('ความสำคัญ', item.priority, item.priority === 'ด่วน' ? COLORS.high : undefined),
-              flexRow('รูป', `${item.photoIds.length} รูป`),
+              flexRow('กำหนดวันเริ่ม', fmtDay(item.start)),
+              flexRow('กำหนดเสร็จ', fmtDay(item.due)),
+              ...(item.priority === 'ด่วน' ? [flexRow('ความสำคัญ', 'ด่วน', COLORS.high)] : []),
+              flexRow('รูป', `ก่อน ${item.beforeIds.length} · หลัง ${item.afterIds.length}`),
               flexRow('ผู้แจ้ง', item.reporter),
             ],
           },

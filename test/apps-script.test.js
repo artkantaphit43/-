@@ -34,6 +34,7 @@ function makeEnv() {
       grid,
       rich: {},
       getSheetId: () => 0,
+      getMaxRows: () => 1000,
       setName: () => sheet,
       getLastRow: () => {
         for (let r = grid.length; r > 0; r--) if ((grid[r - 1] || []).some((v) => v !== '' && v != null)) return r;
@@ -44,22 +45,18 @@ function makeEnv() {
       getRange: (r, c, nr = 1, nc = 1) => {
         if (typeof r === 'string') return chain();
         const range = {
-          setValue: (v) => (put(r, c, v), range),
-          setFormula: (v) => (put(r, c, v), range),
-          setValues: (vals) => (vals.forEach((row, i) => row.forEach((v, j) => put(r + i, c + j, v))), range),
+          setValue: (v) => (put(r, c, v), proxy),
+          setFormula: (v) => (put(r, c, v), proxy),
+          setValues: (vals) => (vals.forEach((row, i) => row.forEach((v, j) => put(r + i, c + j, v))), proxy),
           getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => cell(r + i, c + j))),
-          setRichTextValue: (rt) => ((sheet.rich[`${r},${c}`] = rt), put(r, c, rt.text), range),
-          setNumberFormat: () => range,
-          setFontSize: () => range,
-          setFontWeight: () => range,
-          setBackground: () => range,
-          setVerticalAlignment: () => range,
-          setHorizontalAlignment: () => range,
+          setRichTextValue: (rt) => ((sheet.rich[`${r},${c}`] = rt), put(r, c, rt.text), proxy),
         };
-        return range;
+        // คำสั่งจัดรูปแบบอื่น ๆ (setBorder, merge, setWrap, ...) ไม่ต้องจำลอง
+        const proxy = new Proxy(range, { get: (t, k) => (k in t ? t[k] : () => proxy) });
+        return proxy;
       },
     };
-    for (const m of ['setFrozenRows', 'setColumnWidth', 'hideColumns', 'setRowHeight', 'setConditionalFormatRules']) {
+    for (const m of ['setFrozenRows', 'setColumnWidth', 'hideColumns', 'setRowHeight', 'setConditionalFormatRules', 'setHiddenGridlines']) {
       sheet[m] = () => sheet;
     }
     return sheet;
@@ -126,7 +123,10 @@ function makeEnv() {
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     Utilities: {
       getUuid: () => '1234-5678-abcd',
-      formatDate: (d) => new Date(d).toISOString().slice(0, 16),
+      formatDate: (d, tz, fmt) =>
+        fmt === 'yyyy' ? String(new Date(d).getFullYear())
+          : fmt === 'd/M/yy' ? `${new Date(d).getDate()}/${new Date(d).getMonth() + 1}/${String(new Date(d).getFullYear()).slice(2)}`
+            : new Date(d).toISOString().slice(0, 16),
     },
     ContentService: { createTextOutput: (s) => ({ s }) },
     HtmlService: { createHtmlOutput: (h) => ({ h, setTitle() { return this; } }) },
@@ -160,6 +160,8 @@ function makeEnv() {
       create: (n) => makeSpreadsheet(n),
       openById: (id) => files[id],
       newConditionalFormatRule: () => chain(),
+      newDataValidation: () => chain(),
+      BorderStyle: { SOLID: 'SOLID' },
       newRichTextValue: () => {
         const rt = { links: [] };
         const b = {
@@ -187,7 +189,7 @@ function makeEnv() {
         if (/export\?format=pdf/.test(url)) {
           // เก็บหัวกระดาษ ณ ตอน export ไว้ตรวจ
           const ss = files[url.match(/\/d\/([^/]+)\//)[1]];
-          ctx.exportedHeader = ss.sheets[0].grid[0].slice();
+          ctx.exportedHeader = ss.sheets[0].grid.slice(0, 3).flat();
           return res(200, '', blob('r.pdf'));
         }
         return res(404, 'not found');
@@ -235,31 +237,52 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   post([img('m1', { id: 's', index: 1, total: 2 }), img('m2', { id: 's', index: 2, total: 2 })]);
   assert.strictEqual(sent.length, 1, 'ตอบแค่รูปแรก');
 
-  post([txt('ห้อง 301 / สีผนังไม่เรียบ @ทีมสี ด่วน')]);
+  post([txt('ห้อง 301 / สีผนังไม่เรียบ @ทีมสี เริ่ม 5/10 ภายใน 12/10/69 ด่วน')]);
   const project = JSON.parse(props['chat:G1']);
   assert.strictEqual(project.title, 'คอนโด ABC', 'ตั้งชื่อตามชื่อกลุ่มไลน์');
   const sh = api.projectSheet(project);
+  assert.strictEqual(sh.grid[0][0], 'PUNCH LIST : คอนโด ABC');
+  assert.deepStrictEqual(
+    sh.grid[2].slice(0, 13),
+    ['ลำดับ', 'รูปก่อนแก้ไข', 'พื้นที่ / ตำแหน่ง', 'รายการแก้ไข', 'ผู้รับผิดชอบ', 'กำหนดวันเริ่ม', 'กำหนดแล้วเสร็จ',
+      'สถานะ', 'รูปหลังแก้ไข', 'วันที่แล้วเสร็จจริง', 'หมายเหตุ', 'ผู้แจ้ง / วันที่แจ้ง', 'ลิงก์รูปทั้งหมด']
+  );
   let items = api.readItems(sh);
   assert.strictEqual(items.length, 1);
-  assert.strictEqual(items[0].no, 1);
-  assert.strictEqual(items[0].location, 'ห้อง 301');
-  assert.strictEqual(items[0].priority, 'ด่วน');
-  assert.strictEqual(items[0].reporter, 'สมชาย');
-  assert.strictEqual(items[0].photoIds.length, 2);
-  assert.match(sh.grid[2][1], /^=IMAGE\("https:\/\/drive\.google\.com\/thumbnail\?id=f\d+/);
-  assert.deepStrictEqual(sh.rich['3,12'].links.map((l) => l[0]), ['รูป 1', 'รูป 2']);
+  const it = items[0];
+  assert.strictEqual(it.no, 1);
+  assert.strictEqual(it.location, 'ห้อง 301');
+  assert.strictEqual(it.description, 'สีผนังไม่เรียบ');
+  assert.strictEqual(sh.grid[3][3], '[ด่วน] สีผนังไม่เรียบ', 'ด่วนแสดงในรายการแก้ไข');
+  assert.strictEqual(it.priority, 'ด่วน');
+  assert.strictEqual(it.assignee, 'ทีมสี');
+  assert.strictEqual(it.status, 'รอดำเนินการ');
+  assert.strictEqual(it.reporter, 'สมชาย');
+  assert.strictEqual(`${it.start.getDate()}/${it.start.getMonth() + 1}`, '5/10');
+  assert.strictEqual(`${it.due.getDate()}/${it.due.getMonth() + 1}/${it.due.getFullYear()}`, '12/10/2026', '69 = พ.ศ. 2569');
+  assert.strictEqual(it.beforeIds.length, 2);
+  assert.match(sh.grid[3][1], /^=IMAGE\("https:\/\/drive\.google\.com\/thumbnail\?id=f\d+&sz=h600"\)$/);
+  assert.strictEqual(sh.grid[3][8], '', 'ยังไม่มีรูปหลังแก้ไข');
+  assert.deepStrictEqual(sh.rich['4,13'].links.map((l) => l[0]), ['ก่อน 1', 'ก่อน 2']);
   const card = sent.at(-1).messages[0];
   assert.strictEqual(card.type, 'flex');
   walkNoEmptyText(card);
 
   post([txt('+ ห้องน้ำ 2 / ยาแนวหลุด')]);
   post([txt('#2 ลูกค้าขอเปลี่ยนสียาแนวเป็นสีเทา')]);
+  post([txt('#2 ภายใน 20/10')]);
+  post([txt('เริ่ม 2')]);
   post([img('m3'), txt('เสร็จ 1 ทาใหม่แล้ว')]);
   items = api.readItems(sh);
   assert.strictEqual(items[0].status, 'เสร็จแล้ว');
-  assert.strictEqual(items[0].photoIds.length, 3, 'รูปหลังแก้ถูกแนบ');
+  assert.ok(items[0].beforeIds.length === 2 && items[0].afterIds.length === 1, 'รูปหลังแก้ไขแยกคอลัมน์');
+  assert.match(sh.grid[3][8], /^=IMAGE\(/, 'รูปหลังแก้ไขขึ้นในตาราง');
+  assert.strictEqual(Object.prototype.toString.call(sh.grid[3][9]), '[object Date]', 'บันทึกวันที่แล้วเสร็จจริง');
+  assert.deepStrictEqual(sh.rich['4,13'].links.map((l) => l[0]), ['ก่อน 1', 'ก่อน 2', 'หลัง 1']);
   assert.match(items[0].notes, /สมชาย: ปิดงาน — ทาใหม่แล้ว/);
-  assert.match(items[1].notes, /ลูกค้าขอเปลี่ยนสียาแนว/);
+  assert.strictEqual(items[1].status, 'กำลังแก้ไข');
+  assert.strictEqual(items[1].due.getDate(), 20, 'แก้กำหนดเสร็จผ่าน #2');
+  assert.match(items[1].notes, /ลูกค้าขอเปลี่ยนสียาแนว[\s\S]*กำหนดแล้วเสร็จ 20\/10\/26[\s\S]*เริ่มแก้ไข/);
 
   post([txt('รายการ')]);
   const list = sent.at(-1).messages[0];
@@ -276,10 +299,11 @@ test('Apps Script: ตั้งค่า → รูป → ข้อความ
   const pdfs = Object.values(files).filter((f) => f.parent === project.pdfFolderId);
   assert.strictEqual(pdfs.length, 1);
   assert.ok(ctx.exportedHeader.some((v) => /^สถานะ ณ วันที่ .+ น\.$/.test(v)), 'PDF มีวันที่บนหน้า');
-  assert.ok(!sh.grid[0].some((v) => /สถานะ ณ/.test(v)), 'ลบวันที่ออกจาก Sheet หลัง export');
+  assert.ok(!sh.grid.slice(0, 3).flat().some((v) => /สถานะ ณ/.test(v)), 'ลบวันที่ออกจาก Sheet หลัง export');
 
-  post([txt('ตั้งชื่อ คอนโด ABC เฟส 2')]);
-  assert.strictEqual(files[project.sheetId].name, 'Punch List - คอนโด ABC เฟส 2');
+  post([txt('ตั้งชื่อ SHM-P2')]);
+  assert.strictEqual(files[project.sheetId].name, 'Punch List - SHM-P2');
+  assert.strictEqual(sh.grid[0][0], 'PUNCH LIST : SHM-P2');
   assert.strictEqual(index.sheets[0].grid.length, 2, 'ไม่สร้างแถวภาพรวมซ้ำ');
 
   post([txt('ลบ 2'), txt('+ ประตูหน้าปิดไม่สนิท')]);
@@ -316,7 +340,15 @@ test('Apps Script parser ตรงกับเวอร์ชัน Node', () =>
   for (const t of ['ห้อง 301 / สีผนังไม่เรียบ @ทีมสี ด่วน', 'ท่อ 1/2 นิ้ว รั่ว', '+ ห้องน้ำ 2|ยาแนวหลุด']) {
     const a = api.parseItem(t);
     const b = node.parseItem(t);
-    assert.deepStrictEqual({ ...a, priority: a.priority === 'ด่วน' }, { ...b, priority: b.priority === 'high' });
+    assert.deepStrictEqual(
+      { location: a.location, description: a.description, assignee: a.assignee, priority: a.priority === 'ด่วน' },
+      { ...b, priority: b.priority === 'high' }
+    );
   }
   assert.deepStrictEqual({ ...api.parseCommand('เสร็จ 3 ok') }, { type: 'done', no: 3, note: 'ok' });
+  assert.deepStrictEqual({ ...api.parseCommand('เริ่ม 3') }, { type: 'start', no: 3 });
+  // วันที่ไม่ถูกต้อง / ไม่มีคำนำหน้า → ไม่แปลงเป็นกำหนดวัน
+  assert.strictEqual(api.parseItem('ห้อง 3 / ท่อ 1/2 นิ้ว รั่ว ภายใน 31/2').due, null);
+  assert.strictEqual(api.parseItem('ห้อง 3 / ท่อ 1/2 นิ้ว รั่ว').description, 'ท่อ 1/2 นิ้ว รั่ว');
+  assert.strictEqual(api.parseItem('งาน ภายใน 1/1/2570').due.getFullYear(), 2027);
 });
