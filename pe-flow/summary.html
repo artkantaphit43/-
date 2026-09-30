@@ -21,7 +21,7 @@
 
   header{border-bottom:1.6pt solid var(--ink);padding-bottom:2.2mm;margin-bottom:3.6mm}
   .subrow{display:flex;justify-content:space-between;align-items:baseline;gap:4mm}
-  h1{margin:0;font-size:21pt;line-height:1.15;font-weight:700}
+  h1{margin:0;font-size:24pt;line-height:1.15;font-weight:700}
   .sub{font-size:12.5pt;color:var(--ink2);margin-top:.6mm;line-height:1.3}
   .key{font-size:11pt;line-height:1.5;text-align:right;white-space:nowrap;flex:none}
 
@@ -32,11 +32,11 @@
     display:flex;align-items:center;justify-content:center;position:relative;z-index:1;box-shadow:0 0 0 1.4mm #fff}
   .card{border:.8pt solid #c5d4fa;background:#fbfcff;border-radius:2mm;padding:1.6mm 3mm 2mm}
   .ttl{display:flex;align-items:baseline;gap:3mm;flex-wrap:wrap;border-bottom:.6pt solid var(--rule);padding-bottom:.8mm;margin-bottom:1mm}
-  .ttl h2{margin:0;font-size:16pt;line-height:1.2}
-  .ttl .when{font-size:12pt;color:var(--muted)}
-  .ttl .fd{margin-left:auto;font-size:11pt;font-weight:700;color:var(--file);background:var(--file-bg);border-radius:1mm;padding:0 2mm}
-  .ln{display:grid;grid-template-columns:17mm 1fr;column-gap:2mm;font-size:12.5pt;line-height:1.28;margin:.5mm 0;color:var(--ink2)}
-  .lb{font-size:11pt;font-weight:700;border-radius:1mm;text-align:center;height:5.4mm;line-height:5.4mm;margin-top:.3mm}
+  .ttl h2{margin:0;font-size:18pt;line-height:1.2}
+  .ttl .when{font-size:13pt;color:var(--muted)}
+  .ttl .fd{margin-left:auto;font-size:12pt;font-weight:700;color:var(--file);background:var(--file-bg);border-radius:1mm;padding:0 2mm}
+  .ln{display:grid;grid-template-columns:15mm 1fr;column-gap:2.5mm;font-size:14.5pt;line-height:1.28;margin:.5mm 0;color:var(--ink2)}
+  .lb{font-size:12pt;font-weight:700;border-radius:1mm;text-align:center;height:6mm;line-height:6mm;margin-top:.4mm}
   .l1 .lb{background:var(--send-bg);color:var(--send)}
   .l2 .lb{background:var(--recv-bg);color:var(--recv)}
   .l3 .lb{background:var(--file-bg);color:var(--file)}
@@ -46,8 +46,8 @@
 
   .bottom{display:grid;grid-template-columns:1fr 1fr;column-gap:4mm;margin-top:1mm}
   .box{border:.8pt solid var(--rule);border-radius:2mm;padding:1.8mm 3mm 2mm}
-  .box h3{margin:0 0 .6mm;font-size:13.5pt}
-  .box ul{margin:0;padding-left:5mm;font-size:12pt;line-height:1.3;color:var(--ink2)}
+  .box h3{margin:0 0 .6mm;font-size:15pt}
+  .box ul{margin:0;padding-left:5mm;font-size:13.5pt;line-height:1.3;color:var(--ink2)}
   .box.chk{background:#f3faf6;border-color:#b5e0cb} .box.chk h3{color:var(--recv)}
   .box.warn{background:var(--red-bg);border-color:#f6c4bd} .box.warn h3{color:var(--red)}
   .fold{margin-top:2.2mm;font-size:11pt;color:var(--ink2);line-height:1.35}
@@ -58,75 +58,61 @@
 <body>
 <section class="page">
   <header>
-    <h1>ขั้นตอนควบคุมโครงการ: ทำสัญญา → คืนหลักประกัน</h1>
-    <div class="subrow"><div class="sub">บริษัทฯ (Main Contractor) · ทำอะไร · ยื่นใคร · เก็บที่ไหน</div>
-    <div class="key"><b style="color:var(--send)">ยื่น</b> = ส่งออกให้ใคร &nbsp; <b style="color:var(--recv)">ได้กลับ</b> = ต้องตรวจอะไร</div></div>
+    <h1>ขั้นตอนควบคุมโครงการ</h1>
+    <div class="subrow"><div class="sub">บริษัทฯ (Main Contractor) · ตั้งแต่ทำสัญญา จนคืนหลักประกัน</div>
+    <div class="key"><b style="color:var(--send)">ยื่น</b> = ส่งอะไร ให้ใคร &nbsp; <b style="color:var(--recv)">รับ</b> = ได้อะไรกลับ</div></div>
   </header>
 
   <div class="rows">
     <div class="row"><div class="no">1</div><div class="card">
-      <div class="ttl"><h2>ทำสัญญา</h2><span class="when">เมื่อได้หนังสือเชิญทำสัญญา</span><span class="fd">เก็บ: 01 (ตัวจริงเข้าตู้เซฟ)</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>หลักประกันสัญญา (LG) · หนังสือรับรองฯ · มอบอำนาจ → ผู้ว่าจ้าง แล้วลงนาม</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>สัญญา: ลายเซ็นครบ 2 ฝ่าย + พยาน · ตราบริษัทฯ · ภาคผนวกครบ · อากรแสตมป์</span></div>
+      <div class="ttl"><h2>ทำสัญญา</h2><span class="when">ได้หนังสือเชิญ</span><span class="fd">เก็บ 01</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>LG · หนังสือรับรอง · มอบอำนาจ → ผู้ว่าจ้าง</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span>สัญญา: ลายเซ็น 2 ฝ่าย + พยาน · ตรา · อากร</span></div>
     </div></div>
-
     <div class="row"><div class="no">2</div><div class="card">
-      <div class="ttl"><h2>เตรียมเริ่มงาน</h2><span class="when">หลังลงนาม ก่อนเข้าพื้นที่</span><span class="fd">เก็บ: 01 สัญญา · 02 หนังสือ</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>แผนงาน · ผังองค์กร + ใบ กว. · ประกันภัย CAR · แผนความปลอดภัย → ผู้ว่าจ้าง</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>หนังสือให้เริ่มงาน (จดวันสิ้นสุดสัญญา) · บันทึกส่งมอบพื้นที่ ลงนาม 2 ฝ่าย</span></div>
+      <div class="ttl"><h2>เตรียมเริ่มงาน</h2><span class="when">ก่อนเข้าพื้นที่</span><span class="fd">เก็บ 01 · 02</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>แผนงาน · ผังองค์กร + กว. · ประกัน CAR → ผู้ว่าจ้าง</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span>หนังสือให้เริ่มงาน · บันทึกรับมอบพื้นที่</span></div>
     </div></div>
-
     <div class="row"><div class="no">3</div><div class="card">
-      <div class="ttl"><h2>ขออนุมัติก่อนทำ</h2><span class="when">ก่อนสั่งของ / ก่อนทำงาน 2–4 สัปดาห์</span><span class="fd">เก็บ: 03 ขออนุมัติ</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>Shop Drawing · ขออนุมัติวัสดุ · วิธีการทำงาน → ที่ปรึกษา (CM)</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>ตรา <b>A / B = ใช้ได้</b> · <span class="hl">C / D = ห้ามใช้</span> แก้แล้วส่งใหม่ · อ่านคอมเมนต์ทุกหน้า</span></div>
+      <div class="ttl"><h2>ขออนุมัติก่อนทำ</h2><span class="when">ล่วงหน้า 2–4 สัปดาห์</span><span class="fd">เก็บ 03</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>Shop Drawing · วัสดุ · วิธีทำงาน → ที่ปรึกษา</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span><b>A/B ใช้ได้</b> · <span class="hl">C/D ห้ามใช้ แก้ส่งใหม่</span></span></div>
     </div></div>
-
     <div class="row"><div class="no">4</div><div class="card">
-      <div class="ttl"><h2>ควบคุมงานก่อสร้าง</h2><span class="when">ทุกวัน / ทุกสัปดาห์ / ทุกเดือน</span><span class="fd">เก็บ: 04–08 · 10 รูป</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>รายงานประจำวัน · ใบขอตรวจงานก่อนเท/ปิดงาน · แจ้งงานเพิ่ม-ลด / ขอขยายเวลา</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>ที่ปรึกษาเซ็นรับ · ผลตรวจ “ผ่าน” · <span class="hl">งานเพิ่มต้องได้อนุมัติเป็นหนังสือก่อนทำ</span></span></div>
+      <div class="ttl"><h2>ควบคุมงาน</h2><span class="when">ทุกวัน / สัปดาห์ / เดือน</span><span class="fd">เก็บ 04–08 · 10</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>รายงานประจำวัน · ใบขอตรวจงาน · แจ้งงานเพิ่ม/ขยายเวลา</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span>ที่ปรึกษาเซ็นรับ · <span class="hl">งานเพิ่มต้องอนุมัติก่อนทำ</span></span></div>
     </div></div>
-
     <div class="row"><div class="no">5</div><div class="card">
-      <div class="ttl"><h2>ส่งงวดงาน &amp; เบิกเงิน</h2><span class="when">ทุกงวด · <span class="loop">↺ วนกลับข้อ 3</span></span><span class="fd">เก็บ: 09 งวดเงิน</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>หนังสือส่งงานงวด (ผู้มีอำนาจลงนาม + ตราบริษัทฯ) → กก.ตรวจรับ → วางบิล</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>เลขรับ + วันที่ (หลักฐานวันส่งงาน) · ใบตรวจรับลงนามครบ · 50 ทวิ</span></div>
+      <div class="ttl"><h2>ส่งงวด &amp; เบิกเงิน</h2><span class="when">ทุกงวด · <span class="loop">↺ กลับข้อ 3</span></span><span class="fd">เก็บ 09</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>หนังสือส่งงานงวด → กก.ตรวจรับ → วางบิล</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span>ใบตรวจรับ (ลงนามครบ) · 50 ทวิ</span></div>
     </div></div>
-
     <div class="row"><div class="no">6</div><div class="card">
-      <div class="ttl"><h2>ส่งมอบงาน</h2><span class="when">งานเสร็จ ~90–95%</span><span class="fd">เก็บ: 12 ส่งมอบ</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>ผลทดสอบระบบ · As-built · คู่มือ · ใบรับประกัน + หนังสือส่งงานงวดสุดท้าย</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>หนังสือรับมอบงาน → <span class="hl">วันรับมอบ = วันเริ่มนับรับประกัน</span></span></div>
+      <div class="ttl"><h2>ส่งมอบงาน</h2><span class="when">งานเสร็จ</span><span class="fd">เก็บ 12</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>As-built · คู่มือ · ใบรับประกัน + หนังสือส่งงานงวดสุดท้าย</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span>หนังสือรับมอบงาน = <span class="hl">วันเริ่มนับรับประกัน</span></span></div>
     </div></div>
-
     <div class="row"><div class="no">7</div><div class="card">
-      <div class="ttl"><h2>ระยะรับประกัน &amp; คืนหลักประกัน</h2><span class="when">ตามสัญญา เช่น 1–2 ปี</span><span class="fd">เก็บ: 13 · 01 → ปิดแฟ้ม</span></div>
-      <div class="ln l1"><span class="lb">ยื่น</span><span>ซ่อมตามที่แจ้ง พร้อมบันทึกการซ่อม · ครบกำหนด → หนังสือขอคืนหลักประกัน</span></div>
-      <div class="ln l2"><span class="lb">ได้กลับ</span><span>ต้นฉบับ LG คืน → ส่งธนาคารยกเลิก</span></div>
+      <div class="ttl"><h2>คืนหลักประกัน</h2><span class="when">ครบระยะรับประกัน</span><span class="fd">เก็บ 13 · 01</span></div>
+      <div class="ln l1"><span class="lb">ยื่น</span><span>ซ่อมตามแจ้ง → หนังสือขอคืนหลักประกัน</span></div>
+      <div class="ln l2"><span class="lb">รับ</span><span>LG ตัวจริงคืน → ส่งธนาคารยกเลิก</span></div>
     </div></div>
   </div>
 
   <div class="bottom">
     <div class="box chk">
-      <h3>✓ ได้เอกสารกลับทุกครั้ง ตรวจ</h3>
-      <ul>
-        <li>ลายเซ็นจริง ครบทุกช่อง · ชื่อ-ตำแหน่งเป็นผู้มีอำนาจ</li>
-        <li>ตราประทับชัด · เลขที่ / วันที่ ตรง · ครบทุกหน้า</li>
-        <li>ไม่ครบ → แจ้งขอแก้เป็นหนังสือ ห้ามแก้เอง</li>
-      </ul>
+      <h3>✓ ได้เอกสารกลับ ตรวจ</h3>
+      <ul><li>ลายเซ็น + ตรา ครบ</li><li>เลขที่ / วันที่ ถูก · ครบหน้า</li></ul>
     </div>
     <div class="box warn">
       <h3>กฎเหล็ก</h3>
-      <ul>
-        <li>ไม่มีหนังสือ = ไม่เกิดขึ้น (คำสั่งปากเปล่าต้องยืนยันเป็นหนังสือ)</li>
-        <li>ส่งเอกสารทุกครั้ง ให้ผู้รับเซ็นรับ + วันที่ + เวลา</li>
-        <li>ได้เอกสารวันไหน สแกนเก็บให้จบวันนั้น</li>
-      </ul>
+      <ul><li>ไม่มีหนังสือ = ไม่เกิดขึ้น</li><li>ส่งทุกครั้ง ให้เซ็นรับ + วันที่</li></ul>
     </div>
   </div>
 
-  <div class="fold"><b>Folder:</b> 01 สัญญา · 02 หนังสือ · 03 ขออนุมัติ · 04 ตรวจงาน · 05 รายงาน · 06 ประชุม · 07 ผลทดสอบ · 08 งานเพิ่ม-ลด · 09 งวดเงิน · 10 รูป · 12 ส่งมอบ · 13 รับประกัน</div>
+  <div class="fold"><b>Folder:</b> 01 สัญญา · 02 หนังสือ · 03 ขออนุมัติ · 04–08 งานก่อสร้าง · 09 เงิน · 10 รูป · 12 ส่งมอบ · 13 ประกัน</div>
   <footer><span>ขั้นตอนควบคุมโครงการ · สรุป 1 หน้า · ก.ย. 2569</span><span>ตัวเลข/กำหนดเวลา ยึดตามสัญญาและระเบียบของผู้ว่าจ้างเป็นหลัก</span></footer>
 </section>
 <script>
