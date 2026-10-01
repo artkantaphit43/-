@@ -216,7 +216,9 @@ class TestDiagnostics < Minitest::Test
     model = Sketchup::Model.new
     Sketchup.active_active = nil if Sketchup.respond_to?(:active_active=)
     Sketchup.active_model = model
-    def Sketchup.version = '26.0'
+    def Sketchup.version
+      '26.0'
+    end
     ArtK::PlantPipe::ModelHelpers.save_settings(Settings.sanitize('service' => 'FP', 'catalog' => 'CS_B36_10', 'size' => '4"'))
     ArtK::PlantPipe::Commands.diagnostics
     html = UI.last_html
