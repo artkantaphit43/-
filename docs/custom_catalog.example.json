@@ -1,0 +1,21 @@
+{
+  "PVDF_SDR21": {
+    "name": "PVDF – SDR21 PN16 (example / ตัวอย่าง)",
+    "name_th": "ท่อ PVDF สำหรับสารเคมี (ตัวอย่าง)",
+    "material": "PVDF",
+    "joint": "Butt fusion",
+    "hw_c": 150,
+    "roughness_mm": 0.007,
+    "density": 1780,
+    "elbow_factor": 1.5,
+    "tee_c_factor": 1.0,
+    "fitting_od_factor": 1.0,
+    "stick_length_m": 5.0,
+    "default_rating": "SDR21 PN16",
+    "sizes": [
+      { "size": "32 mm", "od": 32, "walls": { "SDR21 PN16": 1.9 } },
+      { "size": "63 mm", "od": 63, "walls": { "SDR21 PN16": 3.0 } },
+      { "size": "110 mm", "od": 110, "walls": { "SDR21 PN16": 5.3 } }
+    ]
+  }
+}

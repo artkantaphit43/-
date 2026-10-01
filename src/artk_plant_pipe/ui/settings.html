@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Plant Piping TH</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f6f7f9; --fg: #1d2330; --mut: #667085; --line: #e1e4ea;
+    --acc: #1570ef; --acc-fg: #ffffff; --ok: #067647; --okbg: #ecfdf3; --bad: #b42318; --badbg: #fef3f2;
+    --warn: #b54708; --warnbg: #fffaeb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1f26; --panel: #242833; --fg: #e6e8ec; --mut: #98a2b3; --line: #353b48;
+      --acc: #53b1fd; --acc-fg: #0b1220; --ok: #75e0a7; --okbg: #163226; --bad: #fda29b; --badbg: #3b1a17;
+      --warn: #fec84b; --warnbg: #3a2c10;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 13px/1.4 "Segoe UI", "Leelawadee UI", "Noto Sans Thai", Tahoma, sans-serif; }
+  header { padding: 12px 14px 8px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+  header .swatch { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; flex: 1; }
+  header .ver { color: var(--mut); font-size: 11px; }
+  nav { display: flex; border-bottom: 1px solid var(--line); }
+  nav button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--mut);
+               padding: 9px 4px; font: inherit; cursor: pointer; }
+  nav button.on { color: var(--fg); border-bottom-color: var(--acc); font-weight: 600; }
+  section { display: none; padding: 12px 14px 18px; }
+  section.on { display: block; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px 10px; margin: 0 0 12px; background: var(--panel); }
+  legend { padding: 0 4px; font-weight: 600; font-size: 12px; color: var(--mut); }
+  label { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 8px; margin: 6px 0; }
+  label.chk { grid-template-columns: 18px 1fr; }
+  select, input[type=number], input[type=text] {
+    width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font: inherit; min-width: 0;
+  }
+  .info { font-size: 12px; color: var(--mut); margin-top: 6px; }
+  .note { font-size: 12px; border-radius: 6px; padding: 6px 8px; margin-top: 6px; }
+  .note.warn { background: var(--warnbg); color: var(--warn); }
+  .note.tip { background: var(--panel); color: var(--mut); border: 1px dashed var(--line); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn { background: var(--acc); color: var(--acc-fg); border: 0; border-radius: 7px; padding: 8px 10px;
+         font: inherit; cursor: pointer; text-align: left; }
+  .btn.sec { background: var(--panel); color: var(--fg); border: 1px solid var(--line); }
+  .btn small { display: block; opacity: .8; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  th, td { padding: 4px 5px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.ok td { color: var(--ok); } tr.rec td { background: var(--okbg); font-weight: 600; }
+  tr.no td { color: var(--mut); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+</style>
+</head>
+<body>
+<header>
+  <span class="swatch" id="swatch"></span>
+  <h1>Plant Piping TH</h1>
+  <span class="ver" id="ver"></span>
+</header>
+<nav>
+  <button data-tab="tab-pipe" class="on">ท่อ / Pipe</button>
+  <button data-tab="tab-tools">เครื่องมือ / Tools</button>
+  <button data-tab="tab-size">คำนวณขนาด / Sizing</button>
+</nav>
+
+<section id="tab-pipe" class="on">
+  <fieldset>
+    <legend>ระบบ – ท่อนี้ใช้กับงานอะไร (Service)</legend>
+    <label>ระบบ<select id="service"></select></label>
+    <div class="info" id="svcinfo"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>ชนิดท่อ (Pipe)</legend>
+    <label>ชนิดท่อ / วัสดุ<select id="catalog"></select></label>
+    <div class="info">PVC, HDPE แข็ง / HDPE ม้วน (ดัดโค้ง), เหล็กดำ, สแตนเลส, GI, PP-R, ทองแดง</div>
+    <label>ขนาด (Size)<select id="size"></select></label>
+    <label>ชั้น/Schedule<select id="rating"></select></label>
+    <div class="info" id="specinfo"></div>
+    <div class="note warn" id="estwarn" hidden>ความหนาผนังท่อ PVC เป็นค่าประมาณจากสูตรแรงดัน – ตรวจสอบกับแค็ตตาล็อกผู้ผลิตก่อนใช้งานจริง
+      (PVC wall thickness is estimated)</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>การวาด (Drawing)</legend>
+    <label>ฉนวน (mm)<input type="number" id="insulation_mm" min="0" max="200" step="5"></label>
+    <label>ความลาด (%)<input type="number" id="slope_pct" min="0" max="10" step="0.01"></label>
+    <div class="note tip" id="slopetip" hidden></div>
+    <label>ข้องอ (Elbow)<select id="elbow_type">
+      <option value="lr">Long Radius 1.5D</option><option value="sr">Short Radius 1.0D</option></select></label>
+    <label>อ้างอิงระดับ<select id="elevation_ref">
+      <option value="cl">ศูนย์กลางท่อ (CL)</option><option value="bop">ท้องท่อ (BOP) – วางบนคาน/รางท่อ</option></select></label>
+    <label class="chk"><input type="checkbox" id="snap45"><span>ล็อกทิศทาง 45°/90° (standard fittings only)</span></label>
+    <label class="chk"><input type="checkbox" id="centerline"><span>เก็บเส้นศูนย์กลาง (Tag PP-Centerline)</span></label>
+    <label class="chk"><input type="checkbox" id="labels"><span>ป้ายหมายเลขท่อ (Line-number labels)</span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>การแสดงผล / BOM</legend>
+    <label>สีท่อ (Colours)<select id="color_scheme"></select></label>
+    <label class="chk"><input type="checkbox" id="use_color"><span>กำหนดสีท่อเอง</span>
+      <input type="color" id="pipe_color" value="#2f80ed" style="margin-left:8px;width:48px;height:24px;padding:0"></label>
+    <div class="info">สีเองใช้กับท่อที่วาดใหม่ และท่อที่เลือกเมื่อกด "ปรับท่อที่เลือก"</div>
+    <label>ระดับรายละเอียด<select id="lod">
+      <option value="detailed">ละเอียด – รูน็อต, ซี่พวงมาลัย, บ่าข้อต่อ</option>
+      <option value="light">เบา – สำหรับโมเดลโรงงานขนาดใหญ่</option></select></label>
+    <label>ความละเอียดท่อ<select id="segments">
+      <option value="12">12 – เร็ว (fast)</option><option value="16">16 – ปกติ</option>
+      <option value="24">24 – ละเอียด</option><option value="32">32 – นำเสนอ (render)</option></select></label>
+    <label>เผื่อเศษตัด (%)<input type="number" id="waste_pct" min="0" max="50" step="1"></label>
+  </fieldset>
+</section>
+
+<section id="tab-tools">
+  <div class="grid2">
+    <button class="btn" data-cmd="draw">วาดท่อ<small>Draw Pipe</small></button>
+    <button class="btn" data-cmd="convert">แปลงเส้นเป็นท่อ<small>Convert Edges</small></button>
+    <button class="btn sec" data-cmd="rebuild">ปรับท่อที่เลือก<small>Resize / Rebuild</small></button>
+    <button class="btn sec" data-cmd="flow">กำหนดอัตราไหล<small>Set Design Flow</small></button>
+    <button class="btn sec" data-cmd="hydraulic">ตรวจไฮดรอลิก<small>Hydraulic Check</small></button>
+    <button class="btn sec" data-cmd="clash">ตรวจการชนกัน<small>Clash Check</small></button>
+    <button class="btn sec" data-cmd="bom">ถอดวัสดุ (BOM)<small>Bill of Materials</small></button>
+    <button class="btn sec" data-cmd="style">ลายเส้นเทคนิค<small>Technical line style</small></button>
+    <button class="btn sec" data-cmd="help">วิธีใช้<small>Help / Shortcuts</small></button>
+    <button class="btn sec" data-cmd="diag">ตรวจสอบระบบ<small>Diagnostics / Self-test</small></button>
+  </div>
+  <fieldset style="margin-top:12px">
+    <legend>ซัพพอร์ต (Pipe supports)</legend>
+    <label>ชนิด<select id="support_type"></select></label>
+    <div class="grid2" style="margin-top:6px">
+      <button class="btn" data-cmd="auto_support">วางอัตโนมัติ<small>Auto (แนวท่อที่เลือก)</small></button>
+      <button class="btn sec" data-cmd="support">วางทีละจุด<small>Support tool</small></button>
+    </div>
+    <div class="info" id="supinfo">ยึดกับพื้น/ฝ้า/คาน/ผนังที่ตรวจพบในโมเดลอัตโนมัติ · ระยะห่างตาม MSS SP-69 / ค่าผู้ผลิตท่อพลาสติก</div>
+    <button class="btn sec" data-cmd="clear_support" style="margin-top:6px">ลบซัพพอร์ตของแนวท่อที่เลือก</button>
+  </fieldset>
+  <fieldset>
+    <legend>วาล์วและอุปกรณ์ (Valves & fittings)</legend>
+    <button class="btn" data-cmd="parts">คลังอุปกรณ์จริง<small>Reference library – วาล์ว ข้อต่อ มิเตอร์ ก๊อก เกจ</small></button>
+    <div class="info">เลือกอุปกรณ์ → ชี้ที่ท่อ: วาล์ว/มิเตอร์สแนปเข้าแนวท่อ, ข้องอ/ก๊อก/ฝาครอบสแนปที่ปลายท่อ, เกจติดบนท่อ ·
+      ขนาดปรับตามท่อที่ชี้ให้อัตโนมัติ · ← → หมุน 90°</div>
+  </fieldset>
+  <div class="note tip">
+    <b>ลำดับงานที่แนะนำ:</b> เลือกระบบ → คำนวณขนาด → วาดท่อ (หรือแปลงเส้นจากแบบ CAD) → ใส่อุปกรณ์จากคลัง →
+    กำหนดอัตราไหล → ตรวจไฮดรอลิก → ตรวจการชนกัน → ถอดวัสดุ
+  </div>
+</section>
+
+<section id="tab-size">
+  <fieldset>
+    <legend>อัตราการไหลออกแบบ (Design flow)</legend>
+    <div class="row">
+      <input type="number" id="flow" min="0" step="any" value="10">
+      <select id="flowunit" style="flex:none;width:110px">
+        <option value="1">m³/h</option><option value="3.6">L/s</option>
+        <option value="0.06">L/min</option><option value="0.2271247">US gpm</option></select>
+    </div>
+    <div class="info" id="sizecrit"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="calc">คำนวณ (Calculate)</button>
+      <button class="btn sec" id="userec" disabled>ใช้ขนาดแนะนำ</button>
+    </div>
+  </fieldset>
+  <div id="sizeout"></div>
+</section>
+
+<script>
+const PP = (() => {
+  let D = null;           // payload from Ruby
+  let S = {};             // current settings
+  let recommended = null;
+  const $ = (id) => document.getElementById(id);
+  const call = (name, arg) => { if (window.sketchup && sketchup[name]) sketchup[name](arg); };
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const svc = () => D.services.find((s) => s.code === S.service);
+  const cat = () => D.catalogs[S.catalog];
+  const sizeRec = () => cat().sizes.find((z) => z.size === S.size) || cat().sizes[0];
+
+  function fill(sel, items, value) {
+    sel.innerHTML = items.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('');
+    sel.value = value;
+  }
+
+  function render() {
+    fill($('service'), D.services.map((s) => [s.code, `${s.code} – ${s.th} (${s.en})`]), S.service);
+    fill($('catalog'), Object.entries(D.catalogs).map(([k, c]) => [k, `${c.name_th} – ${c.name}`]), S.catalog);
+    fill($('size'), cat().sizes.map((z) => [z.size, z.size]), S.size);
+    fill($('rating'), Object.keys(sizeRec().walls).map((r) => [r, r]), S.rating);
+    fill($('color_scheme'), Object.entries(D.schemes), S.color_scheme);
+    fill($('support_type'), D.supports.map((v) => [v.type, v.th + (v.multi ? ' – หลายท่อ' : '')]), S.support_type);
+    $('lod').value = S.lod;
+    ['insulation_mm', 'slope_pct', 'waste_pct'].forEach((k) => { $(k).value = S[k]; });
+    ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
+    $('segments').value = String(S.segments);
+    ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
+    $('use_color').checked = !!S.pipe_color;
+    if (S.pipe_color) $('pipe_color').value = S.pipe_color;
+    info();
+  }
+
+  function info() {
+    const s = svc(), c = cat(), z = sizeRec();
+    const wall = z.walls[S.rating] ?? Object.values(z.walls)[0];
+    const id = z.od - 2 * wall;
+    const kgm = Math.PI * wall * (z.od - wall) * c.density / 1e6;
+    $('specinfo').textContent =
+      `OD ${z.od} × t ${wall} mm · ID ${id.toFixed(1)} mm · ${kgm.toFixed(2)} kg/m · ${c.joint}` +
+      (c.flexible ? ` · ดัดโค้งรัศมีไม่น้อยกว่า ${Math.round(z.od * ((c.bend_factor || {})[S.rating] || 25))} mm` +
+        ` (${(c.bend_factor || {})[S.rating] || 25}×OD) · ม้วนละ ${z.od > 63 ? 50 : 100} m` : '');
+    $('estwarn').hidden = !c.estimated;
+    const crit = [];
+    if (s.vmax) crit.push(`v ≤ ${s.vmax} m/s`);
+    if (s.hf_max) crit.push(`hf ≤ ${s.hf_max} m/100m`);
+    $('svcinfo').textContent = (s.gravity ? 'ท่อไหลโดยแรงโน้มถ่วง – วาดตามทิศทางการไหล. ' : '') +
+      (crit.length ? `เกณฑ์ออกแบบ: ${crit.join(', ')}` : '');
+    $('sizecrit').textContent = s.gravity
+      ? `Manning n=0.011 ที่ความลึกครึ่งท่อ, ความลาดไม่น้อยกว่า IPC 704.1`
+      : (crit.length ? `เกณฑ์: ${crit.join(', ')}` : 'ของไหลอัดตัวได้ – ใส่อัตราไหลจริง (actual m³/h) ที่ความดันใช้งาน');
+    $('slope_pct').disabled = !s.gravity;
+    $('slopetip').hidden = !s.gravity;
+    if (s.gravity) {
+      const need = z.min_slope;
+      $('slopetip').textContent = Number(S.slope_pct) < need
+        ? `⚠ ความลาดต่ำกว่าขั้นต่ำสำหรับ ${S.size} (${need}%) ตาม IPC 704.1`
+        : `ความลาดขั้นต่ำสำหรับ ${S.size}: ${need}% (IPC 704.1)`;
+    }
+    const fam = S.catalog.startsWith('HDPEC') ? 'HDPE' : S.catalog.split('_')[0];
+    const rgb = S.color_scheme === 'material'
+      ? (D.painted[S.service] || D.material_colors[fam] || s.colors.distinct)
+      : (s.colors[S.color_scheme] || s.colors.distinct);
+    $('swatch').style.background = S.pipe_color || `rgb(${rgb.join(',')})`;
+  }
+
+  function save() { call('save', JSON.stringify(S)); }
+
+  function onChange(e) {
+    const id = e.target.id;
+    if (id === 'service') {
+      S.service = e.target.value;
+      const s = svc();
+      S.catalog = s.catalog; S.size = s.size; S.rating = s.rating; S.insulation_mm = s.insulation;
+      if (s.gravity) S.slope_pct = cat().sizes.find((z) => z.size === s.size)?.min_slope ?? S.slope_pct;
+    } else if (id === 'catalog') {
+      const oldOd = sizeRec().od;
+      S.catalog = e.target.value;
+      // keep roughly the same bore when switching material
+      const best = cat().sizes.reduce((a, z) => (Math.abs(z.od - oldOd) < Math.abs(a.od - oldOd) ? z : a));
+      S.size = best.size;
+      S.rating = cat().default_rating in best.walls ? cat().default_rating : Object.keys(best.walls)[0];
+    } else if (id === 'size') {
+      S.size = e.target.value;
+      if (!(S.rating in sizeRec().walls)) S.rating = Object.keys(sizeRec().walls)[0];
+    } else if (id === 'use_color') {
+      S.pipe_color = e.target.checked ? $('pipe_color').value : '';
+    } else if (id === 'pipe_color') {
+      S.pipe_color = e.target.value;
+    } else if (['snap45', 'centerline', 'labels'].includes(id)) {
+      S[id] = e.target.checked;
+    } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments'].includes(id)) {
+      S[id] = Number(e.target.value);
+    } else if (id in S) {
+      S[id] = e.target.value;
+    } else {
+      return;
+    }
+    render();
+    save();
+  }
+
+  function calc() {
+    const q = Number($('flow').value) * Number($('flowunit').value);
+    $('sizeout').innerHTML = '<div class="info">กำลังคำนวณ…</div>';
+    call('size', JSON.stringify({ flow_m3h: q, service: S.service, catalog: S.catalog, rating: S.rating,
+                                  slope_pct: S.slope_pct }));
+  }
+
+  function showSizing(r) {
+    recommended = r.recommended;
+    $('userec').disabled = !recommended;
+    let head, rows;
+    if (r.gravity) {
+      head = '<tr><th>Size</th><th>ID</th><th>Slope %</th><th>Cap. ½ m³/h</th><th>v m/s</th></tr>';
+      rows = r.rows.map((x) => `<tr class="${x.size === recommended ? 'rec' : x.ok ? 'ok' : 'no'}">` +
+        `<td>${esc(x.size)}</td><td>${x.id}</td><td>${x.slope}</td><td>${x.cap}</td><td>${x.v}</td></tr>`);
+    } else {
+      head = '<tr><th>Size</th><th>ID mm</th><th>v m/s</th>' + (r.liquid ? '<th>hf m/100m</th>' : '') + '</tr>';
+      rows = r.rows.map((x) => `<tr class="${x.size === recommended ? 'rec' : x.ok ? 'ok' : 'no'}">` +
+        `<td>${esc(x.size)}</td><td>${x.id}</td><td>${x.v}</td>` +
+        (r.liquid ? `<td>${x.hf100 ?? '-'}</td>` : '') + '</tr>');
+    }
+    const msg = recommended
+      ? `<div class="note tip">แนะนำ <b>${esc(recommended)}</b> – ขนาดเล็กที่สุดที่ผ่านเกณฑ์ (smallest size meeting the criteria)</div>`
+      : '<div class="note warn">ไม่มีขนาดในแค็ตตาล็อกนี้ที่ผ่านเกณฑ์ – เลือกวัสดุ/ชั้นอื่น หรือแบ่งแนวท่อ</div>';
+    $('sizeout').innerHTML = msg + `<table><thead>${head}</thead><tbody>${rows.join('')}</tbody></table>`;
+  }
+
+  function init(data) {
+    D = data;
+    S = data.settings;
+    $('ver').textContent = 'v' + data.version;
+    render();
+  }
+
+  function setSettings(s) { S = s; render(); }
+  function showError(m) { $('sizeout').innerHTML = `<div class="note warn">${esc(m)}</div>`; }
+
+  document.addEventListener('change', onChange);
+  document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('nav button, section').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    $(b.dataset.tab).classList.add('on');
+  }));
+  document.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => call('command', b.dataset.cmd)));
+  $('calc').addEventListener('click', calc);
+  $('userec').addEventListener('click', () => {
+    if (!recommended) return;
+    S.size = recommended;
+    if (!(S.rating in sizeRec().walls)) S.rating = Object.keys(sizeRec().walls)[0];
+    render(); save();
+    document.querySelector('nav button[data-tab="tab-pipe"]').click();
+  });
+  window.addEventListener('load', () => call('ready'));
+  return { init, setSettings, showSizing, showError };
+})();
+</script>
+</body>
+</html>

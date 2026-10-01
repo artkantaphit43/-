@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Reference Library</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f6f7f9; --fg: #1d2330; --mut: #667085; --line: #e1e4ea;
+    --acc: #1570ef; --acc-fg: #ffffff; --chip: #eef2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1f26; --panel: #242833; --fg: #e6e8ec; --mut: #98a2b3; --line: #353b48;
+      --acc: #53b1fd; --acc-fg: #0b1220; --chip: #2b3040;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.4 "Segoe UI", "Leelawadee UI", Tahoma, sans-serif; }
+  header { position: sticky; top: 0; background: var(--bg); padding: 10px 12px 8px; border-bottom: 1px solid var(--line); z-index: 2; }
+  h1 { font-size: 15px; margin: 0 0 2px; }
+  .mut { color: var(--mut); font-size: 12px; }
+  input[type=search], select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+  .row { display: flex; gap: 6px; margin-top: 6px; }
+  .row > * { flex: 1; min-width: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chips button { border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 12px; padding: 2px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+  .chips button.on { background: var(--acc); color: var(--acc-fg); border-color: var(--acc); }
+  main { padding: 4px 12px 16px; }
+  h2 { font-size: 13px; margin: 14px 0 6px; color: var(--mut); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 6px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+  .card:hover { border-color: var(--acc); }
+  .card img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #fff; border-radius: 4px; }
+  .card .n { font-size: 12px; font-weight: 600; }
+  .card .s { font-size: 11px; color: var(--mut); }
+  .snap { font-size: 10px; color: var(--acc); }
+  .empty { padding: 20px 0; color: var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <h1>คลังอุปกรณ์จริง (Reference Library)</h1>
+  <div class="mut" id="count"></div>
+  <input type="search" id="q" placeholder="ค้นหา เช่น gate 2&quot;, บอลวาล์ว, PVC, JIS">
+  <div class="row">
+    <select id="fam"></select>
+    <select id="size"></select>
+  </div>
+  <div class="chips" id="groups"></div>
+</header>
+<main id="list"></main>
+<script>
+const GROUPS = { all: 'ทั้งหมด', valves: 'วาล์ว', fittings: 'ข้อต่อ', flanges: 'หน้าแปลน', instruments: 'เครื่องวัด' };
+const PP = {
+  items: [], group: 'all',
+  init(items) {
+    this.items = items;
+    document.getElementById('count').textContent =
+      `${items.length} รายการ คัดลอก 1:1 จากไฟล์ตัวอย่าง · คลิกเลือก แล้วชี้ที่ท่อ: วาล์ว/มิเตอร์ = บนท่อตรง, ข้องอ/ก๊อก/ฝาครอบ = ปลายท่อ, เกจ = บนท่อ · ขนาดปรับตามท่อที่ชี้`;
+    const fams = [...new Map(items.map(i => [i.family, i.family_name])).entries()];
+    document.getElementById('fam').innerHTML = '<option value="">ทุกระบบ / วัสดุ</option>' +
+      fams.map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+    const sizes = [...new Map(items.filter(i => i.size).map(i => [i.size, i.nps])).entries()].sort((a, b) => a[1] - b[1]);
+    document.getElementById('size').innerHTML = '<option value="">ทุกขนาด</option>' +
+      sizes.map(([s]) => `<option>${s}</option>`).join('');
+    document.getElementById('groups').innerHTML = Object.entries(GROUPS)
+      .map(([k, v]) => `<button data-g="${k}" class="${k === 'all' ? 'on' : ''}">${v}</button>`).join('');
+    document.querySelectorAll('#groups button').forEach(b => b.onclick = () => {
+      this.group = b.dataset.g;
+      document.querySelectorAll('#groups button').forEach(x => x.classList.toggle('on', x === b));
+      this.render();
+    });
+    ['q', 'fam', 'size'].forEach(id => document.getElementById(id).oninput = () => this.render());
+    this.render();
+  },
+  render() {
+    const q = document.getElementById('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const fam = document.getElementById('fam').value, size = document.getElementById('size').value;
+    const hits = this.items.filter(i =>
+      (this.group === 'all' || i.group === this.group) && (!fam || i.family === fam) && (!size || i.size === size) &&
+      q.every(w => (i.name + ' ' + i.standard + ' ' + i.src).toLowerCase().includes(w)));
+    const by = {};
+    hits.forEach(i => (by[i.family_name] = by[i.family_name] || []).push(i));
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    document.getElementById('list').innerHTML = hits.length ? Object.entries(by).map(([f, list]) =>
+      `<h2>${esc(f)} (${list.length})</h2><div class="grid">` + list.map(i =>
+        `<div class="card" data-k="${esc(i.key)}" title="${esc(i.standard)}\n${esc(i.src)}">` +
+        `<img loading="lazy" src="../refs/thumbs/${i.thumb}.jpg" alt="">` +
+        `<div class="n">${esc(i.name.split(' – ')[0])}</div><div class="s">${esc(i.standard)}</div>` +
+        (i.snap ? `<div class="snap">${esc(i.snap)}${i.sized ? ' · ทุกขนาด (ปรับตามท่อ)' : ' · ใช้ขนาดตามท่ออัตโนมัติ'}</div>` : '') +
+        '</div>').join('') + '</div>').join('')
+      : '<div class="empty">ไม่พบรายการ</div>';
+    document.querySelectorAll('.card').forEach(c => c.onclick = () => sketchup.insert(c.dataset.k));
+  }
+};
+window.PP = PP;
+document.addEventListener('DOMContentLoaded', () => { if (window.sketchup) sketchup.ready(); });
+</script>
+</body>
+</html>
