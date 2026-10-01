@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.6.0**
-(`dist/artk_plant_pipe-1.6.0.rbz`). Tests: `rake test` (135 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.7.0**
+(`dist/artk_plant_pipe-1.7.0.rbz`, branch `claude/sketchup-realistic-materials-k778tx`). Tests: `rake test` (142 runs, all green).
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล
@@ -23,12 +23,16 @@ branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.6.0**
 - **v1.6**: วาดตามเส้นไกด์ (จุด snap ใช้ตรง ๆ) · เริ่ม/จบที่ข้องอ → กลายเป็นสามทาง (ขนาดต่าง = stub + reducer) ·
   เลือกสีท่อเอง (checkbox + color picker) · HDPE แข็ง vs HDPE ม้วน (ดัดโค้ง R ≥ 25×OD SDR11 / 27×OD SDR17,
   ไม่พอ → ข้องอหลอมไฟฟ้า, BOM นับม้วน) · ป้ายช่อง "ชนิดท่อ / วัสดุ" ชัดขึ้น
+- **v1.7**: สีวัสดุแบบของจริง – เปลี่ยนเฉพาะสี/พื้นผิว · ชุดสีเดียวที่ `lib/finishes.rb` (ท่อ, อุปกรณ์จากคลัง
+  ตามวัสดุชิ้นงาน + แมปสีจากไฟล์ต้นฉบับ, ชิ้นที่สร้างเอง, ซัพพอร์ต) · SketchUp 2025+ ตั้ง PBR metalness/roughness
+  (guard ด้วย `respond_to?`) · definition คลังเก่าถูกเติมใหม่อัตโนมัติ (`finish` attribute) + เมนู *Realistic Colours*
+  · รูปตัวอย่างคลังสร้างใหม่ด้วย `tools/refs/thumbs.*` (ใช้ชุดสีเดียวกัน)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
 - เริ่มจากปลายท่อแนวหนึ่งแล้วจบที่ข้องอของอีกแนว → ยังไม่รวมเป็นสามทาง (ให้เริ่มวาดที่ข้องอแทน)
 - เสนอไว้: ข้อลดเยื้องศูนย์ (FOT ด้านดูดปั๊ม / FOB ท่อบนแร็ก, ไอน้ำ) + เตือนท่อระบายที่ลดขนาดตามทิศการไหล
 - มิเตอร์/ก๊อกมีขนาดเดียวในไฟล์ → ขนาดใหญ่เป็นการขยายสัดส่วน (มิเตอร์ 4" ใหญ่เกินจริง)
-- ยังไม่ได้ทดสอบใน SketchUp จริง (ทดสอบด้วย stub + render จำลอง)
+- ยังไม่ได้ทดสอบใน SketchUp จริง (ทดสอบด้วย stub + render จำลอง) – ชื่อเมธอด PBR ของ SU2025 ยังไม่ได้ยืนยันในโปรแกรมจริง
 
 ## ไฟล์อ้างอิงของผู้ใช้ (ใช้สร้างคลังใหม่)
 piping (GI/เหล็ก), FITTING_PVC, Schedule_40, VALVEDATABASE, water meter, faucet, pressure_guage –

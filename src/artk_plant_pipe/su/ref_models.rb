@@ -7,31 +7,27 @@ module ArtK
     # Faces keep their source materials (valve handles, gauges, body paint);
     # unpainted faces are left without material so the instance colour shows
     # through – pipe fittings therefore follow the run's colour scheme, and
-    # valves get the body colour of their material (see ROLE_COLORS).
+    # valves get the body colour of their material (see ROLE_NAMES).
+    # Colours are the realistic finishes of lib/finishes.rb (v1.7).
     module RefModels
       H = ModelHelpers
 
-      # Colour of unpainted faces per material (reasoned from what the part
-      # is made of, not from the source file's display colour).
-      ROLE_COLORS = {
-        'galvanized' => ['PP_Ref_Galvanised', [190, 194, 198]],   # hot-dip zinc, dull silver
-        'black_steel' => ['PP_Ref_Black_Steel', [74, 78, 84]],    # A105 / A234 black, mill finish
-        'valve_cast' => ['PP_Ref_Valve_Cast', [58, 70, 102]],     # cast steel / DI, blue-grey paint
-        'valve_green' => ['PP_Ref_Valve_Green', [118, 186, 118]], # JIS 10K DI body, green epoxy
-        'bronze' => ['PP_Ref_Bronze', [181, 142, 78]],            # bronze / brass body
-        'pvc_blue' => ['PP_Ref_PVC_Blue', [34, 128, 206]],        # TIS 17 blue
-        'pvc_white' => ['PP_Ref_PVC_White', [236, 236, 230]],     # Sch40 DWV white
-        'pvc_grey' => ['PP_Ref_PVC_Grey', [140, 144, 146]],       # PVC-U RAL 7011 grey
-        'pp_black' => ['PP_Ref_PP_Black', [52, 52, 54]],          # PP-H / PE black
-        'pvc_clear' => ['PP_Ref_Clear', [214, 228, 236]],         # rotameter tube
-        'steel_ss' => ['PP_Ref_Stainless', [205, 207, 210]],
-        'chrome' => ['PP_Ref_Chrome', [200, 203, 207]]              # chromed brass (taps)
+      # Material of unpainted faces per part material (names as in v1.6 so
+      # older models pick up the new colours). Colours: lib/finishes.rb.
+      ROLE_NAMES = {
+        'galvanized' => 'PP_Ref_Galvanised', 'black_steel' => 'PP_Ref_Black_Steel', 'valve_cast' => 'PP_Ref_Valve_Cast',
+        'valve_green' => 'PP_Ref_Valve_Green', 'bronze' => 'PP_Ref_Bronze', 'pvc_blue' => 'PP_Ref_PVC_Blue',
+        'pvc_white' => 'PP_Ref_PVC_White', 'pvc_grey' => 'PP_Ref_PVC_Grey', 'pp_black' => 'PP_Ref_PP_Black',
+        'pvc_clear' => 'PP_Ref_Clear', 'steel_ss' => 'PP_Ref_Stainless', 'chrome' => 'PP_Ref_Chrome'
       }.freeze
 
       class << self
         def role_material(model, role)
-          name, rgb = ROLE_COLORS[role]
-          name ? H.material(model, name, rgb) : nil
+          name = ROLE_NAMES[role] or return nil
+          return H.material(model, name, Finishes::CLEAR[0], Finishes::CLEAR[1], pbr: [0.0, 0.1]) if role == 'pvc_clear'
+
+          fin = Finishes.role(role)
+          fin ? H.finish_material(model, fin, name: name) : nil
         end
 
         # Component definition for a pack item (built once per model).
@@ -41,13 +37,17 @@ module ArtK
           name = "PP Ref #{item['key']}#{' (plain)' if plain}"
           defs = model.definitions
           d = defs[name]
-          return d if d && d.get_attribute(H::DICT, 'type') == 'part' && H.faces?(d.entities)
+          if d && d.get_attribute(H::DICT, 'type') == 'part' && H.faces?(d.entities)
+            repaint(model, d, item, plain: plain) if d.get_attribute(H::DICT, 'finish').to_i < Finishes::VERSION
+            return d
+          end
 
           d = defs.add(name)
           d.set_attribute(H::DICT, 'type', 'part')
           d.set_attribute(H::DICT, 'ref_key', item['key'])
+          d.set_attribute(H::DICT, 'finish', Finishes::VERSION)
           d.description = [item['standard'], item['src_name']].compact.join(' – ')
-          fill(model, d.entities, Refs.mesh(item), plain: plain)
+          fill(model, d.entities, Refs.mesh(item), plain: plain, item_mat: item['material'])
           unless H.faces?(d.entities)
             defs.remove(d) if defs.respond_to?(:remove)
             raise "reference model #{item['key']} produced no faces"
@@ -55,7 +55,32 @@ module ArtK
           d
         end
 
-        def fill(model, ents, mesh, plain: false)
+        # A definition built by an earlier version: refill it with the
+        # current finishes. Instances keep their place (same definition).
+        def repaint(model, d, item, plain: false)
+          d.entities.clear!
+          fill(model, d.entities, Refs.mesh(item), plain: plain, item_mat: item['material'])
+          d.set_attribute(H::DICT, 'finish', Finishes::VERSION)
+          d
+        end
+
+        # Repaint every reference definition of an older palette in +model+.
+        def repaint_all(model)
+          n = 0
+          model.definitions.to_a.each do |d|
+            next unless d.get_attribute(H::DICT, 'type') == 'part'
+            next if d.get_attribute(H::DICT, 'finish').to_i >= Finishes::VERSION
+
+            item = (key = d.get_attribute(H::DICT, 'ref_key')) && Refs.get(key)
+            next unless item
+
+            repaint(model, d, item, plain: d.name.to_s.end_with?('(plain)'))
+            n += 1
+          end
+          n
+        end
+
+        def fill(model, ents, mesh, plain: false, item_mat: nil)
           pts = mesh[:verts].map { |v| H.to_pt(v) }
           mats = {}
           soft = {}
@@ -78,7 +103,7 @@ module ArtK
             orient(face, f, mesh[:verts])
             next if plain && !f[:pins]
 
-            m = f[:mat] && (mats[f[:mat]] ||= source_material(model, f[:mat]))
+            m = f[:mat] && (mats[f[:mat]] ||= source_material(model, f[:mat], item_mat))
             next unless m
 
             if f[:pins] && m.texture && face.respond_to?(:position_material)
@@ -158,8 +183,14 @@ module ArtK
           n
         end
 
-        # "piping:Valve Blue" → material "PP_Src Valve Blue" in the source colour.
-        def source_material(model, key)
+        # Painted source face → its realistic finish (lib/finishes.rb), e.g.
+        # "piping:Valve Blue" → "PP_Fin handle_blue". Materials the palette
+        # leaves alone (glass, dial print, the meter dial texture) keep the
+        # source colour as "PP_Src <name>".
+        def source_material(model, key, item_mat = nil)
+          fin = Finishes.source(key, item_mat)
+          return H.finish_material(model, fin) if fin
+
           rgb = Refs.materials[key] or return nil
           name = "PP_Src #{key.split(':', 2).last}"
           mat = H.material(model, name, rgb[0, 3], rgb[3] || 1.0)

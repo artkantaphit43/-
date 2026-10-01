@@ -3,7 +3,7 @@
 require 'minitest/autorun'
 
 LIB = File.expand_path('../src/artk_plant_pipe/lib', __dir__)
-%w[vec catalog services fittings_data hydraulics network bom settings profile run_check clash mesh parts supports valve_models refs].each do |f|
+%w[vec catalog finishes services fittings_data hydraulics network bom settings profile run_check clash mesh parts supports valve_models refs].each do |f|
   require File.join(LIB, f)
 end
 

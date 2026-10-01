@@ -8,7 +8,7 @@ module ArtK
     PLUGIN_ROOT = File.dirname(__FILE__) unless defined?(PLUGIN_ROOT)
 
     # Pure engineering core (no SketchUp API – unit tested outside SketchUp)
-    %w[vec catalog services fittings_data hydraulics network bom supports settings profile run_check clash
+    %w[vec catalog finishes services fittings_data hydraulics network bom supports settings profile run_check clash
        mesh valve_models parts refs].each do |f|
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
@@ -65,6 +65,9 @@ module ArtK
         clear_support: command('Clear Supports / ลบซัพพอร์ต', 'ลบซัพพอร์ตของแนวท่อที่เลือก') { Commands.clear_supports },
         style: command('Technical Line Style / ลายเส้นแบบเทคนิค', 'เส้นขอบดำคม + Profile แบบแบบก่อสร้าง',
                        'style') { Commands.technical_style },
+        colors: command('Realistic Colours / อัปเดตสีวัสดุ', 'เปลี่ยนสีท่อ วาล์ว อุปกรณ์ ในโมเดลเดิมเป็นสีแบบของจริง (v1.7)') do
+          Commands.realistic_colors
+        end,
         help: command('Help / วิธีใช้', 'คีย์ลัดและวิธีใช้') { Commands.help },
         diag: command('Diagnostics / ตรวจสอบระบบ', 'ทดสอบการสร้างข้อต่อในเครื่องนี้ และแสดงคำเตือนของแนวท่อ') { Commands.diagnostics }
       }
@@ -78,7 +81,7 @@ module ArtK
         sups.add_item("#{info[:name]} – #{info[:th]}") { Commands.support_tool(type) }
       end
       menu.add_separator
-      %i[rebuild flow hydraulic clash bom style].each { |k| menu.add_item(cmds[k]) }
+      %i[rebuild flow hydraulic clash bom style colors].each { |k| menu.add_item(cmds[k]) }
       menu.add_separator
       menu.add_item(cmds[:help])
       menu.add_item(cmds[:diag])

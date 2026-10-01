@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'finishes'
+
 module ArtK
   module PlantPipe
     # Piping services (systems). Each service carries:
@@ -102,19 +104,11 @@ module ArtK
         fire:  [200, 16, 46]      # 赤 red (fire)
       }.freeze
 
-      # Real material colours (default scheme). Keyed by catalogue family.
-      MATERIAL_COLORS = {
-        'PVC'  => [34, 128, 206],   # Thai PVC-U pressure pipe – blue
-        'PVCS40' => [236, 236, 230], # PVC Sch40 DWV – white
-        'PPR'  => [52, 138, 62],    # PP-R – green
-        'HDPE' => [48, 50, 54],     # PE100 – black
-        'CS'   => [66, 70, 76],     # black steel (primed / painted)
-        'SS'   => [196, 200, 205],  # stainless – bright metal
-        'GSP'  => [168, 173, 178],  # hot-dip galvanised
-        'CU'   => [184, 115, 51]    # copper
-      }.freeze
+      # Real material colours (default scheme). Keyed by catalogue family –
+      # taken from the realistic finish palette (lib/finishes.rb).
+      MATERIAL_COLORS = Finishes::PIPE.transform_values { |f| Finishes.rgb(f) }.freeze
       # Services that are painted a code colour whatever the material.
-      PAINTED = { 'FP' => [200, 30, 36], 'NG' => [232, 190, 40] }.freeze
+      PAINTED = Finishes::PAINTED.transform_values { |f| Finishes.rgb(f) }.freeze
 
       SCHEMES = {
         'material' => 'สีตามวัสดุจริง (Material)',

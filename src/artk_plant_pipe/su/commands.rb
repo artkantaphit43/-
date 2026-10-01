@@ -319,6 +319,20 @@ module ArtK
         model.commit_operation
       end
 
+      # Repaint a model drawn with an earlier version in the realistic
+      # finishes (v1.7) – colours/surfaces only, geometry is not touched.
+      def realistic_colors
+        model = Sketchup.active_model
+        model.start_operation('Plant Piping: Realistic Colours', true)
+        n = ModelHelpers.apply_finishes(model)
+        model.commit_operation
+        UI.messagebox("อัปเดตสีวัสดุแบบของจริงแล้ว (อุปกรณ์จากคลัง #{n} แบบ)\n" \
+                      'ท่อที่ใช้ "กำหนดสีท่อเอง" คงสีเดิม · ถ้าต้องการกลับ กด Undo')
+      rescue StandardError => e
+        model&.abort_operation
+        UI.messagebox("อัปเดตสีไม่สำเร็จ: #{e.message}")
+      end
+
       # ---------- diagnostics ----------
 
       # Build a small test run (pipes, elbow, tee, valve, reducer) far from the

@@ -148,10 +148,35 @@ module ArtK
         tag(model, "PP-#{code} #{s[:en]}")
       end
 
-      def material(model, name, rgb, alpha = 1.0)
+      # +pbr+: [metalness, roughness] – metallic sheen on SketchUp 2025+
+      # (PBR materials); ignored by older versions. nil leaves PBR as is.
+      def material(model, name, rgb, alpha = 1.0, pbr: nil)
         mat = model.materials[name] || model.materials.add(name)
         mat.color = Sketchup::Color.new(*rgb)
         mat.alpha = alpha if alpha < 1.0
+        apply_pbr(mat, *pbr) if pbr
+        mat
+      end
+
+      # Material of a realistic finish (lib/finishes.rb) – colour + sheen.
+      def finish_material(model, finish, name: nil)
+        material(model, name || Finishes.material_name(finish), Finishes.rgb(finish), pbr: Finishes.pbr(finish))
+      end
+
+      # SketchUp 2025+ PBR: metalness 0 = paint / plastic (roughness still
+      # gives the gloss), > 0 = metal. Every call is guarded so older
+      # SketchUp versions simply keep the plain colour.
+      def apply_pbr(mat, metal, rough)
+        return mat unless mat.respond_to?(:roughness_factor=)
+
+        if mat.respond_to?(:metalness_enabled=)
+          mat.metalness_enabled = metal.to_f.positive?
+          mat.metallic_factor = metal.to_f if metal.to_f.positive? && mat.respond_to?(:metallic_factor=)
+        end
+        mat.roughness_enabled = true if mat.respond_to?(:roughness_enabled=)
+        mat.roughness_factor = rough.to_f
+        mat
+      rescue StandardError
         mat
       end
 
@@ -161,40 +186,40 @@ module ArtK
       # leave it alone), otherwise the service/material colour of the scheme.
       def pipe_material(model, code, family, scheme, custom = nil)
         rgb = Settings.rgb(custom)
-        return material(model, "PP_Custom_#{custom.delete('#')}", rgb) if rgb
+        return material(model, "PP_Custom_#{custom.delete('#')}", rgb, pbr: PAINT) if rgb
 
-        material(model, "PP_#{code}_#{family}", Services.color(code, scheme, family))
+        material(model, "PP_#{code}_#{family}", Services.color(code, scheme, family), pbr: pipe_pbr(code, scheme, family))
+      end
+
+      # Gloss of a painted surface (own colour, identification schemes).
+      PAINT = [0.0, 0.4].freeze
+
+      # Sheen of a pipe: the real material's in the "material" scheme
+      # (painted services – fire, gas – are paint), otherwise paint.
+      def pipe_pbr(code, scheme, family)
+        fin = scheme == 'material' && (Finishes::PAINTED[code] || Finishes.pipe(family))
+        fin ? Finishes.pbr(fin) : PAINT
       end
 
       def insulation_material(model)
-        material(model, 'PP_Insulation', [225, 225, 215], 0.35)
+        material(model, 'PP_Insulation', Finishes.rgb('insulation'), 0.35)
       end
 
       # Fixed-colour material roles used inside part definitions. Roles not
       # listed (:pipe, :fitting, :flange) are left unpainted so they take the
       # colour of the instance – one definition serves every service colour.
+      # Material names stay as in v1.6 so models drawn before pick up the
+      # realistic colours (lib/finishes.rb) on the next rebuild.
       FIXED_ROLES = {
-        valve:    ['PP_Valve_Body', [92, 96, 104]],
-        valve_plastic: ['PP_Valve_PVC', [168, 172, 178]],     # PVC-U / PP valve grey
-        cast:     ['PP_Cast_Iron', [66, 78, 100]],            # painted cast iron (blue-grey)
-        forged:   ['PP_Forged_Steel', [196, 198, 202]],       # forged steel, bright
-        brass:    ['PP_Brass', [186, 146, 74]],
-        chrome:   ['PP_Chrome', [208, 210, 214]],             # chrome/nickel plated, stems
-        iron:     ['PP_Iron_Black', [48, 50, 54]],            # handwheels, levers
-        grip:     ['PP_Vinyl_Grip', [190, 32, 36]],           # lever vinyl grips
-        gauge:    ['PP_Gauge_Face', [246, 246, 240]],
-        handle:   ['PP_Handwheel', [196, 36, 36]],
-        bolt:     ['PP_Bolt', [178, 180, 184]],
-        galv:     ['PP_Galvanised', [186, 190, 194]],
-        steel:    ['PP_Support_Steel', [96, 102, 112]],
-        concrete: ['PP_Concrete', [192, 188, 178]],
-        weld:     ['PP_Weld', [72, 72, 72]],
-        gasket:   ['PP_Gasket', [38, 38, 38]]
+        valve: 'PP_Valve_Body', valve_plastic: 'PP_Valve_PVC', cast: 'PP_Cast_Iron', forged: 'PP_Forged_Steel',
+        brass: 'PP_Brass', chrome: 'PP_Chrome', iron: 'PP_Iron_Black', grip: 'PP_Vinyl_Grip',
+        gauge: 'PP_Gauge_Face', handle: 'PP_Handwheel', bolt: 'PP_Bolt', galv: 'PP_Galvanised',
+        steel: 'PP_Support_Steel', concrete: 'PP_Concrete', weld: 'PP_Weld', gasket: 'PP_Gasket'
       }.freeze
 
       def role_material(model, role)
-        name, rgb = FIXED_ROLES[role]
-        name ? material(model, name, rgb) : nil
+        name = FIXED_ROLES[role]
+        name ? finish_material(model, Finishes::FIXED.fetch(role), name: name) : nil
       end
 
       # Re-colour every pipe material for a colour scheme (instant – no
@@ -203,8 +228,22 @@ module ArtK
         model.materials.to_a.each do |m|
           next unless m.name =~ /\APP_([A-Z]+)_([A-Z]+)\z/ && Services.codes.include?(Regexp.last_match(1))
 
-          m.color = Sketchup::Color.new(*Services.color(Regexp.last_match(1), scheme, Regexp.last_match(2)))
+          code = Regexp.last_match(1)
+          family = Regexp.last_match(2)
+          m.color = Sketchup::Color.new(*Services.color(code, scheme, family))
+          apply_pbr(m, *pipe_pbr(code, scheme, family))
         end
+      end
+
+      # Repaint a model drawn with an earlier version in the realistic
+      # finishes: pipe colours, generated-part roles, and the copied
+      # reference parts (their component definitions are refilled in place,
+      # so placed instances keep their position). Returns the number of
+      # reference definitions repainted.
+      def apply_finishes(model)
+        apply_color_scheme(model, load_settings['color_scheme'])
+        FIXED_ROLES.each_key { |role| role_material(model, role) if model.materials[FIXED_ROLES[role]] }
+        RefModels.repaint_all(model)
       end
 
       # ---------- geometry output ----------
