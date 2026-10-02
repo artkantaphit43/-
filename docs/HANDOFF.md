@@ -3,6 +3,9 @@
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.6.0**
 (`dist/artk_plant_pipe-1.6.0.rbz`). Tests: `rake test` (135 runs, all green).
+**1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
+`Pipe End Center` (วงกลมจริง `add_arc` 360° ตรงกับ mesh + construction point) → SketchUp สแนป Center ได้เอง
+(`Builder#add_end_center`). ผู้ใช้เลือกต่อจาก 1.6 เพราะไม่ชอบสีของ 1.7 (2026-10-02).
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล
