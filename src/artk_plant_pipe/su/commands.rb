@@ -18,6 +18,53 @@ module ArtK
         Sketchup.active_model.select_tool(ValveTool.new(type))
       end
 
+      def stretch_tool
+        Sketchup.active_model.select_tool(StretchTool.new)
+      end
+
+      # Compare every pipe with its record: stretched open ends are taken
+      # into the run; anything else is listed and can be put back.
+      def check_pipes
+        model = Sketchup.active_model
+        runs = H.selected_runs(model)
+        runs = Collector.all_runs(model).map(&:first) if runs.empty?
+        found = runs.map { |r| [r, RunEditor.inspect(r)] }
+        stretched = found.reject { |_, f| f[:moves].empty? }
+        broken = found.reject { |_, f| f[:issues].empty? }
+        if stretched.empty? && broken.empty?
+          UI.messagebox("ตรวจ #{runs.size} แนวท่อ: รูปทรงตรงกับข้อมูลทั้งหมด\n(all #{runs.size} run(s) match their data)")
+          return
+        end
+
+        lines = []
+        stretched.each { |r, f| lines << "• #{r.name}: ปลายท่อถูกยืด/หด #{f[:moves].size} จุด → รับค่าใหม่" }
+        broken.each { |_, f| f[:issues].first(4).each { |x| lines << "• #{x}" } }
+        more = lines.size > 14 ? "\n… (+#{lines.size - 14})" : ''
+        msg = "พบท่อที่รูปทรงไม่ตรงกับข้อมูล (pipes that differ from their data):\n#{lines.first(14).join("\n")}#{more}\n\n" \
+              "ซ่อมเลยไหม? ปลายที่ยืดจะรับความยาวใหม่ ส่วนที่ผิดรูปจะกลับเป็นตามข้อมูล\n" \
+              '(fix: keep stretched ends, rebuild the rest from data)'
+        return unless UI.messagebox(msg, MB_YESNO) == IDYES
+
+        res = RunEditor.sync(model, stretched.map(&:first))
+        rest = broken.map(&:first) - res[:synced]
+        warnings = res[:warnings]
+        unless rest.empty?
+          model.start_operation('Plant Piping: Restore Pipes', true)
+          rest.each do |r|
+            warnings.concat(Builder.render(model, r, Builder.run_settings(r)).map { |w| "#{r.name}: #{w}" })
+          end
+          model.commit_operation
+        end
+        show_warnings(warnings, "ซ่อม #{res[:synced].size + rest.size} แนวท่อแล้ว (pipes fixed)")
+      rescue StandardError => e
+        UI.messagebox("Plant Piping: ตรวจท่อไม่สำเร็จ\n#{e.message}")
+      end
+
+      def toggle_auto_sync
+        AutoSync.enabled = !AutoSync.enabled?
+        Sketchup.status_text = AutoSync.enabled? ? 'อ่านความยาวท่อที่ยืดเองอัตโนมัติ: เปิด' : 'อ่านความยาวท่อที่ยืดเองอัตโนมัติ: ปิด'
+      end
+
       def register_model
         Sketchup.active_model.select_tool(RegisterModelTool.new)
       end
@@ -67,7 +114,9 @@ module ArtK
               "(apply current settings to #{runs.size} run(s))"
         return unless UI.messagebox(msg, MB_OKCANCEL) == IDOK
 
-        warnings = Builder.rebuild(model, runs, s)
+        # pipes stretched with SketchUp's own tools keep their new length
+        pre = RunEditor.sync(model, runs)
+        warnings = pre[:warnings] + Builder.rebuild(model, runs, s)
         show_warnings(warnings, 'ปรับแนวท่อเรียบร้อย (runs rebuilt)')
       rescue StandardError => e
         UI.messagebox("Plant Piping: ปรับแนวท่อไม่สำเร็จ\n#{e.message}")
@@ -389,6 +438,10 @@ module ArtK
           Draw Pipe: คลิกจุดแนวศูนย์กลางท่อ | พิมพ์ความยาว | ลูกศร → ← ↑ ล็อกแกน X Y Z, ↓ ปลด
           Shift ค้าง = ล็อกทิศทาง | Backspace = ลบจุดล่าสุด | ดับเบิลคลิก/Enter = จบ | Esc = ยกเลิก
           คลิกจุดแรกบนท่อเดิม = แยกท่อด้วย Tee | คลิกที่ปลายท่อเดิม = ต่อท่อ
+
+          ยืด/ย้ายท่อ: คลิกปลายท่อ = ยืด/หดตามแนว (พิมพ์ระยะได้) | คลิกมุมท่อ = ย้ายมุม (ลูกศรล็อกแกน)
+          วาล์ว ซัพพอร์ต ข้อต่อจากคลัง ตามไปเอง | ยืดด้วย Push/Pull, Scale, Move ของ SketchUp ก็ได้
+          ปลั๊กอินจะอ่านความยาวใหม่ให้อัตโนมัติ | ตรวจท่อ = หาท่อที่รูปทรงไม่ตรงข้อมูลแล้วซ่อม
 
           คลังอุปกรณ์จริง: เลือกอุปกรณ์ → ชี้ที่ท่อ (วาล์ว/มิเตอร์ = บนท่อตรง, ข้องอ/ก๊อก/ฝาครอบ = ที่ปลายท่อ,
           เกจ = บนท่อ) ขนาดปรับตามท่อที่ชี้ | ← → หมุน 90°
