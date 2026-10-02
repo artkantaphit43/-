@@ -16,7 +16,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-      - run: gem install minitest rake --no-document
+      # newer minitest needs Ruby 3.1+; 5.26.1 is the last that runs on both (SketchUp 2021–2023 ship Ruby 2.7)
+      - run: gem install minitest -v 5.26.1 --no-document && gem install rake --no-document
       - run: rake test
       - run: rake package
       - uses: actions/upload-artifact@v4

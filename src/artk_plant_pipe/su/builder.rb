@@ -378,7 +378,29 @@ module ArtK
                      'weight_kg_m' => spec.weight_kg_m.round(3), 'stick_m' => spec.stick_length_m,
                      'geom' => JSON.generate('a' => a, 'b' => b),
                      'remark' => spec.estimated ? 'wall thickness estimated' : nil)
+        [[a, pa], [b, pb]].each do |end_pt, at|
+          add_end_center(ctx, g, at, dir, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, end_pt) <= 1.0 }
+        end
         insulate(ctx, Mesh.cylinder(a, b, o.ro + ctx[:ins], ri: o.ro + 0.5, steps: ctx[:steps]), d[:length])
+      end
+
+      # Real circle (ArcCurve) + construction point at an open pipe end, in
+      # its own group so it never merges with the pipe mesh. SketchUp's own
+      # tools (Move, Line, Tape, …) then infer "Center" / the point there.
+      # The circle starts where the pipe mesh starts (same ref axis and
+      # segment count), so its edges lie exactly on the pipe rim.
+      def add_end_center(ctx, pipe, at, axis, ro)
+        g = pipe.entities.add_group
+        ax = Vec.unit(axis)
+        c = H.to_pt(at)
+        g.entities.add_arc(c, H.to_vec(Vec.perpendicular(ax)), H.to_vec(ax), H.mm(ro), 0.0, 2 * Math::PI, ctx[:steps])
+        g.entities.add_cpoint(c)
+        g.name = 'Pipe End Center'
+        H.set_attrs(g, 'type' => 'end_center')
+        g
+      rescue StandardError => e
+        (ctx[:warnings] ||= []) << "Pipe end center: #{e.message}"
+        nil
       end
 
       def joined?(ctx, pt)
