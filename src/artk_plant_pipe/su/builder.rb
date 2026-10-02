@@ -148,6 +148,7 @@ module ArtK
 
         ents = run.entities
         valves = ents.select { |e| H.instance?(e) && H.type_of(e) == 'valve' }.map { |v| H.attrs(v) }
+        end_parts = end_part_records(ents)
         ents.clear!
         ctx = context(model, run, settings, spec, svc, line_no)
         segs = apply_branch_trims(cl, tees, warnings, ctx)
@@ -178,6 +179,7 @@ module ArtK
         rescue StandardError => e
           warnings << "Valve could not be rebuilt: #{e.message}"
         end
+        end_parts.each { |rec| place_end_part(ctx, rec, warnings) }
         H.get_json(run, 'supports', []).each do |rec|
           SupportBuilder.render(ctx, rec)
         rescue StandardError => e
@@ -376,7 +378,7 @@ module ArtK
         finish_piece(ctx, g, "Pipe #{spec.size} L=#{cut.round}", ctx[:mat],
                      'type' => 'pipe', 'length_mm' => cut.round(1),
                      'weight_kg_m' => spec.weight_kg_m.round(3), 'stick_m' => spec.stick_length_m,
-                     'geom' => JSON.generate('a' => a, 'b' => b),
+                     'geom' => JSON.generate('a' => a, 'b' => b, 'ea' => ea, 'eb' => eb),
                      'remark' => spec.estimated ? 'wall thickness estimated' : nil)
         [[a, pa], [b, pb]].each do |end_pt, at|
           add_end_center(ctx, g, at, dir, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, end_pt) <= 1.0 }
@@ -651,6 +653,102 @@ module ArtK
         model.start_operation('Plant Piping: Insert Valve', true)
         ctx = context(model, run, settings, spec, svc, run.name)
         inst = place_valve(ctx, type, at, dir, model: model_key)
+        model.commit_operation
+        inst
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
+      # ---- library fittings fixed to an open pipe end ----
+      #
+      # An elbow, cap, flange, faucet … put on an open end from the
+      # reference library belongs to the run: its record ('end_part' on the
+      # instance: library key, end point, roll angle) is read back on every
+      # rebuild, so the part follows the end when the pipe is stretched and
+      # changes size with the run. Deleting the instance removes it.
+
+      def end_part_records(ents)
+        ents.select { |e| H.instance?(e) && e.get_attribute(H::DICT, 'end_part') }.map do |e|
+          JSON.parse(e.get_attribute(H::DICT, 'end_part'))
+        rescue JSON::ParserError
+          nil
+        end.compact
+      end
+
+      # Direction out of the open end +at+ of centreline +cl+, or nil.
+      def open_end_dir(cl, at)
+        seg = cl.find { |a, b| Vec.dist(a, at) <= 1.0 || Vec.dist(b, at) <= 1.0 } or return nil
+        other = Vec.dist(seg[0], at) <= 1.0 ? seg[1] : seg[0]
+        Vec.unit(Vec.sub(at, other))
+      end
+
+      # The library part for this run's size: the same part in that size,
+      # else the chosen one scaled. Returns [item, k].
+      def fit_ref(base, spec)
+        it = base['scalable'] ? nil : Refs.variant_for(base, spec)
+        it ? [it, 1.0] : [base, Refs.scale_for(base, spec.od)]
+      end
+
+      # Canonical +Y of an end part: world up turned by +angle+ about u.
+      def end_roll(u, angle)
+        base = [0.0, 0.0, 1.0]
+        y = Vec.sub(base, Vec.scale(u, Vec.dot(base, u)))
+        y = Vec.perpendicular(u) if Vec.length(y) < 1e-3
+        Vec.rotate(Vec.unit(y), Vec.unit(u), angle.to_f)
+      end
+
+      def place_end_part(ctx, rec, warnings)
+        base = Refs.get(rec['key'])
+        return warnings << "ไม่พบอุปกรณ์ในคลัง #{rec['key']} (library part missing)" unless base
+
+        at = rec['at']
+        unless ctx[:open_ends].any? { |p| Vec.dist(p, at) <= 1.0 }
+          return warnings << "#{Refs.display_name(base).split(' – ').first}: ปลายท่อไม่ได้เปิดแล้ว " \
+                             'จึงถอดออก (pipe end no longer open – fitting removed)'
+        end
+
+        u = open_end_dir(ctx[:cl], at)
+        it, k = fit_ref(base, ctx[:spec])
+        m = Refs.mouth_point(it, 0, at, u, k)
+        frame = Refs.port_frame(it, 0, m, u, end_roll(u, rec['angle']), k)
+        tr = H.frame_transform(frame)
+        tr *= Geom::Transformation.scaling(k) if k != 1.0
+        inst = ctx[:ents].add_instance(RefModels.definition(ctx[:model], it), tr)
+        inst.material = RefModels.role_material(ctx[:model], it['material'])
+        inst.name = Refs.display_name(it)
+        inst.layer = ctx[:tag]
+        H.set_attrs(inst, RefBrowser.component_attrs(it, k).merge(
+          'line_no' => ctx[:line_no], 'service' => ctx[:common]['service'],
+          'end_part' => JSON.generate('key' => rec['key'], 'at' => at, 'angle' => rec['angle'].to_f)
+        ))
+        inst
+      rescue StandardError => e
+        warnings << "End fitting #{rec['key']}: #{e.message}"
+        nil
+      end
+
+      # Put a library part on an open end of +run+ (run-local end point).
+      def add_end_part(model, run, key, at, angle)
+        model.start_operation('Plant Piping: Fit Part to Pipe End', true)
+        settings = run_settings(run)
+        spec = Settings.spec(settings)
+        svc = Services.get(settings['service'])
+        ctx = context(model, run, settings, spec, svc, run.name)
+        cl = H.get_json(run, 'cl', [])
+        links = H.get_json(run, 'tees', []) + H.get_json(run, 'joins', [])
+        ctx[:cl] = cl
+        ctx[:open_ends] = Collector.open_ends(cl).reject { |p| links.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
+        # one part per end: a new one replaces the old
+        run.entities.to_a.each do |e|
+          next unless H.instance?(e) && (s = e.get_attribute(H::DICT, 'end_part'))
+
+          e.erase! if Vec.dist(JSON.parse(s)['at'], at) <= 1.0
+        end
+        warnings = []
+        inst = place_end_part(ctx, { 'key' => key, 'at' => at, 'angle' => angle }, warnings)
+        raise warnings.first || 'could not place part' unless inst
+
         model.commit_operation
         inst
       rescue StandardError

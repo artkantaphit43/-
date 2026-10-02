@@ -80,7 +80,8 @@ module ArtK
     #     pipe with their end circles on the pipe axis, and become part of
     #     that run (kept through rebuilds);
     #   end parts (elbows, tees, caps, flanges, faucets …) put their first
-    #     end circle onto an open pipe end;
+    #     end circle onto an open pipe end and become part of that run, so
+    #     they follow the end when the pipe is stretched;
     #   gauges go on top of the pipe at their own size.
     # The library part of the pipe's size is used when it exists, otherwise
     # the chosen part is scaled from the pipe it was modelled for. Anything
@@ -97,6 +98,7 @@ module ArtK
         @model = Sketchup.active_model
         @ip = Sketchup::InputPoint.new
         @place = nil
+        RunEditor.sync_context(@model) if defined?(RunEditor)
         how = { inline: 'คลิกบนท่อตรง', end: 'คลิกที่ปลายท่อ', top: 'คลิกบนท่อ (ติดด้านบน)' }
                 .fetch(Refs.mount(@item), 'คลิกตำแหน่งที่ต้องการ')
         Sketchup.status_text = "วาง: #{Refs.display_name(@item)} – #{how} (ขนาดปรับตามท่อ) | ← → หมุน 90°"
@@ -214,7 +216,7 @@ module ArtK
         it, k = fit(spec)
         m = Refs.mouth_point(it, 0, e[:world], u, k)
         frame = Refs.port_frame(it, 0, m, u, roll(u, [0.0, 0.0, 1.0]), k)
-        { mode: :end, item: it, k: k, frame: frame,
+        { mode: :end, item: it, k: k, frame: frame, run: run, local: e[:local],
           tip: "#{Refs.display_name(it).split(' – ').first} ที่ปลาย #{run.name} – #{size_tip(it, k, spec)}" }
       end
 
@@ -243,6 +245,9 @@ module ArtK
           at = H.transform_mm(inv, place[:at])
           dir = Vec.unit(H.from_vec(H.to_vec(hit[:dir]).transform(inv)))
           Builder.add_valve(@model, hit[:run], place[:item]['type'], at, dir, model_key: place[:item]['key'])
+        elsif place[:mode] == :end
+          # fixed to the run: follows the end when the pipe is stretched
+          Builder.add_end_part(@model, place[:run], @item['key'], place[:local], @angle)
         else
           place_instance(place)
         end

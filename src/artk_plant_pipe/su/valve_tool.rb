@@ -23,6 +23,7 @@ module ArtK
         self.class.active = self
         @type = @fixed || H.load_settings['valve_type']
         @model = Sketchup.active_model
+        RunEditor.sync_context(@model) if defined?(RunEditor)
         @ip = Sketchup::InputPoint.new
         @place = nil
         update_status
