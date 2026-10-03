@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.7.0**
-(`dist/artk_plant_pipe-1.7.0.rbz`). Tests: `rake test` (142 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.8.0**
+(`dist/artk_plant_pipe-1.8.0.rbz`). Tests: `rake test` (144 runs, all green).
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล
@@ -30,10 +30,13 @@ branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.7.0**
 - **v1.7**: มิเตอร์น้ำขนาดตาม ISO 4064 DN15–50 (ขยายเฉพาะส่วนต่อท่อ ตัวเรือน/หน้าปัดโตแบบของจริง), ก๊อก ½"–1" ·
   ระบบเวอร์ชันข้อมูล `fmt` + ตัวแปลงอัตโนมัติ (lib/data_format.rb, su/migrate.rb) + ทดสอบไฟล์จริงจาก v1.6
 
+- **v1.8**: มิเตอร์ Woltman หน้าแปลน DN65–300 สร้างเอง (lib/meter_models.rb) ตาม ISO 4064 + EN 1092-2 PN16,
+  หน้าตาตามรูปผู้ใช้ (ตัวฟ้า หัวอ่านเทา ไม่มีฝา) + หน้าแปลนประกบ
+- **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
+
 ## ข้อจำกัด / งานที่อาจทำต่อ
 - เริ่มจากปลายท่อแนวหนึ่งแล้วจบที่ข้องอของอีกแนว → ยังไม่รวมเป็นสามทาง (ให้เริ่มวาดที่ข้องอแทน)
 - เสนอไว้: ข้อลดเยื้องศูนย์ (FOT ด้านดูดปั๊ม / FOB ท่อบนแร็ก, ไอน้ำ) + เตือนท่อระบายที่ลดขนาดตามทิศการไหล
-- มิเตอร์ > 2" (Woltman หน้าแปลน) ยังไม่มีโมเดล – รอไฟล์จากผู้ใช้
 - ยังไม่ได้ทดสอบใน SketchUp จริง (ทดสอบด้วย stub + render จำลอง)
 
 ## ไฟล์อ้างอิงของผู้ใช้ (ใช้สร้างคลังใหม่)

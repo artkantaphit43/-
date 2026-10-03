@@ -2,6 +2,7 @@
 
 require 'json'
 require 'zlib'
+require_relative 'meter_models'
 
 module ArtK
   module PlantPipe
@@ -115,7 +116,7 @@ module ArtK
       # Parts made in real standard sizes instead of a scaled copy.
       #   water meter: ISO 4064 multi-jet with threaded union ends, DN15–DN50
       #     – DN => [laying length L mm, body / register width relative to
-      #     DN15]. Above DN50 services use flanged Woltman meters.
+      #     DN15]. DN65–DN300: flanged Woltman meters (MeterModels).
       #     Only the connection (bosses, union nuts, tails) follows the pipe;
       #     the body and register grow as real meters do.
       #   faucet: bib taps ½"–1" (DN => scale of the ½" model)
@@ -123,21 +124,23 @@ module ArtK
         15 => [165, 1.0], 20 => [190, 1.0], 25 => [260, 1.1], 32 => [260, 1.26], 40 => [300, 1.58], 50 => [300, 1.79]
       }.freeze
       FAUCET_SIZES = { 15 => 1.0, 20 => 1.15, 25 => 1.3 }.freeze
-      SIZED_TEXT = { 'water_meter' => '½"–2" (DN15–50)', 'faucet' => '½"–1"' }.freeze
+      SIZED_TEXT = { 'water_meter' => '½"–12" (DN15–300)', 'faucet' => '½"–1"' }.freeze
       METER_SPLIT = 44.0 # mm: body / register inside |x| ≤ this, connection outside
 
       NPS_DN = {
         0.125 => 6, 0.25 => 8, 0.375 => 10, 0.5 => 15, 0.75 => 20, 1.0 => 25, 1.25 => 32, 1.5 => 40, 2.0 => 50,
-        2.5 => 65, 3.0 => 80, 3.5 => 90, 4.0 => 100, 5.0 => 125, 6.0 => 150, 8.0 => 200, 10.0 => 250, 12.0 => 300
+        2.5 => 65, 3.0 => 80, 3.5 => 90, 4.0 => 100, 5.0 => 125, 6.0 => 150, 8.0 => 200, 10.0 => 250, 12.0 => 300,
+        14.0 => 350, 16.0 => 400, 18.0 => 450, 20.0 => 500, 24.0 => 600
       }.freeze
       # metric plastic pipe OD => DN (ISO 4065 / DIN 8074)
       OD_DN = {
         16 => 10, 20 => 15, 25 => 20, 32 => 25, 40 => 32, 50 => 40, 63 => 50, 75 => 65, 90 => 80, 110 => 100,
-        125 => 100, 140 => 125, 160 => 150, 200 => 200, 250 => 250, 315 => 300
+        125 => 100, 140 => 125, 160 => 150, 200 => 200, 250 => 250, 315 => 300, 355 => 350, 400 => 400,
+        450 => 450, 500 => 500, 630 => 600
       }.freeze
 
       # Companion flanges bolted to each end of a flanged / wafer / lug valve.
-      FLANGED = %w[flg150 lug150 wafer150 jis10k flgpn pl_flg].freeze
+      FLANGED = %w[flg150 lug150 wafer150 jis10k flgpn pl_flg woltman].freeze
 
       class << self
         def index
@@ -152,7 +155,7 @@ module ArtK
         end
 
         def materials
-          index['materials']
+          @materials ||= index['materials'].merge(MeterModels::MATERIALS)
         end
 
         def available?
@@ -184,6 +187,8 @@ module ArtK
         # key, ports and bounding box), or nil when no such size is made.
         def sized_item(item, spec)
           dn = dn_for(spec)
+          return woltman_item(item, dn, spec) if item['type'] == 'water_meter' && MeterModels::WOLTMAN.key?(dn)
+
           table = item['type'] == 'water_meter' ? METER_ISO4064 : FAUCET_SIZES
           return nil unless table.key?(dn)
 
@@ -199,6 +204,29 @@ module ArtK
             item.merge('key' => key, 'sized_from' => item['key'], 'size' => spec.size,
                        'dn' => dn, 'scalable' => false, 'ports' => ports, 'pipe_od' => spec.od,
                        'bbox' => [box.transpose.map(&:min), box.transpose.map(&:max)], 'sizing' => f)
+          end
+        end
+
+        # Flanged Woltman meter for DN65–DN300 (built from the standard
+        # dimensions, see MeterModels).
+        def woltman_item(item, dn, spec)
+          key = "gen:woltman@DN#{dn}-#{spec.od.to_f.round(1)}"
+          @sized ||= {}
+          @sized[key] ||= begin
+            len = MeterModels.length(dn)
+            ro = MeterModels.flange_od(dn) / 2.0
+            ports = [-1.0, 1.0].map do |sg|
+              { 'p' => [sg * len / 2.0, 0.0, 0.0], 'd' => [sg, 0.0, 0.0], 'ri' => spec.od / 2.0, 'ro' => ro }
+            end
+            m = MeterModels.woltman(dn, spec.od)
+            (@mesh_cache ||= {})[key] = m
+            box = m[:verts]
+            { 'key' => key, 'sized_from' => item['key'], 'generated' => 'woltman', 'type' => 'water_meter',
+              'family' => 'woltman', 'size' => spec.size, 'dn' => dn, 'scalable' => false, 'material' => 'valve_cast',
+              'src' => 'generated', 'src_name' => 'Plant Piping (ISO 4064 / EN 1092-2)',
+              'standard' => "Woltman water meter DN#{dn}, flanged PN16 (EN 1092-2), L = #{len.round} mm (ISO 4064)",
+              'ports' => ports, 'pipe_od' => spec.od,
+              'bbox' => [box.transpose.map(&:min), box.transpose.map(&:max)] }
           end
         end
 
@@ -274,7 +302,7 @@ module ArtK
         end
 
         def companion_flange(spec, valve)
-          fam = valve['family'] == 'pl_flg' || valve['family'] == 'jis10k' ? 'flgpn' : 'flg150'
+          fam = %w[pl_flg jis10k woltman].include?(valve['family']) ? 'flgpn' : 'flg150'
           find(type: 'flange', family: fam, size: spec.size) || find(type: 'flange', family: 'flg150', size: spec.size)
         end
 
@@ -305,7 +333,9 @@ module ArtK
         # [[vertex index…]], soft: [[bool…]] }] }
         def mesh(item)
           @mesh_cache ||= {}
-          @mesh_cache[item['key']] ||= if item['sized_from']
+          @mesh_cache[item['key']] ||= if item['generated']
+                                         MeterModels.woltman(item['dn'], item['pipe_od'])
+                                       elsif item['sized_from']
                                          sized_mesh(mesh(get(item['sized_from'])), item['sizing'])
                                        else
                                          decode(item)
@@ -445,7 +475,7 @@ module ArtK
         end
 
         def reset!
-          @index = @by_key = @bin = @mesh_cache = @sized = nil
+          @index = @by_key = @bin = @mesh_cache = @sized = @materials = nil
         end
       end
     end

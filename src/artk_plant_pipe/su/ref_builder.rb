@@ -14,7 +14,7 @@ module ArtK
         'flg150' => ['Flanged RF', 'Class 150'], 'lug150' => ['Lug (flanged Class 150)', 'Class 150'],
         'wafer150' => ['Wafer (between Class 150 flanges)', 'Class 150'],
         'jis10k' => ['Wafer (between flanges)', 'JIS 10K'], 'pl_flg' => ['Flanged PN10', 'PN10'],
-        'pl_union' => ['True union (solvent socket)', 'PN10–PN16']
+        'pl_union' => ['True union (solvent socket)', 'PN10–PN16'], 'woltman' => ['Flanged PN16', 'PN16']
       }.freeze
 
       def refs_enabled?(settings)

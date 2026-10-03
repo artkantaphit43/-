@@ -110,11 +110,43 @@ class TestRefs < Minitest::Test
     assert_in_delta 166.88, gap.call('GSP_BS1387', '1/2"'), 0.01, '½" is the model itself'
     assert_in_delta 190 * 166.88 / 165, gap.call('GSP_BS1387', '3/4"'), 0.01
     assert_in_delta 260 * 166.88 / 165, gap.call('HDPE_PE100', '32 mm'), 0.01, 'metric pipe → DN25'
-    assert_nil gap.call('CS_B36_10', '3"'), 'no threaded meter above DN50'
+    assert_equal 225.0, gap.call('CS_B36_10', '3"'), 'DN80 Woltman, ISO 4064'
+    assert_nil gap.call('CS_B36_10', '14"'), 'no meter above DN300'
+  end
+
+  def test_big_pipe_gets_a_flanged_woltman_meter_that_snaps
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
+    tool = RefPlaceTool.new(item('water_meter'))
+    tool.instance_variable_set(:@model, @model)
+    tool.instance_variable_set(:@angle, 0.0)
+    pl = tool.placement([1500.0, 0.0, 30.0])
+    assert_equal :inline, pl[:mode]
+    it = pl[:item]
+    assert_equal 'woltman', it['generated']
+    assert_equal 250.0, Vec.dist(*it['ports'].map { |p| p['p'] }), 'ISO 4064 DN100 L = 250'
+    assert_in_delta 220.0, it['bbox'][1][2] - it['bbox'][0][2], 0.5, 'PN16 DN100 flange Ø220'
+    v = Builder.add_valve(@model, run, 'water_meter', pl[:at], [1.0, 0, 0], model_key: item('water_meter')['key'])
+    assert_equal item('water_meter')['key'], v.get_attribute(H::DICT, 'model')
+    assert_equal 'Flanged PN16', v.get_attribute(H::DICT, 'end_type')
+    assert_equal 2, run.entities.count { |e| H.type_of(e) == 'flange' }, 'companion flanges on the pipe'
+    Builder.render(@model, run, s)
+    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'valve' }
+    assert_includes run.entities.find { |e| H.type_of(e) == 'valve' }.definition.name, 'woltman@DN100'
+  end
+
+  def test_woltman_meshes_are_closed_and_sized
+    MeterModels.sizes.each do |dn|
+      m = MeterModels.woltman(dn, 100.0)
+      assert m[:faces].all? { |f| f[:loops].all? { |l| l.uniq.size >= 3 } }, "DN#{dn} degenerate face"
+      xs = m[:verts].map(&:first)
+      assert_in_delta MeterModels.length(dn), xs.max - xs.min, 1e-6, "DN#{dn} laying length"
+      assert m[:faces].any? { |f| f[:pins] }, 'dial image'
+    end
   end
 
   def test_meter_on_a_too_big_pipe_is_not_snapped
-    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '14"')
     Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
     tool = RefPlaceTool.new(item('water_meter'))
     tool.instance_variable_set(:@model, @model)
@@ -124,8 +156,8 @@ class TestRefs < Minitest::Test
     assert_includes pl[:tip], 'ขนาดมาตรฐาน'
   end
 
-  def test_old_meter_on_a_big_pipe_survives_a_rebuild
-    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+  def test_old_meter_on_a_too_big_pipe_survives_a_rebuild
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '14"')
     run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
     meter = item('water_meter')
     Builder.add_valve(@model, run, 'water_meter', [1500.0, 0, 0], [1.0, 0, 0], model_key: meter['key'])
