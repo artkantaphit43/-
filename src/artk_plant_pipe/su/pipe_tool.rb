@@ -277,20 +277,17 @@ module ArtK
         return raw if @points.empty?
 
         last = @points.last
-        pt =
-          if @axis
-            Vec.add(last, Vec.scale(@axis, Vec.dot(Vec.sub(raw, last), @axis)))
-          elsif @settings['snap45'] && !hard_snap?(ip)
-            snap45(last, raw)
-          else
-            raw
-          end
-        apply_slope(last, pt)
+        return Vec.add(last, Vec.scale(@axis, Vec.dot(Vec.sub(raw, last), @axis))).then { |p| apply_slope(last, p) } if @axis
+        # a snapped point is the user's own geometry – used as it is, for
+        # every service (no 45° tidy-up, no automatic drain fall)
+        return raw if hard_snap?(ip)
+
+        apply_slope(last, @settings['snap45'] ? snap45(last, raw) : raw)
       end
 
       # A point the user snapped to (endpoint, edge, guide line or guide
-      # point, intersection, axis) is used exactly – the 45° lock only tidies
-      # free cursor positions.
+      # point, intersection, axis) is used exactly – the 45° lock and the
+      # drain fall only tidy free cursor positions.
       def hard_snap?(ip)
         !ip.vertex.nil? || ip.degrees_of_freedom <= 1
       end
@@ -540,6 +537,7 @@ module ArtK
         end
         adapt_supports(changed)
         warnings << @warn_end if @warn_end
+        warnings << flat_drain_warning(segs) if flat_drain_warning(segs)
         report(warnings)
         reset_state
         update_status
@@ -567,6 +565,23 @@ module ArtK
         kind = same_spec?(Builder.run_settings(link[:run])) ? :append : :reduce
         @start_link = { kind: kind, run: link[:run], tr: link[:tr], point: link[:point] }
         load_settings if kind == :append
+      end
+
+      # A drain drawn on snapped points follows them exactly; say so when
+      # that leaves it flatter than the code minimum.
+      def flat_drain_warning(segs)
+        return nil unless Services.gravity?(@settings['service'])
+
+        min = Services.min_drain_slope_pct(@spec.od)
+        flat = segs.map do |a, b|
+          h = Math.hypot(b[0] - a[0], b[1] - a[1])
+          h < 1.0 || (b[2] - a[2]).abs > h ? nil : (a[2] - b[2]) / h * 100.0
+        end.compact
+        worst = flat.min
+        return nil unless worst && worst < min - 1e-6
+
+        "ท่อระบายวาดตามจุดที่สแนป (เส้นไกด์) – ความลาด #{worst.round(2)}% น้อยกว่าขั้นต่ำ #{min}% " \
+          '(ปรับระดับเส้นไกด์ หรือวาดโดยไม่สแนปเพื่อให้ใส่ความลาดอัตโนมัติ)'
       end
 
       # Supports next to the new pipe take it in (shared supports).

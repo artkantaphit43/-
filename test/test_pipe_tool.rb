@@ -291,4 +291,36 @@ class TestPipeTool < Minitest::Test
     second = runs.find { |r| r.get_attribute(H::DICT, 'size') == '2"' }
     refute_nil second.entities.find { |e| H.type_of(e) == 'reducer' }
   end
+
+  def test_drain_follows_a_snapped_guide_line_exactly
+    t = tool_with('service' => 'SAN', 'catalog' => 'PVC_TIS17', 'size' => '4"', 'slope_pct' => 1.0)
+    Sketchup::InputPoint.next_vertex = :guide_point
+    click(t, [0, 0, 2500])
+    click(t, [8000, 300, 2500]) # endpoint of the guide line
+    Sketchup::InputPoint.next_vertex = nil
+    t.onReturn(@view)
+    assert_equal [8000.0, 300.0, 2500.0], cl_points(runs.first).max_by(&:first).map { |v| v.round(6) }
+    assert(UI.messages.last.include?('ความลาด'), 'told that the guide is level')
+  end
+
+  def test_drain_on_a_guide_line_edge_also_follows_it
+    %w[SD V SAN].each do |svc|
+      setup
+      t = tool_with('service' => svc, 'catalog' => 'PVC_TIS17', 'size' => '3"', 'slope_pct' => 2.0)
+      click(t, [0, 0, 1000])
+      Sketchup::InputPoint.next_dof = 1 # on a guide line
+      click(t, [5000, 1200, 1000])
+      Sketchup::InputPoint.next_dof = nil
+      t.onReturn(@view)
+      assert_equal [5000.0, 1200.0, 1000.0], cl_points(runs.first)[1].map { |v| v.round(6) }, svc
+    end
+  end
+
+  def test_free_drain_still_gets_its_fall
+    t = tool_with('service' => 'SAN', 'catalog' => 'PVC_TIS17', 'size' => '4"', 'slope_pct' => 1.0)
+    click(t, [0, 0, 1000])
+    click(t, [5000, 0, 1000])
+    t.onReturn(@view)
+    assert_in_delta 950.0, cl_points(runs.first)[1][2], 1e-6
+  end
 end

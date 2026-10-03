@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.10.0**
-(`dist/artk_plant_pipe-1.10.0.rbz`). Tests: `rake test` (158 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.10.1**
+(`dist/artk_plant_pipe-1.10.1.rbz`). Tests: `rake test` (161 runs, all green).
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล
@@ -41,6 +41,8 @@ branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.10.0*
 - **v1.10**: ซัพพอร์ตร่วมท่อข้างเคียง (Supports.group/fill, SupportBuilder.place/adapt/create_multi) –
   ขนาน ≤5°, ช่องว่างผิว ≤ support_group_mm (600), BOP ต่าง ≤300, กว้าง ≤2.5 m, แขนเสา ≤1.2 m · packer ใต้ท่อที่สูงกว่า ·
   ซัพพอร์ตร่วมเก็บ at/dir/members/signature → adapt หลังวาดท่อ/Rebuild
+- **v1.10.1**: จุดที่สแนป (เส้นไกด์/ขอบ/จุด) ใช้ตรง ๆ ทุกระบบ – ท่อระบาย (SAN/SD/V) ไม่ใส่ความลาดทับจุดสแนปแล้ว
+  (ความลาดอัตโนมัติเฉพาะจุดอิสระ) + เตือนถ้าลาดน้อยกว่าขั้นต่ำ · **แก้อะไรต้องทดสอบทุกระบบ ไม่ใช่แค่น้ำประปา**
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
