@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.8.0**
-(`dist/artk_plant_pipe-1.8.0.rbz`). Tests: `rake test` (144 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.9.0**
+(`dist/artk_plant_pipe-1.9.0.rbz`). Tests: `rake test` (148 runs, all green).
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล
@@ -32,6 +32,9 @@ branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.8.0**
 
 - **v1.8**: มิเตอร์ Woltman หน้าแปลน DN65–300 สร้างเอง (lib/meter_models.rb) ตาม ISO 4064 + EN 1092-2 PN16,
   หน้าตาตามรูปผู้ใช้ (ตัวฟ้า หัวอ่านเทา ไม่มีฝา) + หน้าแปลนประกบ
+- **v1.9**: สแนป Center ปลายท่อ (เริ่ม/จบ), จบที่ปลายท่ออีกแนว = ต่อแนวเดียว · มิเตอร์ Woltman สีเหมือนวาล์ว
+  (ไม่ทาสีตัวเรือน → ใช้สี valve_cast ของ instance), โบลท์ครบชุดตรงรูหน้าแปลนประกบ (Refs.flange_bolting) ·
+  แก้หน้าปัดมิเตอร์สีเพี้ยน (ห้ามตั้ง color ให้วัสดุที่มี texture)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

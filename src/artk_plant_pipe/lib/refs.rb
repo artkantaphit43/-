@@ -218,16 +218,43 @@ module ArtK
             ports = [-1.0, 1.0].map do |sg|
               { 'p' => [sg * len / 2.0, 0.0, 0.0], 'd' => [sg, 0.0, 0.0], 'ri' => spec.od / 2.0, 'ro' => ro }
             end
-            m = MeterModels.woltman(dn, spec.od)
+            mate = flange_bolting(companion_flange(spec, 'family' => 'woltman'))
+            m = MeterModels.woltman(dn, spec.od, mate)
             (@mesh_cache ||= {})[key] = m
             box = m[:verts]
-            { 'key' => key, 'sized_from' => item['key'], 'generated' => 'woltman', 'type' => 'water_meter',
+            { 'key' => key, 'mate' => mate, 'sized_from' => item['key'], 'generated' => 'woltman', 'type' => 'water_meter',
               'family' => 'woltman', 'size' => spec.size, 'dn' => dn, 'scalable' => false, 'material' => 'valve_cast',
               'src' => 'generated', 'src_name' => 'Plant Piping (ISO 4064 / EN 1092-2)',
               'standard' => "Woltman water meter DN#{dn}, flanged PN16 (EN 1092-2), L = #{len.round} mm (ISO 4064)",
               'ports' => ports, 'pipe_od' => spec.od,
               'bbox' => [box.transpose.map(&:min), box.transpose.map(&:max)] }
           end
+        end
+
+        # Bolt holes of a flange model: { 'pcd', 'angles' (about +X, from
+        # +Y toward +Z), 'hole' (dia), 'thick' } or nil.
+        def flange_bolting(fl)
+          return nil unless fl
+
+          v = mesh(fl)[:verts]
+          bore = fl['ports'].map { |q| q['ri'].to_f }.max
+          fx = fl['ports'][1]['p'][0]
+          holes = mesh(fl)[:faces].flat_map { |f| f[:loops][1..] }.filter_map do |lp|
+            pts = lp.map { |i| v[i] }
+            next unless pts.all? { |q| (q[0] - fx).abs < 0.5 }
+
+            c = pts.transpose.map { |a| a.sum / a.size }
+            rc = Math.hypot(c[1], c[2])
+            next if rc < bore + 1.0
+
+            [c, pts.map { |q| Math.hypot(q[1] - c[1], q[2] - c[2]) }.max]
+          end
+          return nil if holes.size < 4
+
+          { 'pcd' => 2.0 * holes.sum { |c, _| Math.hypot(c[1], c[2]) } / holes.size,
+            'angles' => holes.map { |c, _| Math.atan2(c[2], c[1]) }.sort,
+            'hole' => 2.0 * holes.sum { |_, r| r } / holes.size,
+            'thick' => (fl['ports'][1]['p'][0] - fl['ports'][0]['p'][0]).abs }
         end
 
         Sizing = Struct.new(:fn, :radial) do
@@ -334,7 +361,7 @@ module ArtK
         def mesh(item)
           @mesh_cache ||= {}
           @mesh_cache[item['key']] ||= if item['generated']
-                                         MeterModels.woltman(item['dn'], item['pipe_od'])
+                                         MeterModels.woltman(item['dn'], item['pipe_od'], item['mate'])
                                        elsif item['sized_from']
                                          sized_mesh(mesh(get(item['sized_from'])), item['sizing'])
                                        else

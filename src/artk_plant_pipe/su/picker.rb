@@ -73,7 +73,10 @@ module ArtK
       def run_end(model, pt, tol: 30.0)
         H.active_runs(model).each do |run, tr|
           cl = H.get_json(run, 'cl', [])
-          r = [run.get_attribute(H::DICT, 'od').to_f / 2.0, tol].max
+          # anywhere on the end ring or the end face counts (the "Center"
+          # of the pipe end), plus a margin for the cursor
+          od = run.get_attribute(H::DICT, 'od').to_f
+          r = od / 2.0 + [tol, 0.25 * od].max
           Collector.open_ends(cl).each do |p|
             w = H.transform_mm(tr, p)
             return { run: run, tr: tr, local: p, world: w } if Vec.dist(w, pt) <= r

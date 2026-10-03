@@ -126,6 +126,7 @@ class TestRefs < Minitest::Test
     assert_equal 'woltman', it['generated']
     assert_equal 250.0, Vec.dist(*it['ports'].map { |p| p['p'] }), 'ISO 4064 DN100 L = 250'
     assert_in_delta 220.0, it['bbox'][1][2] - it['bbox'][0][2], 0.5, 'PN16 DN100 flange Ø220'
+    assert_equal 'valve_cast', it['material'], 'same colour as the valves'
     v = Builder.add_valve(@model, run, 'water_meter', pl[:at], [1.0, 0, 0], model_key: item('water_meter')['key'])
     assert_equal item('water_meter')['key'], v.get_attribute(H::DICT, 'model')
     assert_equal 'Flanged PN16', v.get_attribute(H::DICT, 'end_type')
@@ -140,9 +141,29 @@ class TestRefs < Minitest::Test
       m = MeterModels.woltman(dn, 100.0)
       assert m[:faces].all? { |f| f[:loops].all? { |l| l.uniq.size >= 3 } }, "DN#{dn} degenerate face"
       xs = m[:verts].map(&:first)
-      assert_in_delta MeterModels.length(dn), xs.max - xs.min, 1e-6, "DN#{dn} laying length"
+      assert_operator xs.max - xs.min, :>=, MeterModels.length(dn), "DN#{dn} laying length (+ bolts)"
       assert m[:faces].any? { |f| f[:pins] }, 'dial image'
+      assert m[:faces].any? { |f| f[:mat].nil? }, 'body takes the valve colour'
     end
+  end
+
+  def test_woltman_bolts_go_through_the_companion_flange_holes
+    spec = Catalog.spec('CS_B36_10', '4"')
+    it = Refs.sized_item(item('water_meter'), spec)
+    fl = Refs.companion_flange(spec, it)
+    mate = Refs.flange_bolting(fl)
+    assert_equal 8, mate['angles'].size
+    assert_in_delta 180.0, mate['pcd'], 0.5, 'PN16 DN100 bolt circle'
+    m = Refs.mesh(it)
+    half = it['ports'][1]['p'][0]
+    # bolt heads sit on the companion flange back, on its hole circle
+    heads = m[:verts].select { |x, _y, _z| x > half + mate['thick'] + 1.0 }
+    refute_empty heads
+    angles = heads.map { |_x, y, z| Math.atan2(z, y) }
+    mate['angles'].each do |a|
+      assert(angles.any? { |b| ((b - a + Math::PI) % (2 * Math::PI) - Math::PI).abs < 0.05 }, "bolt at #{a}")
+    end
+    assert(heads.all? { |_x, y, z| (Math.hypot(y, z) - mate['pcd'] / 2.0).abs < 25.0 }, 'heads on the bolt circle')
   end
 
   def test_meter_on_a_too_big_pipe_is_not_snapped
@@ -208,5 +229,7 @@ class TestRefs < Minitest::Test
     ents = Sketchup::Entities.new
     RefModels.fill(@model, ents, m)
     assert(ents.grep(Sketchup::Face).any?(&:pins), 'position_material called with pins')
+    mat = @model.materials.find { |x| x.texture }
+    assert_nil mat.color, 'no colour on the dial – SketchUp would tint the image'
   end
 end

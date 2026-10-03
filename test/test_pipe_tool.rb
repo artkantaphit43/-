@@ -249,4 +249,46 @@ class TestPipeTool < Minitest::Test
     total = run.entities.select { |e| H.type_of(e) == 'pipe' }.sum { |e| e.get_attribute(H::DICT, 'length_mm') }
     assert_operator total, :>, 39_000 # bend arc counted as pipe
   end
+
+  def test_clicking_the_rim_of_a_big_pipe_end_snaps_to_its_center
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '8"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    click(t, [3000, 0, 109.5]) # top of the end ring (OD 219.1)
+    click(t, [3000, 3000, 0])
+    t.onReturn(@view)
+    assert_equal 1, runs.size
+    assert_includes cl_points(runs.first).map { |p| p.map { |v| v.round(3) } }, [3000.0, 0.0, 0.0]
+    assert_equal 1, runs.first.entities.count { |e| H.type_of(e) == 'elbow' }
+  end
+
+  def test_drawing_onto_an_open_end_snaps_to_center_and_continues_that_run
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    click(t, [3000, 3000, 0])
+    Sketchup::InputPoint.next_position = H.to_pt([3000, 40, 45]) # on the end ring
+    t.onMouseMove(0, 0, 0, @view)
+    assert_includes @view.tooltip, 'Center'
+    t.onLButtonDown(0, 0, 0, @view)
+    assert_equal 1, runs.size, 'joined the run, no second run'
+    assert_equal 1, runs.first.entities.count { |e| H.type_of(e) == 'elbow' }
+    assert_equal [3000.0, 3000.0, 0.0], cl_points(runs.first).max_by { |p| p[1] }.map { |v| v.round(3) }
+  end
+
+  def test_other_size_onto_an_open_end_gets_a_reducer
+    t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    H.save_settings(Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"'))
+    t.resume(@view)
+    click(t, [8000, 0, 0])
+    click(t, [3000, 20, 30])
+    assert_equal 2, runs.size
+    second = runs.find { |r| r.get_attribute(H::DICT, 'size') == '2"' }
+    refute_nil second.entities.find { |e| H.type_of(e) == 'reducer' }
+  end
 end

@@ -159,13 +159,24 @@ module ArtK
         end
 
         # "piping:Valve Blue" → material "PP_Src Valve Blue" in the source colour.
+        # Textured materials (meter dial) never get a colour set: SketchUp
+        # would tint the image with it. Re-assigning the image also repairs a
+        # dial tinted by v1.5–1.8.
         def source_material(model, key)
           rgb = Refs.materials[key] or return nil
           name = "PP_Src #{key.split(':', 2).last}"
-          mat = H.material(model, name, rgb[0, 3], rgb[3] || 1.0)
           tex = Refs.texture_path(key)
-          mat.texture = tex if tex && File.exist?(tex) && mat.respond_to?(:texture=) && mat.texture.nil?
-          mat
+          if tex && File.exist?(tex)
+            mat = model.materials[name] || model.materials.add(name)
+            done = (@fresh_texture ||= {})
+            if mat.respond_to?(:texture=) && (mat.texture.nil? || !done[[model.object_id, name]])
+              mat.texture = tex
+              done[[model.object_id, name]] = true
+            end
+            mat.alpha = rgb[3] if rgb[3] && rgb[3] < 1.0
+            return mat
+          end
+          H.material(model, name, rgb[0, 3], rgb[3] || 1.0)
         end
 
         # Transformation placing the canonical frame at world frame +f+

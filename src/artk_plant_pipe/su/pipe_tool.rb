@@ -72,7 +72,12 @@ module ArtK
           @ip.pick(view, x, y, @anchor)
         end
         @cursor = @ip.valid? ? constrain(@ip) : nil
-        @hover = @cursor && @points.empty? ? detect_link(@cursor) : nil
+        @hover = nil
+        if @cursor && @points.empty?
+          @hover = detect_link(@cursor)
+        elsif @cursor && (@hover = end_target(H.from_pt(@ip.position)))
+          @cursor = @hover[:point] # snap to the Center of that pipe end
+        end
         view.tooltip = hover_tip || @ip.tooltip
         update_vcb
         view.invalidate
@@ -86,6 +91,11 @@ module ArtK
         else
           return if Vec.dist(@cursor, @points.last) < 1.0
 
+          if @hover && @hover[:kind] == :end
+            @points << @hover[:point]
+            @end_link = @hover
+            return finish(view)
+          end
           link = detect_link(@cursor, exclude_run: @start_link && @start_link[:run])
           if link && %i[tee node].include?(link[:kind])
             @points << link[:point]
@@ -224,6 +234,7 @@ module ArtK
         @shift_lock = false
         @start_link = nil
         @end_link = nil
+        @warn_end = nil
         @hover = nil
         @ip.clear
         @anchor.clear
@@ -334,10 +345,21 @@ module ArtK
         { kind: :tee, hit: hit, point: hit[:proj] }
       end
 
+      # Open pipe end (its Center) under the cursor while drawing, other
+      # than the end this line started from.
+      def end_target(raw)
+        e = Picker.run_end(@model, raw) or return nil
+        return nil if Vec.dist(e[:world], @points.first) < 1.0 || Vec.dist(e[:world], @points.last) < 1.0
+
+        { kind: :end, run: e[:run], tr: e[:tr], point: e[:world] }
+      end
+
       def hover_tip
         return nil unless @hover
 
-        if @hover[:kind] == :append
+        if @hover[:kind] == :end
+          "Center – ต่อเข้าปลายท่อ #{@hover[:run].name}"
+        elsif @hover[:kind] == :append
           rs = Builder.run_settings(@hover[:run])
           if same_spec?(rs)
             "ต่อท่อ (continue) #{@hover[:run].name}"
@@ -464,6 +486,7 @@ module ArtK
           reset_state
           return view.invalidate
         end
+        end_on_end(view)
         segs = @points.each_cons(2).map { |a, b| [a, b] }.reject { |a, b| Vec.dist(a, b) < 1.0 }
         if segs.empty?
           reset_state
@@ -513,6 +536,7 @@ module ArtK
           else
             Builder.create_run(@model, local, @settings, tees: tees)[1]
           end
+        warnings << @warn_end if @warn_end
         report(warnings)
         reset_state
         update_status
@@ -521,6 +545,25 @@ module ArtK
         UI.messagebox("Plant Piping: ไม่สามารถสร้างท่อได้ (could not build run)\n#{e.message}")
         reset_state
         view.invalidate
+      end
+
+      # Ending on another run's open end: a line drawn from free space is
+      # the same as drawing it out of that end (continue the run, or a
+      # reducer + new run). Two linked ends are only met exactly.
+      def end_on_end(_view)
+        return unless @end_link && @end_link[:kind] == :end
+
+        link = @end_link
+        @end_link = nil
+        if @start_link
+          @warn_end = "ปลายท่อชนปลายท่อ #{link[:run].name} – ต่อตรงจุด Center แต่ไม่ได้รวมแนวท่อ " \
+                      '(เริ่มวาดจากปลายท่อนั้นเพื่อให้ต่อเป็นแนวเดียว)'
+          return
+        end
+        @points.reverse!
+        kind = same_spec?(Builder.run_settings(link[:run])) ? :append : :reduce
+        @start_link = { kind: kind, run: link[:run], tr: link[:tr], point: link[:point] }
+        load_settings if kind == :append
       end
 
       def report(warnings)
