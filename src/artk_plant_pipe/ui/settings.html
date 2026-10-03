@@ -131,6 +131,9 @@
   <fieldset style="margin-top:12px">
     <legend>ซัพพอร์ต (Pipe supports)</legend>
     <label>ชนิด<select id="support_type"></select></label>
+    <label>รวมท่อข้างเคียง – ห่างผิวท่อไม่เกิน (mm, 0 = ไม่รวม)<input type="number" id="support_group_mm" min="0" max="1500" step="50"></label>
+    <div class="info">ท่อขนานกัน ระดับใต้ท่อต่างกัน ≤ 300 mm ใช้ซัพพอร์ตตัวเดียวกัน: แขวน → Trapeze, ขาตั้ง → H-frame,
+      Sleeper → คานรองยาว, แขนผนัง/เสา → แขนยาว (≤ 1.2 m) · ท่อที่สูงกว่ามีแผ่นรอง · วาดท่อใหม่ข้างซัพพอร์ตเดิม → ขยายรับให้เอง</div>
     <div class="grid2" style="margin-top:6px">
       <button class="btn" data-cmd="auto_support">วางอัตโนมัติ<small>Auto (แนวท่อที่เลือก)</small></button>
       <button class="btn sec" data-cmd="support">วางทีละจุด<small>Support tool</small></button>
@@ -194,7 +197,7 @@ const PP = (() => {
     fill($('color_scheme'), Object.entries(D.schemes), S.color_scheme);
     fill($('support_type'), D.supports.map((v) => [v.type, v.th + (v.multi ? ' – หลายท่อ' : '')]), S.support_type);
     $('lod').value = S.lod;
-    ['insulation_mm', 'slope_pct', 'waste_pct'].forEach((k) => { $(k).value = S[k]; });
+    ['insulation_mm', 'slope_pct', 'waste_pct', 'support_group_mm'].forEach((k) => { $(k).value = S[k]; });
     ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
     $('segments').value = String(S.segments);
     ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
@@ -261,7 +264,7 @@ const PP = (() => {
       S.pipe_color = e.target.value;
     } else if (['snap45', 'centerline', 'labels'].includes(id)) {
       S[id] = e.target.checked;
-    } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments'].includes(id)) {
+    } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments', 'support_group_mm'].includes(id)) {
       S[id] = Number(e.target.value);
     } else if (id in S) {
       S[id] = e.target.value;

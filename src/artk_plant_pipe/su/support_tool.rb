@@ -2,9 +2,9 @@
 
 module ArtK
   module PlantPipe
-    # Click on a pipe to place a support of the current type.
-    # Trapeze / H-frame span every parallel pipe that crosses the click
-    # point (within 1.5 m sideways, ±0.8 m in height).
+    # Click on a pipe to place a support of the current type. Parallel
+    # pipes next to it (setting 'support_group_mm') are carried by the same
+    # support – it becomes a trapeze, H-frame, sleeper or long bracket.
     # Tab cycles the support type.
     class SupportTool
       H = ModelHelpers
@@ -54,7 +54,8 @@ module ArtK
       def onLButtonDown(_flags, _x, _y, view)
         return UI.beep unless @hit
 
-        note = Supports::TYPES[@type][:multi] ? place_multi : place_single
+        st = H.load_settings
+        note = SupportBuilder.place(@model, @type, @hit, lod: st['lod'].to_sym, steps: st['segments'])
         Sketchup.status_text = note || 'วางซัพพอร์ตแล้ว (support placed)'
         UI.messagebox(note) if note && note.include?('ไม่')
         view.invalidate
@@ -95,32 +96,6 @@ module ArtK
       end
 
       private
-
-      def place_single
-        run = @hit[:run]
-        tr = @hit[:tr]
-        inv = tr.inverse
-        at = H.transform_mm(inv, @hit[:proj])
-        dir = Vec.unit(H.from_vec(H.to_vec(@hit[:dir]).transform(inv)))
-        rec, note = SupportBuilder.record_for(@model, run, tr, @type, at, dir)
-        return note unless rec
-
-        @model.start_operation('Plant Piping: Add Support', true)
-        H.set_json(run, 'supports', H.get_json(run, 'supports', []) + [rec])
-        Builder.render(@model, run, Builder.run_settings(run))
-        @model.commit_operation
-        note
-      rescue StandardError
-        @model.abort_operation
-        raise
-      end
-
-      def place_multi
-        s = H.load_settings
-        _g, note = SupportBuilder.create_multi(@model, @type, @hit[:proj], @hit[:dir],
-                                               lod: s['lod'].to_sym, steps: s['segments'])
-        note
-      end
 
       def update_status
         Sketchup.status_text = "ซัพพอร์ต: #{Supports::TYPES[@type][:th]} – คลิกบนท่อ | Tab = เปลี่ยนชนิด (cycle type)"

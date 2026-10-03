@@ -68,6 +68,7 @@ module ArtK
         return unless UI.messagebox(msg, MB_OKCANCEL) == IDOK
 
         warnings = Builder.rebuild(model, runs, s)
+        SupportBuilder.adapt(model, runs)
         show_warnings(warnings, 'ปรับแนวท่อเรียบร้อย (runs rebuilt)')
       rescue StandardError => e
         UI.messagebox("Plant Piping: ปรับแนวท่อไม่สำเร็จ\n#{e.message}")
@@ -244,19 +245,17 @@ module ArtK
           UI.messagebox('เลือกแนวท่อที่ต้องการใส่ซัพพอร์ตก่อน (select pipe runs first)')
           return
         end
-        type = H.load_settings['support_type']
-        if Supports::TYPES[type][:multi]
-          UI.messagebox("#{Supports::TYPES[type][:th]} รองรับหลายท่อ – ใช้เครื่องมือวางซัพพอร์ต (Support tool) " \
-                        'คลิกที่ตำแหน่งที่ต้องการ (use the Support tool for multi-pipe supports)')
-          return
-        end
+        st = H.load_settings
+        type = st['support_type']
         world = H.edit_transform(model)
         notes = []
         total = 0
+        shared = 0
         risers = 0
         model.start_operation('Plant Piping: Auto Supports', true)
         runs.each do |run|
           tr = world * run.transformation
+          inv = tr.inverse
           spec = Builder.run_spec(run)
           svc = Services.get(Builder.run_settings(run)['service'])
           span = Supports.max_span_m(spec, hot: %i[hot_water steam].include?(svc[:fluid])) * 1000.0
@@ -265,20 +264,37 @@ module ArtK
             { from: g['a'], to: g['b'] }
           end
           loads = Collector.pieces(run, 'valve').map { |v| JSON.parse(v.get_attribute(H::DICT, 'at')) }
-          res = Supports.place(pipes, span, loads: loads)
+          # supports shared with neighbouring pipes already carry this run
+          fixed = SupportBuilder.shared_points(model, run.persistent_id).map { |w| H.transform_mm(inv, w) }
+          res = Supports.place(pipes, span, loads: loads, fixed: fixed)
           risers += res[:risers]
-          recs = res[:supports].map do |s|
-            rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir])
+          recs = []
+          res[:supports].each do |s|
+            at_w = H.transform_mm(tr, s[:at])
+            dir_w = Vec.unit(H.from_vec(H.to_vec(s[:dir]).transform(tr)))
+            mem = SupportBuilder.members(model, at_w, dir_w)
+            multi = Supports::TYPES[type][:multi] ? type : (mem.size > 1 && Supports::MULTI_OF[type])
+            if multi
+              _g, note = SupportBuilder.create_multi(model, multi, at_w, dir_w, base: type, lod: st['lod'].to_sym,
+                                                                                steps: st['segments'], pipes: mem, op: false)
+              SupportBuilder.drop_covered(model, at_w, mem.reject { |o| o[4] == run.persistent_id })
+              shared += 1
+            else
+              rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir])
+              recs << rec if rec
+            end
             notes << "#{run.name}: #{note}" if note
-            rec
-          end.compact
-          total += recs.size
+          rescue StandardError => e
+            notes << "#{run.name}: #{e.message}"
+          end
+          total += res[:supports].size
           H.set_json(run, 'supports', recs)
           notes.concat(Builder.render(model, run, Builder.run_settings(run)).map { |w| "#{run.name}: #{w}" })
           notes << "#{run.name}: ระยะห่างสูงสุด #{(span / 1000.0).round(2)} m (#{spec.size} #{spec.material})"
         end
         model.commit_operation
         summary = "วางซัพพอร์ต #{total} จุด (placed #{total} supports)"
+        summary += " · ใช้ร่วมกับท่อข้างเคียง #{shared} จุด" if shared.positive?
         summary += " · ท่อแนวตั้ง #{risers} ช่วง ต้องใช้ riser clamp ที่ระดับพื้น" if risers.positive?
         show_warnings(notes, summary)
       rescue StandardError => e
@@ -292,6 +308,11 @@ module ArtK
         return if runs.empty?
 
         model.start_operation('Plant Piping: Clear Supports', true)
+        ids = runs.map(&:persistent_id)
+        SupportBuilder.shared_supports(model).each do |g|
+          mem = H.get_json(g, 'members', [])
+          g.erase! if !mem.empty? && (mem - ids).empty?
+        end
         runs.each do |run|
           H.set_json(run, 'supports', [])
           Builder.render(model, run, Builder.run_settings(run))

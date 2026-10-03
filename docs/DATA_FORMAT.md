@@ -81,4 +81,16 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 - `model`
 - `fmt`
 
+**Shared supports** (group, `type = support`, added in 1.10 – new keys only, format unchanged):
+- `at` – JSON, world mm
+- `dir` – JSON
+- `support_type` – trapeze / hframe / sleeper / bracket
+- `base_type` – the type the user chose
+- `members` – JSON run persistent ids
+- `signature`
+
+Shared supports from versions before 1.10 have no `at` and are left as they are.
+
+**Settings:** `support_group_mm` (default 600, 0 = off).
+
 **Model:** `fmt` – the format the file was last upgraded to.

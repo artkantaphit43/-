@@ -52,7 +52,75 @@ module ArtK
         'bracket'  => { name: 'Wall bracket', th: 'แขนค้ำยึดผนัง (Wall bracket)', mount: :side }
       }.freeze
 
+      # Neighbouring pipes share one support when they run parallel (within
+      # GROUP_ANGLE), the clear gap between neighbouring pipe surfaces is
+      # at most the group gap (setting 'support_group_mm', chained pipe to
+      # pipe) and their bottoms are within GROUP_RISE of the first pipe's –
+      # higher pipes stand on packers, more than that is a separate support.
+      GROUP_GAP = 600.0
+      GROUP_RISE = 300.0
+      GROUP_ANGLE = 5.0
+      GROUP_WIDTH = 2500.0 # mm, widest frame / trapeze
+      BRACKET_REACH = 1200.0 # mm, longest cantilever arm
+
+      # What a single-pipe support becomes when it carries several pipes.
+      MULTI_OF = {
+        'clevis' => 'trapeze', 'beam' => 'trapeze', 'trapeze' => 'trapeze', 'stand' => 'hframe',
+        'hframe' => 'hframe', 'shoe' => 'sleeper', 'bracket' => 'bracket'
+      }.freeze
+
       module_function
+
+      # Pipes to carry together. cands: [[y, r, z, id], …] across the
+      # support (y sideways, z centre height, r radius incl. insulation);
+      # the pipe clicked is the one nearest y = 0, z = 0.
+      def group(cands, gap: GROUP_GAP, rise: GROUP_RISE, width: GROUP_WIDTH)
+        return cands.first(1) if cands.size < 2 || gap <= 0
+
+        list = cands.sort_by(&:first)
+        i0 = list.index(list.min_by { |y, _r, z| y.abs + z.abs })
+        bop0 = list[i0][2] - list[i0][1]
+        ok = ->(c) { ((c[2] - c[1]) - bop0).abs <= rise }
+        out = [list[i0]]
+        [1, -1].each do |step|
+          k = i0
+          last = list[i0]
+          loop do
+            k += step
+            break if k.negative? || k >= list.size
+
+            c = list[k]
+            next unless ok.call(c) # a pipe on another level is skipped, not a barrier
+            break if (c[0] - last[0]).abs - c[1] - last[1] > gap
+
+            ys = (out + [c]).map(&:first)
+            rmax = (out + [c]).map { |o| o[1] }.max
+            break if ys.max - ys.min + 2 * rmax > width
+
+            out << c
+            last = c
+          end
+        end
+        out.sort_by(&:first)
+      end
+
+      # Support positions along a straight pipe of length len (from its
+      # start), spans at most span_mm, the end supports e from each end,
+      # keeping supports that already exist there (fixed, from a support
+      # shared with a neighbouring pipe). Returns the new positions only.
+      def fill(len, span_mm, e, fixed = [])
+        fixed = fixed.select { |x| x >= -1.0 && x <= len + 1.0 }.sort
+        pts = fixed.dup
+        pts.unshift(e) unless pts.first && pts.first <= e + 0.25 * span_mm
+        pts.push(len - e) unless pts.last && pts.last >= len - e - 0.25 * span_mm
+        pts = pts.uniq.sort
+        out = pts - fixed
+        pts.each_cons(2) do |a, b|
+          n = ((b - a) / span_mm).ceil
+          (1...n).each { |k| out << a + (b - a) * k / n }
+        end
+        out.sort
+      end
 
       def interp(table, x)
         return table.first[1] if x <= table.first[0]
@@ -90,7 +158,9 @@ module ArtK
       # equal spacing ≤ span in between, and a support within 600 mm of every
       # concentrated load.
       # Returns { supports: [{ at:, dir:, pipe: index }], risers: n }
-      def place(pipes, span_mm, loads: [], near: 600.0)
+      # fixed: points (same coordinates as the pipes) of supports already
+      # carrying these pipes (shared with a neighbour) – kept, gaps filled.
+      def place(pipes, span_mm, loads: [], near: 600.0, fixed: [])
         out = []
         risers = 0
         pipes.each_with_index do |pp, idx|
@@ -108,7 +178,13 @@ module ArtK
           dir = Vec.scale(d, 1.0 / len)
           e = [near, span_mm / 4.0, len / 2.0].min
           free = len - 2 * e
-          xs = if free <= 1.0
+          on = fixed.filter_map do |c|
+            t = Vec.dot(Vec.sub(c, a), dir)
+            t if t > -1.0 && t < len + 1.0 && Vec.dist(Vec.add(a, Vec.scale(dir, t)), c) <= 1.0
+          end
+          xs = if on.any?
+                 fill(len, span_mm, e, on)
+               elsif free <= 1.0
                  [len / 2.0]
                else
                  n = (free / span_mm).ceil
@@ -117,7 +193,7 @@ module ArtK
           xs.each { |x| out << { at: Vec.add(a, Vec.scale(dir, x)), dir: dir, pipe: idx } }
         end
         loads.each do |c|
-          next if out.any? { |s| Vec.dist(s[:at], c) <= near }
+          next if out.any? { |s| Vec.dist(s[:at], c) <= near } || fixed.any? { |f| Vec.dist(f, c) <= near }
 
           best = nil
           pipes.each_with_index do |pp, idx|
@@ -248,8 +324,22 @@ module ArtK
           top_fixing(sub, drop, rod_r, kind)
           part.merge(sub, nut_at)
         end
-        offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [rod_r * 0.8, 4.0].max, z_top, steps) } if detailed
+        packers(part, offsets, z_top)
+        offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [rod_r * 0.8, 4.0].max, z.to_f - r, steps) } if detailed
         part
+      end
+
+      # Steel packer (stool) under each pipe that sits higher than the
+      # common bearing level z_top.
+      def packers(part, offsets, z_top)
+        offsets.each do |y, r, z|
+          bop = z.to_f - r
+          next if bop - z_top < 2.0
+
+          w = [[r * 1.2, 50.0].max, 150.0].min
+          f = M.frame([0, y, 0], [1, 0, 0], [0, 1, 0])
+          part.add(:steel, M.box(f, [0, 0, (z_top + bop) / 2.0], [100, w, bop - z_top]))
+        end
       end
 
       # Adjustable pipe stand: base plate, post, threaded adjuster, saddle, U-bolt.
@@ -299,15 +389,18 @@ module ArtK
                                  [100, 100, z_top - beam_h - zf - 12]))
           part.add(:steel, M.box(M.frame([0, y, zf], [1, 0, 0], [0, 1, 0]), [0, 0, 6], [220, 220, 12]))
         end
-        offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [0.06 * r, 5.0].max, z_top, steps) } if detailed
+        packers(part, offsets, z_top)
+        offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [0.06 * r, 5.0].max, z.to_f - r, steps) } if detailed
         part
       end
 
       # Concrete sleeper + T-shoe welded under the pipe (lets the pipe slide
       # and keeps insulation off the sleeper).
-      def shoe(pipe_r, ins, height, steps: 16)
+      # base: shoe height from the pipe centre (multi-pipe sleeper); the
+      # sleeper itself is then left to the caller (height 0).
+      def shoe(pipe_r, ins, height, steps: 16, base: nil)
         part = Mesh::Part.new
-        shoe_h = [ins + 50.0, 100.0].max
+        shoe_h = base ? base - pipe_r : [ins + 50.0, 100.0].max
         z_sleeper = -pipe_r - shoe_h
         zf = -height
         len = 300.0
@@ -324,19 +417,44 @@ module ArtK
         part
       end
 
-      # Cantilever wall bracket; the wall face is at y = -wall (pipe centre
-      # at y = 0), bracket arm under the pipe, 45° knee brace.
-      def bracket(r, wall, steps: 16, detailed: true)
+      # One concrete sleeper under several pipes, a T-shoe on each:
+      # offsets = [[y, pipe r, z, insulation], …]; floor at z = -height.
+      def sleeper(offsets, height, steps: 16)
         part = Mesh::Part.new
-        arm_top = -r - 2.0
-        s = 50.0
-        reach = wall + r + 60
+        shoe_hs = offsets.map { |_y, _r, _z, ins| [ins.to_f + 50.0, 100.0].max }
+        z_sleeper = offsets.each_with_index.map { |(_y, r, z, _), i| z.to_f - r - shoe_hs[i] }.min
+        zf = -height
+        ys = offsets.map(&:first)
+        rmax = offsets.map { |o| o[1] + o[3].to_f }.max
+        y0 = ys.min - rmax - 100
+        y1 = ys.max + rmax + 100
+        if z_sleeper - zf > 5
+          part.add(:concrete, M.box(M.frame([0, (y0 + y1) / 2.0, zf], [1, 0, 0], [0, 1, 0]),
+                                    [0, 0, (z_sleeper - zf) / 2.0], [400, y1 - y0, z_sleeper - zf]))
+        end
+        offsets.each do |y, r, z, _ins|
+          sub = shoe(r, 0.0, 0.0, steps: steps, base: z.to_f - z_sleeper)
+          part.merge(sub, M.frame([0, y, z.to_f], [1, 0, 0], [0, 1, 0]))
+        end
+        part
+      end
+
+      # Cantilever bracket on a wall / column face at y = -wall, arm under
+      # the lowest pipe out to the farthest one, 45° knee brace. offsets =
+      # [[y, r, z], …] measured from the pipe the bracket was placed on.
+      def bracket(offsets, wall, steps: 16, detailed: true)
+        offsets = [[0.0, offsets, 0.0]] if offsets.is_a?(Numeric) # single pipe: bracket(r, wall)
+        part = Mesh::Part.new
+        arm_top = offsets.map { |_y, r, z| z.to_f - r }.min - 2.0
+        s = offsets.size > 1 ? 75.0 : 50.0
+        reach = wall + offsets.map { |y, r, _z| y + r }.max + 60
         part.add(:steel, M.bar([0, -wall, arm_top - s / 2], [0, -wall + reach, arm_top - s / 2], s, s, [0, 0, 1]))
         brace = [0.7 * reach, 150.0].max
         part.add(:steel, M.bar([0, -wall + 5, arm_top - s - brace], [0, -wall + brace * 0.95, arm_top - s], 40, 40, [1, 0, 0]))
         part.add(:steel, M.box(M.frame([0, -wall, 0], [1, 0, 0], [0, 1, 0]), [0, 5, arm_top - (brace + s) / 2],
                                [120, 10, brace + s + 60]))
-        u_bolt(part, 0.0, 0.0, r, [0.06 * r, 5.0].max, arm_top, steps) if detailed
+        packers(part, offsets, arm_top)
+        offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [0.06 * r, 5.0].max, z.to_f - r - 2.0, steps) } if detailed
         part
       end
     end

@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.9.1**
-(`dist/artk_plant_pipe-1.9.1.rbz`). Tests: `rake test` (149 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.10.0**
+(`dist/artk_plant_pipe-1.10.0.rbz`). Tests: `rake test` (158 runs, all green).
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล
@@ -38,6 +38,9 @@ branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.9.1**
 - **v1.9.1**: definition ในไฟล์ผู้ใช้ที่สร้างจากเวอร์ชันเก่าถูกใช้ซ้ำ (ชื่อเดิม) → เก็บ `rev` บน definition
   (MeterModels::REV / Refs.geometry_rev) แล้วสร้างใหม่ทับที่เดิมเมื่อเปิดไฟล์ (RefModels.stale/refresh ใน Migrate.model)
   **แก้รูปทรงอุปกรณ์ที่สร้างเองเมื่อไร ต้องเพิ่ม REV ทุกครั้ง**
+- **v1.10**: ซัพพอร์ตร่วมท่อข้างเคียง (Supports.group/fill, SupportBuilder.place/adapt/create_multi) –
+  ขนาน ≤5°, ช่องว่างผิว ≤ support_group_mm (600), BOP ต่าง ≤300, กว้าง ≤2.5 m, แขนเสา ≤1.2 m · packer ใต้ท่อที่สูงกว่า ·
+  ซัพพอร์ตร่วมเก็บ at/dir/members/signature → adapt หลังวาดท่อ/Rebuild
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

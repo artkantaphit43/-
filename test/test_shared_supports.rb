@@ -1,0 +1,155 @@
+# frozen_string_literal: true
+
+require_relative 'test_helper'
+require_relative 'su_stub'
+
+module ArtK
+  module PlantPipe
+    PLUGIN_ROOT = File.expand_path('../src/artk_plant_pipe', __dir__) unless defined?(PLUGIN_ROOT)
+    VERSION = 'test' unless defined?(VERSION)
+  end
+end
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool
+   support_tool].each do |f|
+  require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
+end
+
+# Neighbouring parallel pipes share one support (H-frame, trapeze,
+# sleeper, column bracket), also when a pipe is drawn next to existing
+# supports later.
+class TestSharedSupports < Minitest::Test
+  H = ModelHelpers
+
+  def setup
+    @model = Sketchup::Model.new
+    Sketchup.active_model = @model
+    Sketchup::InputPoint.next_vertex = nil
+    Sketchup::InputPoint.next_dof = nil
+    @s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"', 'lod' => 'light')
+    # slab soffit at 4 m, floor at 0, a column face at y = −600
+    @model.ray_hits = lambda do |pt, dir|
+      if dir[2] > 0.5 then [[pt[0], pt[1], 4000.0], []]
+      elsif dir[2] < -0.5 then [[pt[0], pt[1], 0.0], []]
+      elsif dir[1] < -0.5 && pt[1] > -600 then [[pt[0], -600.0, pt[2]], []]
+      end
+    end
+    H.save_settings(@s)
+  end
+
+  def run_at(y, z = 1000, size: '2"')
+    Builder.create_run(@model, [[[0, y, z], [6000, y, z]]], @s.merge('size' => size))[0]
+  end
+
+  def shared
+    SupportBuilder.shared_supports(@model)
+  end
+
+  def hit_on(run, x)
+    Picker.nearest_pipe(@model, [x, H.get_json(run, 'cl')[0][0][1], H.get_json(run, 'cl')[0][0][2]])
+  end
+
+  def test_grouping_rules
+    c = [[0.0, 30, 0.0, 'a'], [250.0, 30, 0.0, 'b'], [1200.0, 30, 0.0, 'c'], [-200.0, 20, -100.0, 'd'],
+         [-400.0, 20, 800.0, 'e'], [-600.0, 20, 0.0, 'f']]
+    ids = Supports.group(c).map { |o| o[3] }.sort
+    # c: 890 mm clear gap – too far; e: 800 mm higher – own support (but
+    # not a barrier: f beyond it is still in)
+    assert_equal %w[a b d f], ids
+    assert_equal ['a'], Supports.group(c, gap: 0).map { |o| o[3] }
+  end
+
+  def test_fill_keeps_shared_supports_and_span
+    xs = Supports.fill(10_000.0, 3000.0, 600.0, [5000.0])
+    all = (xs + [5000.0]).sort
+    assert_in_delta 600.0, all.first, 1e-6
+    assert_in_delta 9400.0, all.last, 1e-6
+    assert(all.each_cons(2).all? { |a, b| b - a <= 3000.0 + 1e-6 })
+    refute_includes xs, 5000.0
+  end
+
+  def test_stand_on_a_pipe_with_a_neighbour_becomes_an_h_frame_for_both
+    a = run_at(0)
+    run_at(350)
+    run_at(2500) # far away – not included
+    note = SupportBuilder.place(@model, 'stand', hit_on(a, 3000))
+    assert_nil note
+    assert_equal 1, shared.size
+    g = shared.first
+    assert_equal 'hframe', g.get_attribute(H::DICT, 'support_type')
+    assert_equal 'stand', g.get_attribute(H::DICT, 'base_type')
+    assert_equal 2, H.get_json(g, 'members').size
+    assert_empty H.get_json(a, 'supports', []), 'no single stand as well'
+  end
+
+  def test_single_pipe_keeps_its_own_support
+    a = run_at(0)
+    SupportBuilder.place(@model, 'clevis', hit_on(a, 3000))
+    assert_empty shared
+    assert_equal 1, H.get_json(a, 'supports').size
+  end
+
+  def test_pipe_drawn_next_to_supports_is_taken_in
+    a = run_at(0)
+    SupportBuilder.place(@model, 'hframe', hit_on(a, 2000)) # frame for one pipe
+    SupportBuilder.place(@model, 'clevis', hit_on(a, 4500)) # single hanger
+    assert_equal 1, shared.size
+    # draw a second pipe beside them with the pipe tool
+    t = PipeTool.new
+    t.activate
+    [[0, 300, 1000], [6000, 300, 1000]].each do |p|
+      Sketchup::InputPoint.next_position = H.to_pt(p)
+      t.onMouseMove(0, 0, 0, @model.active_view)
+      t.onLButtonDown(0, 0, 0, @model.active_view)
+    end
+    t.onReturn(@model.active_view)
+    assert_equal 2, shared.size, 'H-frame widened, hanger became a trapeze'
+    assert(shared.all? { |g| H.get_json(g, 'members').size == 2 })
+    assert_equal %w[hframe trapeze], shared.map { |g| g.get_attribute(H::DICT, 'support_type') }.sort
+    assert_empty H.get_json(a, 'supports', []), 'the single hanger was replaced'
+  end
+
+  def test_column_bracket_carries_the_pipes_beside_it
+    a = run_at(0)
+    run_at(300)
+    SupportBuilder.place(@model, 'bracket', hit_on(a, 3000))
+    g = shared.first
+    assert_equal 'bracket', g.get_attribute(H::DICT, 'support_type')
+    assert_equal 2, H.get_json(g, 'members').size
+    # arm from the column (y = −600) past the far pipe (y = 300 + r + 60)
+    assert_operator g.get_attribute(H::DICT, 'member_length_mm'), :>, (600 + 300 + 30 + 60) * 1.7 - 1
+  end
+
+  def test_higher_neighbour_is_shared_lower_than_limit_only
+    a = run_at(0)
+    run_at(300, 1150)   # 150 mm higher – on a packer
+    run_at(-300, 1800)  # 800 mm higher – its own support
+    SupportBuilder.place(@model, 'stand', hit_on(a, 3000))
+    assert_equal 2, H.get_json(shared.first, 'members').size
+  end
+
+  def test_auto_supports_share_and_do_not_double_up
+    a = run_at(0)
+    b = run_at(300)
+    @model.selection.push(a)
+    @model.selection.push(b)
+    H.save_settings(@s.merge('support_type' => 'stand'))
+    Commands.auto_supports
+    refute_empty shared
+    assert(shared.all? { |g| H.get_json(g, 'members').size == 2 })
+    assert_empty H.get_json(a, 'supports', [])
+    assert_empty H.get_json(b, 'supports', []), 'b is already carried by the shared frames'
+    xs = shared.map { |g| JSON.parse(g.get_attribute(H::DICT, 'at'))[0] }.sort
+    span = Supports.max_span_m(Catalog.spec('CS_B36_10', '2"')) * 1000
+    assert(xs.each_cons(2).all? { |p, q| q - p <= span + 1e-6 })
+  end
+
+  def test_clear_removes_shared_supports_of_the_selection
+    a = run_at(0)
+    b = run_at(300)
+    SupportBuilder.place(@model, 'stand', hit_on(a, 3000))
+    @model.selection.push(a)
+    @model.selection.push(b)
+    Commands.clear_supports
+    assert_empty shared
+  end
+end

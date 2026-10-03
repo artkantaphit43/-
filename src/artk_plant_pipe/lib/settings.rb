@@ -28,6 +28,7 @@ module ArtK
         'pipe_color'    => '',      # '#rrggbb' = the user's own colour for new / rebuilt runs
         'lod'           => 'detailed', # detailed | light
         'support_type'  => 'clevis',
+        'support_group_mm' => 600.0, # neighbouring pipes within this clear gap share a support (0 = off)
         'waste_pct'     => 5.0,
         'valve_type'    => 'gate'
       }.freeze
@@ -57,6 +58,7 @@ module ArtK
         s['lod'] = %w[detailed light].include?(s['lod']) ? s['lod'] : 'detailed'
         s['support_type'] = 'clevis' unless Supports::TYPES.key?(s['support_type'])
         s['waste_pct'] = clamp(s['waste_pct'].to_f, 0.0, 50.0)
+        s['support_group_mm'] = clamp(s['support_group_mm'].to_f, 0.0, 1500.0)
         s['valve_type'] = 'gate' unless FittingsData::VALVES.key?(s['valve_type'])
         s.select { |k, _| DEFAULTS.key?(k) }
       end

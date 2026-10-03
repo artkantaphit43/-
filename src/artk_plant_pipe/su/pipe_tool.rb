@@ -446,8 +446,9 @@ module ArtK
                  'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
                  'main_service' => a['service'], 'main_pid' => run.persistent_id }
         local = segs.map { |x, y| [H.transform_mm(inv, x), H.transform_mm(inv, y)] }
-        _new_run, w = Builder.create_run(@model, local, @settings, joins: [join], op: false)
+        new_run, w = Builder.create_run(@model, local, @settings, joins: [join], op: false)
         @model.commit_operation
+        adapt_supports(new_run)
         warnings + w
       rescue StandardError
         @model.abort_operation
@@ -530,12 +531,14 @@ module ArtK
         end
         local = segs.map { |a, b| [H.transform_mm(inv, a), H.transform_mm(inv, b)] }
 
-        warnings +=
-          if target
-            Builder.extend_run(@model, target[:run], local, tees: tees)
-          else
-            Builder.create_run(@model, local, @settings, tees: tees)[1]
-          end
+        if target
+          warnings += Builder.extend_run(@model, target[:run], local, tees: tees)
+          changed = target[:run]
+        else
+          changed, w = Builder.create_run(@model, local, @settings, tees: tees)
+          warnings += w
+        end
+        adapt_supports(changed)
         warnings << @warn_end if @warn_end
         report(warnings)
         reset_state
@@ -564,6 +567,13 @@ module ArtK
         kind = same_spec?(Builder.run_settings(link[:run])) ? :append : :reduce
         @start_link = { kind: kind, run: link[:run], tr: link[:tr], point: link[:point] }
         load_settings if kind == :append
+      end
+
+      # Supports next to the new pipe take it in (shared supports).
+      def adapt_supports(run)
+        SupportBuilder.adapt(@model, [run]) if run
+      rescue StandardError => e
+        puts "Plant Piping: supports not adapted – #{e.message}"
       end
 
       def report(warnings)
