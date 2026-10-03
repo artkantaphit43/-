@@ -87,7 +87,7 @@ const PP = {
         `<div class="card" data-k="${esc(i.key)}" title="${esc(i.standard)}\n${esc(i.src)}">` +
         `<img loading="lazy" src="../refs/thumbs/${i.thumb}.jpg" alt="">` +
         `<div class="n">${esc(i.name.split(' – ')[0])}</div><div class="s">${esc(i.standard)}</div>` +
-        (i.snap ? `<div class="snap">${esc(i.snap)}${i.sized ? ' · ทุกขนาด (ปรับตามท่อ)' : ' · ใช้ขนาดตามท่ออัตโนมัติ'}</div>` : '') +
+        (i.snap ? `<div class="snap">${esc(i.snap)}${typeof i.sized === 'string' ? ' · ขนาดมาตรฐาน ' + esc(i.sized) : i.sized ? ' · ทุกขนาด (ปรับตามท่อ)' : ' · ใช้ขนาดตามท่ออัตโนมัติ'}</div>` : '') +
         '</div>').join('') + '</div>').join('')
       : '<div class="empty">ไม่พบรายการ</div>';
     document.querySelectorAll('.card').forEach(c => c.onclick = () => sketchup.insert(c.dataset.k));

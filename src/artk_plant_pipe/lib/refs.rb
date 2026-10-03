@@ -112,6 +112,30 @@ module ArtK
       # face-to-face and across it to the standard flange diameter.
       SCALABLE = { 'gate' => %w[flg150 wheel] }.freeze
 
+      # Parts made in real standard sizes instead of a scaled copy.
+      #   water meter: ISO 4064 multi-jet with threaded union ends, DN15–DN50
+      #     – DN => [laying length L mm, body / register width relative to
+      #     DN15]. Above DN50 services use flanged Woltman meters.
+      #     Only the connection (bosses, union nuts, tails) follows the pipe;
+      #     the body and register grow as real meters do.
+      #   faucet: bib taps ½"–1" (DN => scale of the ½" model)
+      METER_ISO4064 = {
+        15 => [165, 1.0], 20 => [190, 1.0], 25 => [260, 1.1], 32 => [260, 1.26], 40 => [300, 1.58], 50 => [300, 1.79]
+      }.freeze
+      FAUCET_SIZES = { 15 => 1.0, 20 => 1.15, 25 => 1.3 }.freeze
+      SIZED_TEXT = { 'water_meter' => '½"–2" (DN15–50)', 'faucet' => '½"–1"' }.freeze
+      METER_SPLIT = 44.0 # mm: body / register inside |x| ≤ this, connection outside
+
+      NPS_DN = {
+        0.125 => 6, 0.25 => 8, 0.375 => 10, 0.5 => 15, 0.75 => 20, 1.0 => 25, 1.25 => 32, 1.5 => 40, 2.0 => 50,
+        2.5 => 65, 3.0 => 80, 3.5 => 90, 4.0 => 100, 5.0 => 125, 6.0 => 150, 8.0 => 200, 10.0 => 250, 12.0 => 300
+      }.freeze
+      # metric plastic pipe OD => DN (ISO 4065 / DIN 8074)
+      OD_DN = {
+        16 => 10, 20 => 15, 25 => 20, 32 => 25, 40 => 32, 50 => 40, 63 => 50, 75 => 65, 90 => 80, 110 => 100,
+        125 => 100, 140 => 125, 160 => 150, 200 => 200, 250 => 250, 315 => 300
+      }.freeze
+
       # Companion flanges bolted to each end of a flanged / wafer / lug valve.
       FLANGED = %w[flg150 lug150 wafer150 jis10k flgpn pl_flg].freeze
 
@@ -135,9 +159,78 @@ module ArtK
           !items.empty?
         end
 
+        # Item by key; a standard-size key ("…@DN25-33.4") gives its base part.
         def get(key)
           @by_key ||= items.to_h { |i| [i['key'], i] }
-          @by_key[key]
+          @by_key[key] || @by_key[key.to_s.sub(/@DN[\d.-]+\z/, '')]
+        end
+
+        # ---------------- standard sizes ----------------
+
+        def sized_type?(item)
+          SIZED_TEXT.key?(item['type'])
+        end
+
+        # Nominal diameter of a pipe spec (DN).
+        def dn_for(spec)
+          if spec.nps_in
+            NPS_DN.min_by { |n, _| (n - spec.nps_in.to_f).abs }[1]
+          else
+            OD_DN.min_by { |od, _| (od - spec.od.to_f).abs }[1]
+          end
+        end
+
+        # The part in the standard size for +spec+ (an item hash with its own
+        # key, ports and bounding box), or nil when no such size is made.
+        def sized_item(item, spec)
+          dn = dn_for(spec)
+          table = item['type'] == 'water_meter' ? METER_ISO4064 : FAUCET_SIZES
+          return nil unless table.key?(dn)
+
+          key = "#{item['key']}@DN#{dn}-#{spec.od.to_f.round(1)}"
+          @sized ||= {}
+          @sized[key] ||= begin
+            f = sizing(item, dn, spec.od)
+            ports = item['ports'].map do |pt|
+              pt.merge('p' => f.call(pt['p']), 'ri' => pt['ri'] * f.radial, 'ro' => pt['ro'] * f.radial,
+                       'depth' => pt['depth'] && pt['depth'] * f.radial)
+            end
+            box = mesh(item)[:verts].map { |v| f.call(v) }
+            item.merge('key' => key, 'sized_from' => item['key'], 'size' => spec.size,
+                       'dn' => dn, 'scalable' => false, 'ports' => ports, 'pipe_od' => spec.od,
+                       'bbox' => [box.transpose.map(&:min), box.transpose.map(&:max)], 'sizing' => f)
+          end
+        end
+
+        Sizing = Struct.new(:fn, :radial) do
+          def call(p)
+            fn.call(p)
+          end
+        end
+
+        # Point map from the modelled size to DN +dn+ on a pipe of +od+.
+        def sizing(item, dn, od)
+          kp = od.to_f / item['pipe_od'].to_f
+          if item['type'] == 'water_meter'
+            len, kh = METER_ISO4064[dn]
+            l15 = METER_ISO4064[15][0]
+            half0 = item['ports'].map { |pt| pt['p'][0].abs }.max
+            half = half0 * len / l15.to_f
+            xc = METER_SPLIT
+            ka = (half - xc * kh) / (half0 - xc)
+            fn = lambda do |(x, y, z)|
+              if x.abs <= xc
+                [x * kh, y * kh, z * kh]
+              else
+                s = x.negative? ? -1.0 : 1.0
+                [s * (xc * kh + (x.abs - xc) * ka), y * kp, z * kp]
+              end
+            end
+            Sizing.new(fn, kp)
+          else
+            k = FAUCET_SIZES[dn]
+            Sizing.new(->(p) { p.map { |c| c * k } }, k)
+          end
         end
 
         # First item matching all given attributes (string keys) with ports.
@@ -212,7 +305,18 @@ module ArtK
         # [[vertex index…]], soft: [[bool…]] }] }
         def mesh(item)
           @mesh_cache ||= {}
-          @mesh_cache[item['key']] ||= decode(item)
+          @mesh_cache[item['key']] ||= if item['sized_from']
+                                         sized_mesh(mesh(get(item['sized_from'])), item['sizing'])
+                                       else
+                                         decode(item)
+                                       end
+        end
+
+        def sized_mesh(m, f)
+          faces = m[:faces].map do |fc|
+            fc[:pins] ? fc.merge(pins: fc[:pins].map { |pt, uv| [f.call(pt), uv] }) : fc
+          end
+          { verts: m[:verts].map { |v| f.call(v) }, faces: faces }
         end
 
         def decode(item)
@@ -330,14 +434,18 @@ module ArtK
 
         def display_name(item)
           th, en = TYPE_NAMES.fetch(item['type'], [item['type'], item['type']])
-          size = item['scalable'] ? 'ทุกขนาด' : [item['size'], item['size2']].compact.join(' x ')
+          size = if item['sized_from'] then item['size']
+                 elsif sized_type?(item) then SIZED_TEXT[item['type']]
+                 elsif item['scalable'] then 'ทุกขนาด'
+                 else [item['size'], item['size2']].compact.join(' x ')
+                 end
           extra = [OPERATORS[item['operator']], { 'lr' => 'รัศมียาว', 'sr' => 'รัศมีสั้น' }.fetch(item['variant'], item['variant'])].compact
-          fam = item['scalable'] ? nil : FAMILY_NAMES[item['family']]
+          fam = item['scalable'] || item['sized_from'] ? nil : FAMILY_NAMES[item['family']]
           "#{th} #{size} #{fam}#{" (#{extra.join(', ')})" unless extra.empty?} – #{en}".squeeze(' ')
         end
 
         def reset!
-          @index = @by_key = @bin = @mesh_cache = nil
+          @index = @by_key = @bin = @mesh_cache = @sized = nil
         end
       end
     end

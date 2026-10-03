@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers builder ref_models ref_builder support_builder collector picker reports library commands
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports library commands
    ref_browser].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
@@ -82,16 +82,56 @@ class TestRefs < Minitest::Test
     assert_in_delta(-el['ports'][0]['depth'], m[0], 1e-9)
   end
 
-  def test_meter_on_a_2in_pvc_line_is_scaled_to_the_pipe
+  def test_meter_takes_its_iso4064_size_not_a_blown_up_copy
     s = Settings.sanitize('service' => 'CW', 'catalog' => 'PVC_TIS17', 'size' => '2"')
     run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
     meter = item('water_meter')
     v = Builder.add_valve(@model, run, 'water_meter', [1500.0, 0, 0], [1.0, 0, 0], model_key: meter['key'])
-    assert_equal meter['key'], v.get_attribute(H::DICT, 'model')
-    a, b = meter['ports'].map { |p| H.transform_mm(v.transformation, p['p']) }
-    k = 60.0 / 21.4
-    assert_in_delta Vec.dist(*meter['ports'].map { |p| p['p'] }) * k, Vec.dist(a, b), 0.01
+    assert_equal meter['key'], v.get_attribute(H::DICT, 'model'), 'base key stored – rebuilds find it'
+    sized = Refs.sized_item(meter, Settings.spec(s))
+    assert_equal 50, sized['dn']
+    a, b = sized['ports'].map { |p| H.transform_mm(v.transformation, p['p']) }
+    # ISO 4064 DN50 L = 300 (the ½" model's 165 → 166.9 incl. tails)
+    assert_in_delta 300.0 * 166.88 / 165.0, Vec.dist(a, b), 0.05
     assert Vec.near?(Vec.scale(Vec.add(a, b), 0.5), [1500.0, 0, 0], 0.01), 'ends on the pipe axis'
+    # register grows as real meters do (×1.79), not with the pipe (×2.8)
+    mn, mx = sized['bbox']
+    assert_in_delta 81.8 * 1.79, mx[2] - mn[2], 1.0
+    assert_in_delta 60.0 / 21.4 * 12.0, sized['ports'][0]['ri'], 0.01, 'tail fits the pipe'
+    assert_includes v.definition.name, '@DN50'
+  end
+
+  def test_meter_sizes_follow_the_standard_table
+    meter = item('water_meter')
+    gap = lambda do |cat, size|
+      it = Refs.sized_item(meter, Catalog.spec(cat, size))
+      it && Vec.dist(*it['ports'].map { |p| p['p'] })
+    end
+    assert_in_delta 166.88, gap.call('GSP_BS1387', '1/2"'), 0.01, '½" is the model itself'
+    assert_in_delta 190 * 166.88 / 165, gap.call('GSP_BS1387', '3/4"'), 0.01
+    assert_in_delta 260 * 166.88 / 165, gap.call('HDPE_PE100', '32 mm'), 0.01, 'metric pipe → DN25'
+    assert_nil gap.call('CS_B36_10', '3"'), 'no threaded meter above DN50'
+  end
+
+  def test_meter_on_a_too_big_pipe_is_not_snapped
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
+    tool = RefPlaceTool.new(item('water_meter'))
+    tool.instance_variable_set(:@model, @model)
+    tool.instance_variable_set(:@angle, 0.0)
+    pl = tool.placement([1500.0, 0.0, 30.0])
+    assert_equal :free, pl[:mode]
+    assert_includes pl[:tip], 'ขนาดมาตรฐาน'
+  end
+
+  def test_old_meter_on_a_big_pipe_survives_a_rebuild
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
+    run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
+    meter = item('water_meter')
+    Builder.add_valve(@model, run, 'water_meter', [1500.0, 0, 0], [1.0, 0, 0], model_key: meter['key'])
+    warnings = Builder.render(@model, run, s)
+    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'valve' }, 'kept, never dropped'
+    assert(warnings.any? { |w| w.include?('ไม่มีขนาดมาตรฐาน') })
   end
 
   def test_placing_a_faucet_at_a_pipe_end
@@ -102,13 +142,15 @@ class TestRefs < Minitest::Test
     tool.instance_variable_set(:@angle, 0.0)
     pl = tool.placement([1990.0, 0.0, 10.0])
     assert_equal :end, pl[:mode]
-    k = Refs.scale_for(pl[:item], Catalog.spec('GSP_BS1387', '1"').od)
-    assert_in_delta 33.8 / 21.4, k, 1e-9
-    p = pl[:item]['ports'][0]['p'].map { |c| c * k }
+    assert_equal 1.0, pl[:k]
+    assert_equal 25, pl[:item]['dn']
+    assert_in_delta 1.3 * 10.48, pl[:item]['ports'][0]['ri'], 1e-6, '1" bib tap'
+    p = pl[:item]['ports'][0]['p']
     f = pl[:frame]
     at = Vec.add(f[:o], Vec.add(Vec.add(Vec.scale(f[:x], p[0]), Vec.scale(f[:y], p[1])), Vec.scale(f[:z], p[2])))
     assert Vec.near?(at, [2000.0, 0.0, 0.0], 0.01), at.inspect
     assert Vec.near?(f[:y], [0.0, 0.0, 1.0], 1e-6), 'spout hangs down (canonical +Y up)'
+    assert_nil Refs.sized_item(item('faucet'), Catalog.spec('GSP_BS1387', '2"')), 'no 2" bib tap'
   end
 
   def test_gauge_mounts_on_top_of_the_pipe_at_its_own_size

@@ -84,7 +84,7 @@ module ArtK
       end
 
       def ref_attrs(item)
-        { 'model' => item['key'], 'model_source' => item['src_name'], 'standard' => item['standard'] }
+        { 'model' => item['sized_from'] || item['key'], 'model_source' => item['src_name'], 'standard' => item['standard'] }
       end
 
       def render_ref_elbow(ctx, d, item)

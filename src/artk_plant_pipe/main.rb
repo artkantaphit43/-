@@ -9,11 +9,11 @@ module ArtK
 
     # Pure engineering core (no SketchUp API – unit tested outside SketchUp)
     %w[vec catalog services fittings_data hydraulics network bom supports settings profile run_check clash
-       mesh valve_models parts refs].each do |f|
+       mesh valve_models parts refs data_format].each do |f|
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
     # SketchUp integration
-    %w[model_helpers builder ref_models ref_builder support_builder collector picker pipe_tool valve_tool support_tool reports
+    %w[model_helpers migrate builder ref_models ref_builder support_builder collector picker pipe_tool valve_tool support_tool reports
        library commands dialog ref_browser].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
@@ -100,6 +100,14 @@ module ArtK
         unless runs.empty?
           %i[rebuild auto_support clear_support flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
         end
+      end
+
+      # drawings from older versions: upgrade their data on open
+      Sketchup.add_observer(Migrate::AppObserver.new)
+      begin
+        Migrate.model(Sketchup.active_model) if Sketchup.active_model
+      rescue StandardError => e
+        puts "Plant Piping: data upgrade failed – #{e.message}"
       end
 
       file_loaded(__FILE__)

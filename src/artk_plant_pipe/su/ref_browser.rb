@@ -43,7 +43,7 @@ module ArtK
             { key: i['key'], name: Refs.display_name(i), type: i['type'], family: i['family'],
               family_name: Refs::FAMILY_NAMES[i['family']] || i['family'], size: i['size'].to_s,
               nps: i['nps'] || 0, group: GROUPS.fetch(i['type'], 'valves'), standard: i['standard'].to_s,
-              snap: MOUNT_TEXT[Refs.mount(i)], sized: i['scalable'] ? true : false, src: i['src_name'],
+              snap: MOUNT_TEXT[Refs.mount(i)], sized: Refs::SIZED_TEXT[i['type']] || (i['scalable'] ? true : false), src: i['src_name'],
               thumb: Refs.thumb_name(i) }
           end
         end
@@ -59,7 +59,8 @@ module ArtK
           size = [item['size'], item['size2']].compact.join(' x ')
           size = "#{size} ×#{k.round(2)}" if k != 1.0
           { 'type' => 'component', 'category' => cat, 'size' => size, 'material' => item['standard'],
-            'name_desc' => Refs::TYPE_NAMES.fetch(item['type'], [nil, item['type']])[1], 'model' => item['key'] }
+            'name_desc' => Refs::TYPE_NAMES.fetch(item['type'], [nil, item['type']])[1],
+            'model' => item['sized_from'] || item['key'], DataFormat::KEY => DataFormat::CURRENT }
         end
 
         def insert(key)
@@ -167,6 +168,10 @@ module ArtK
       # Part for this pipe: the library part of that size, else the chosen
       # one scaled to the pipe.
       def fit(spec)
+        if Refs.sized_type?(@item)
+          it = Refs.sized_item(@item, spec)
+          return it && [it, 1.0]
+        end
         it = @item['scalable'] ? nil : Refs.variant_for(@item, spec)
         it ? [it, 1.0] : [@item, Refs.scale_for(@item, spec.od)]
       end
@@ -187,6 +192,8 @@ module ArtK
         hit = Picker.nearest_pipe(@model, pt, extra: 50.0) or return nil
         spec = Builder.run_spec(hit[:run])
         it, = fit(spec)
+        return no_size(pt, spec) unless it
+
         type = it['type']
         kx, kr = Builder.valve_scale(type, spec, it)
         len = Builder.ref_valve_length(spec, it, type)
@@ -212,6 +219,8 @@ module ArtK
         u = Vec.unit(H.from_vec(H.to_vec(u_local).transform(e[:tr])))
         spec = Builder.run_spec(run)
         it, k = fit(spec)
+        return no_size(pt, spec) unless it
+
         m = Refs.mouth_point(it, 0, e[:world], u, k)
         frame = Refs.port_frame(it, 0, m, u, roll(u, [0.0, 0.0, 1.0]), k)
         { mode: :end, item: it, k: k, frame: frame,
@@ -228,6 +237,11 @@ module ArtK
         { mode: :top, item: @item, k: 1.0, frame: frame, tip: "#{Refs.display_name(@item).split(' – ').first} บน #{hit[:run].name}" }
       end
 
+      def no_size(pt, spec)
+        free_place(pt).merge(tip: "#{Refs::TYPE_NAMES[@item['type']][0]} มีขนาดมาตรฐาน " \
+                                  "#{Refs::SIZED_TEXT[@item['type']]} – ไม่มีสำหรับท่อ #{spec.size}")
+      end
+
       def free_place(pt)
         x = [Math.cos(@angle), Math.sin(@angle), 0.0]
         tip = Refs.mount(@item) ? 'วางอิสระ – ชี้ที่ท่อเพื่อสแนป' : 'วางอิสระ (← → หมุน)'
@@ -242,7 +256,7 @@ module ArtK
           inv = hit[:tr].inverse
           at = H.transform_mm(inv, place[:at])
           dir = Vec.unit(H.from_vec(H.to_vec(hit[:dir]).transform(inv)))
-          Builder.add_valve(@model, hit[:run], place[:item]['type'], at, dir, model_key: place[:item]['key'])
+          Builder.add_valve(@model, hit[:run], place[:item]['type'], at, dir, model_key: place[:item]['sized_from'] || place[:item]['key'])
         else
           place_instance(place)
         end

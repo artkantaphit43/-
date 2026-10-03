@@ -178,6 +178,10 @@ module Sketchup
     def attribute_dictionary(d)
       dicts[d]
     end
+
+    def delete_attribute(d, k)
+      dicts[d]&.delete(k)
+    end
   end
 
   class Entity

@@ -132,6 +132,10 @@ module ArtK
       # (Re)generate all geometry of +run+ from its stored data.
       # Returns an array of warning strings.
       def render(model, run, settings)
+        if Migrate.entity(model, run, rebuild: false) == :newer
+          return ['วาดด้วยเวอร์ชันใหม่กว่า – อัปเดตปลั๊กอินก่อนแก้ไข (ไม่ได้แก้ไขท่อนี้)']
+        end
+
         settings = Settings.sanitize(settings)
         spec = Settings.spec(settings)
         svc = Services.get(settings['service'])
@@ -186,7 +190,8 @@ module ArtK
         add_centerline(ctx, cl) if settings['centerline']
 
         extras.each { |x| x['remark'] ||= 'wall thickness estimated' } if spec.estimated
-        H.set_attrs(run, ctx[:common].merge('type' => 'run', 'seq' => seq, 'joint' => spec.joint))
+        H.set_attrs(run, ctx[:common].merge('type' => 'run', 'seq' => seq, 'joint' => spec.joint,
+                                            DataFormat::KEY => DataFormat::CURRENT))
         H.set_json(run, 'settings', settings)
         H.set_json(run, 'extras', extras)
         H.set_json(run, 'warnings', warnings.uniq.first(50))
@@ -572,6 +577,13 @@ module ArtK
       def place_valve(ctx, type, at, dir, model: nil)
         spec = ctx[:spec]
         chosen = model && Refs.get(model)
+        if chosen && Refs.sized_type?(chosen)
+          # meters / taps come in standard sizes; a pipe outside their range
+          # keeps the part (scaled, as drawn before) and gets a warning
+          sized = Refs.sized_item(chosen, spec)
+          (ctx[:warnings] ||= []) << "#{Refs.display_name(chosen).split(' – ').first}: ไม่มีขนาดมาตรฐานสำหรับท่อ #{spec.size}" unless sized
+          chosen = sized || chosen
+        end
         dir = Vec.unit(dir)
         up = stem_direction(dir)
         if chosen # picked by the user from the reference library
