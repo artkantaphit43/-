@@ -15,11 +15,13 @@ module ArtK
       # Upgrades every record in the model. Returns
       # { upgraded: n, newer: n, rebuilt: n }.
       def model(model)
-        res = { upgraded: 0, newer: 0, rebuilt: 0 }
+        res = { upgraded: 0, newer: 0, rebuilt: 0, parts: 0 }
         todo = records(model.entities).reject { |e| DataFormat.version(H.attrs(e)) == DataFormat::CURRENT }
-        return res if todo.empty?
+        parts, mats = RefModels.stale(model)
+        return res if todo.empty? && parts.empty? && mats.empty?
 
         model.start_operation('Plant Piping: Upgrade Data', true)
+        res[:parts] = RefModels.refresh(model, parts, mats)
         todo.each do |e|
           st = entity(model, e)
           res[st] += 1 if res.key?(st)

@@ -446,6 +446,7 @@ module Sketchup
   end
 
   class Material
+    include Attributable
     attr_accessor :color, :alpha, :name, :texture
 
     def initialize(n)

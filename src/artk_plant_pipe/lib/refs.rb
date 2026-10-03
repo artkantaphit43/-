@@ -231,6 +231,11 @@ module ArtK
           end
         end
 
+        # Revision of an item's geometry (stored on its definition).
+        def geometry_rev(item)
+          item['generated'] ? MeterModels::REV : 1
+        end
+
         # Bolt holes of a flange model: { 'pcd', 'angles' (about +X, from
         # +Y toward +Z), 'hole' (dia), 'thick' } or nil.
         def flange_bolting(fl)

@@ -30,6 +30,13 @@ Current format: **2** (`DataFormat::CURRENT`, `src/artk_plant_pipe/lib/data_form
 - before any run is rebuilt (`Builder.render`)
 - on parts pasted in from older files
 
+## Part geometry revisions
+
+Component definitions built by the extension carry a `rev` (`Refs.geometry_rev`;
+`MeterModels::REV` for generated meters). When a model is opened, definitions with an
+older `rev` are rebuilt in place, so every copy in the file updates.
+**Raise the rev whenever a generated part's geometry changes.**
+
 ## Keys
 
 **Run** (group, `type = run`):

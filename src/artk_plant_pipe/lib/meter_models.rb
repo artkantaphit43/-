@@ -42,6 +42,11 @@ module ArtK
         GREY => [206, 208, 206, 1.0], GLASS => [214, 228, 236, 0.35], DARK => [40, 42, 46, 1.0]
       }.freeze
 
+      # Geometry revision: raise on every change of the model so definitions
+      # already in users' files are rebuilt (RefModels.definition).
+      #   1 – v1.8  2 – v1.9 full bolting, valve colours
+      REV = 2
+
       REGISTER_R = 58.0 # mm – dry register head, same on all sizes
       GAP = 0.3         # mm between parts that only touch (no shared faces)
 

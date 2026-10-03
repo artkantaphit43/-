@@ -41,18 +41,72 @@ module ArtK
           name = "PP Ref #{item['key']}#{' (plain)' if plain}"
           defs = model.definitions
           d = defs[name]
-          return d if d && d.get_attribute(H::DICT, 'type') == 'part' && H.faces?(d.entities)
+          return d if current?(d, item)
 
-          d = defs.add(name)
-          d.set_attribute(H::DICT, 'type', 'part')
-          d.set_attribute(H::DICT, 'ref_key', item['key'])
-          d.description = [item['standard'], item['src_name']].compact.join(' – ')
-          fill(model, d.entities, Refs.mesh(item), plain: plain)
+          # a definition from an older version is rebuilt in place, so every
+          # copy already in the model takes the new geometry
+          d ||= defs.add(name)
+          d.entities.clear!
+          build(model, d, item, plain)
           unless H.faces?(d.entities)
             defs.remove(d) if defs.respond_to?(:remove)
             raise "reference model #{item['key']} produced no faces"
           end
           d
+        end
+
+        def current?(d, item)
+          d && d.get_attribute(H::DICT, 'type') == 'part' && H.faces?(d.entities) &&
+            (d.get_attribute(H::DICT, 'rev') || 1) == Refs.geometry_rev(item)
+        end
+
+        def build(model, d, item, plain)
+          d.set_attribute(H::DICT, 'type', 'part')
+          d.set_attribute(H::DICT, 'ref_key', item['key'])
+          d.set_attribute(H::DICT, 'rev', Refs.geometry_rev(item))
+          d.description = [item['standard'], item['src_name']].compact.join(' – ')
+          fill(model, d.entities, Refs.mesh(item), plain: plain)
+        end
+
+        # On opening a model: generated parts drawn by an older version
+        # (their size read from a placed copy) and dial images tinted by
+        # v1.5–v1.8. Returns [[definition, item]…, [material, image]…].
+        def stale(model)
+          parts = model.definitions.to_a.filter_map do |d|
+            key = d.get_attribute(H::DICT, 'ref_key').to_s
+            next unless key.start_with?('gen:')
+
+            inst = d.instances.find { |i| i.valid? && i.get_attribute(H::DICT, 'size') }
+            next unless inst
+
+            base = Refs.get(inst.get_attribute(H::DICT, 'model').to_s)
+            spec = Catalog.spec(inst.get_attribute(H::DICT, 'catalog'), inst.get_attribute(H::DICT, 'size'))
+            item = base && Refs.sized_item(base, spec)
+            [d, item] if item && !current?(d, item)
+          rescue StandardError
+            nil
+          end
+          mats = Refs.materials.keys.filter_map do |key|
+            tex = Refs.texture_path(key)
+            mat = model.materials["PP_Src #{key.split(':', 2).last}"]
+            [mat, tex] if tex && mat && File.exist?(tex) && !mat.get_attribute(H::DICT, 'clean_texture')
+          end
+          [parts, mats]
+        end
+
+        def refresh(model, parts, mats)
+          mats.each { |mat, tex| clean_texture(mat, tex) }
+          parts.each do |d, item|
+            d.entities.clear!
+            build(model, d, item, false)
+          end
+          parts.size
+        end
+
+        # Image without tint; flagged so it is done once per file.
+        def clean_texture(mat, tex)
+          mat.texture = tex if mat.respond_to?(:texture=)
+          mat.set_attribute(H::DICT, 'clean_texture', true)
         end
 
         def fill(model, ents, mesh, plain: false)
@@ -168,11 +222,7 @@ module ArtK
           tex = Refs.texture_path(key)
           if tex && File.exist?(tex)
             mat = model.materials[name] || model.materials.add(name)
-            done = (@fresh_texture ||= {})
-            if mat.respond_to?(:texture=) && (mat.texture.nil? || !done[[model.object_id, name]])
-              mat.texture = tex
-              done[[model.object_id, name]] = true
-            end
+            clean_texture(mat, tex) if mat.texture.nil? || !mat.get_attribute(H::DICT, 'clean_texture')
             mat.alpha = rgb[3] if rgb[3] && rgb[3] < 1.0
             return mat
           end

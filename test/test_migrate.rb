@@ -108,4 +108,31 @@ class TestMigrate < Minitest::Test
     assert_equal before, main.entities.to_a.size, 'not cleared'
     assert_equal DataFormat::CURRENT + 1, main.get_attribute(H::DICT, 'fmt')
   end
+
+  # v1.8 left its own meter geometry in the file under the same name;
+  # opening the file must replace it (it was reused unchanged in v1.9).
+  def test_v1_8_meter_in_the_file_is_rebuilt_on_open
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'lod' => 'detailed')
+    run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], s)
+    base = Refs.items.find { |i| i['type'] == 'water_meter' }
+    v = Builder.add_valve(@model, run, 'water_meter', [1500.0, 0, 0], [1.0, 0, 0], model_key: base['key'])
+    d = v.definition
+    # turn it into what v1.8 stored: no revision, painted blue body
+    d.entities.clear!
+    d.dicts[H::DICT].delete('rev')
+    old = @model.materials.add('PP_Src Woltman Body Blue')
+    d.entities.add_face([H.to_pt([0, 0, 0]), H.to_pt([10, 0, 0]), H.to_pt([0, 10, 0])]).material = old
+    dial = @model.materials.add('PP_Src водяной счетчик')
+    dial.color = Sketchup::Color.new(223, 224, 223) # tinted by v1.8
+
+    res = Migrate.model(@model)
+    assert_equal 1, res[:parts]
+    assert_equal MeterModels::REV, d.get_attribute(H::DICT, 'rev')
+    faces = d.entities.grep(Sketchup::Face)
+    assert_operator faces.size, :>, 500, 'full bolting geometry'
+    assert(faces.none? { |f| f.material == old }, 'old blue paint gone – valve colour')
+    assert dial.get_attribute(H::DICT, 'clean_texture')
+    refute_nil dial.texture
+    assert_equal 0, Migrate.model(@model)[:parts], 'nothing left to do on the next open'
+  end
 end
