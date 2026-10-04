@@ -143,6 +143,7 @@ module ArtK
           when 'register' then Sketchup.active_model.select_tool(RegisterModelTool.new)
           when 'library' then SettingsDialog.library
           when 'parts' then RefBrowser.show
+          when 'pick_color' then Sketchup.active_model.select_tool(ColorPickTool.new)
           end
         end
       end

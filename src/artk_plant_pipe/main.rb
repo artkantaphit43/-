@@ -14,7 +14,7 @@ module ArtK
     end
     # SketchUp integration
     %w[model_helpers migrate builder ref_models ref_builder support_builder collector picker pipe_tool valve_tool support_tool reports
-       library commands dialog ref_browser].each do |f|
+       library commands dialog ref_browser color_pick_tool].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
 

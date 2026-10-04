@@ -643,8 +643,14 @@ module Sketchup
   end
 
   class Model
+    attr_reader :tool
+
     def active_view
       @active_view ||= View.new
+    end
+
+    def select_tool(tool)
+      @tool = tool
     end
   end
 end

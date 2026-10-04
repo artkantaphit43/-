@@ -9,7 +9,8 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool].each do |f|
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool
+   color_pick_tool].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
 
@@ -322,5 +323,33 @@ class TestPipeTool < Minitest::Test
     click(t, [5000, 0, 1000])
     t.onReturn(@view)
     assert_in_delta 950.0, cl_points(runs.first)[1][2], 1e-6
+  end
+
+  def test_eyedropper_reads_the_colour_shown_in_the_model
+    green = @model.materials.add('g')
+    green.color = Sketchup::Color.new(34, 79, 34)
+    red = @model.materials.add('r')
+    red.color = Sketchup::Color.new(200, 30, 36)
+    plain = Sketchup::Face.new
+    painted = Sketchup::Face.new
+    painted.material = red
+    outer = Sketchup::Group.new
+    inner = Sketchup::Group.new
+    inner.material = green
+    assert_equal [200, 30, 36], ColorPickTool.color_of(painted, [outer, inner, painted]), 'face paint wins'
+    assert_equal [34, 79, 34], ColorPickTool.color_of(plain, [outer, inner, plain]), 'nearest group colour'
+    assert_nil ColorPickTool.color_of(plain, [outer, plain])
+    assert_equal '#224f22', ColorPickTool.hex([34, 79, 34])
+  end
+
+  def test_eyedropper_sets_the_pipe_colour_for_new_pipes
+    H.save_settings(Settings.sanitize('service' => 'CW'))
+    ColorPickTool.new.apply('#224f22')
+    assert_equal '#224f22', H.load_settings['pipe_color']
+    t = tool_with(H.load_settings)
+    click(t, [0, 0, 0])
+    click(t, [2000, 0, 0])
+    t.onReturn(@view)
+    assert_equal [34, 79, 34], runs.first.entities.find { |e| H.type_of(e) == 'pipe' }.material.color.rgb
   end
 end

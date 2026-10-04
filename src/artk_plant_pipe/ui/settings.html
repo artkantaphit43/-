@@ -104,6 +104,10 @@
     <label>สีท่อ (Colours)<select id="color_scheme"></select></label>
     <label class="chk"><input type="checkbox" id="use_color"><span>กำหนดสีท่อเอง</span>
       <input type="color" id="pipe_color" value="#2f80ed" style="margin-left:8px;width:48px;height:24px;padding:0"></label>
+    <div class="grid2" style="margin-top:4px">
+      <button class="btn sec" data-cmd="pick_color">ดูดสีจากโมเดล<small>คลิกท่อ/ผิวใน SketchUp</small></button>
+      <label>รหัสสี<input type="text" id="pipe_hex" placeholder="#22a14a" maxlength="7" style="min-width:84px;font-family:monospace"></label>
+    </div>
     <div class="info">สีเองใช้กับท่อที่วาดใหม่ และท่อที่เลือกเมื่อกด "ปรับท่อที่เลือก"</div>
     <label>ระดับรายละเอียด<select id="lod">
       <option value="detailed">ละเอียด – รูน็อต, ซี่พวงมาลัย, บ่าข้อต่อ</option>
@@ -203,6 +207,7 @@ const PP = (() => {
     ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
     $('use_color').checked = !!S.pipe_color;
     if (S.pipe_color) $('pipe_color').value = S.pipe_color;
+    $('pipe_hex').value = S.pipe_color || '';
     info();
   }
 
@@ -262,6 +267,15 @@ const PP = (() => {
       S.pipe_color = e.target.checked ? $('pipe_color').value : '';
     } else if (id === 'pipe_color') {
       S.pipe_color = e.target.value;
+      $('use_color').checked = true;
+      $('pipe_hex').value = S.pipe_color;
+    } else if (id === 'pipe_hex') {
+      let v = e.target.value.trim().toLowerCase();
+      if (!v.startsWith('#')) v = '#' + v;
+      if (!/^#[0-9a-f]{6}$/.test(v)) return;
+      S.pipe_color = v;
+      $('pipe_color').value = v;
+      $('use_color').checked = true;
     } else if (['snap45', 'centerline', 'labels'].includes(id)) {
       S[id] = e.target.checked;
     } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments', 'support_group_mm'].includes(id)) {
