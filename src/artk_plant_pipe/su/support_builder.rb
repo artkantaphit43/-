@@ -343,6 +343,38 @@ module ArtK
         raise
       end
 
+      # A column beside the pipe at +point+: the nearest object within
+      # SIDE_SEARCH sideways whose width along the pipe is column-like
+      # (≤ 1.2 m). Returns the support point moved along the pipe to just
+      # outside the column's side face nearest the click:
+      # { at:, v: (toward the column), wall:, depth:, out: (unit, away
+      # from the column along the pipe), moved: } or nil.
+      def find_column(model, point, dir)
+        x = horizontal(dir)
+        lat = Vec.cross(UP, x)
+        cands = [lat, Vec.scale(lat, -1.0)].filter_map do |v|
+          h = cast(model, point, v, max_dist: SIDE_SEARCH) or next
+          inside = Vec.add(h[:point], Vec.scale(v, 5.0))
+          fwd = cast(model, inside, x, max_dist: 1500.0) or next
+          back = cast(model, inside, Vec.scale(x, -1.0), max_dist: 1500.0) or next
+          next if Vec.dist(fwd[:point], back[:point]) > 1200.0
+
+          deep = cast(model, inside, v, max_dist: 1500.0)
+          { h: h[:point], v: v, fwd: fwd[:point], back: back[:point],
+            depth: deep ? Vec.dist(deep[:point], h[:point]) : 300.0 }
+        end
+        c = cands.min_by { |cc| Vec.dist(cc[:h], point) } or return nil
+
+        # the side face nearer the click; the arm stands just outside it
+        df = Vec.dot(Vec.sub(c[:fwd], point), x)
+        db = Vec.dot(Vec.sub(c[:back], point), x)
+        face, out = df.abs <= db.abs ? [df, x] : [db, Vec.scale(x, -1.0)]
+        shift = face + Vec.dot(out, x) * (Supports::COLUMN_PLATE + Supports::COLUMN_ARM / 2.0)
+        at = Vec.add(point, Vec.scale(x, shift))
+        { at: at, v: c[:v], wall: Vec.dot(Vec.sub(c[:h], point), c[:v]), depth: c[:depth], out: out,
+          moved: shift.abs > 1.0 }
+      end
+
       def closest(a, b, p)
         ab = Vec.sub(b, a)
         l2 = Vec.dot(ab, ab)
@@ -396,6 +428,29 @@ module ArtK
           note = 'ไม่พบพื้น – ใช้ระดับ 0 ของโมเดล' unless hit
           part = Supports.sleeper(pipes.map { |y, r, z, _s, _id, ins| [y, r - ins.to_f, z, ins.to_f] }, height, steps: steps)
           attrs = { 'member_name' => 'Pipe shoe (T)', 'member_length_mm' => (300 * pipes.size).round }
+        when 'column'
+          col = find_column(model, point, dir) or
+            raise 'ไม่พบเสาข้างท่อภายใน 3 m – คลิกท่อตรงช่วงที่ผ่านเสา (no column beside the pipe)'
+          point = col[:at]
+          if col[:moved] # the pipes beside the column face
+            pipes = members(model, point, dir)
+            raise 'ท่อไม่ผ่านหน้าเสา (the pipe does not pass the column face)' if pipes.empty?
+          end
+          x = horizontal(dir)
+          y = Vec.scale(col[:v], -1.0) # from the column toward the pipes
+          x = Vec.scale(x, -1.0) if Vec.dot(Vec.cross(x, y), UP).negative?
+          f = Mesh.frame(point, x, y)
+          lat = Vec.cross(UP, horizontal(dir))
+          sgn = Vec.dot(y, lat).positive? ? 1.0 : -1.0
+          offsets = pipes.map { |yy, r, z| [sgn * yy, r, z] }
+                         .select { |yy, r, _| yy > -col[:wall] + r && col[:wall] + yy + r <= Supports::BRACKET_REACH || yy.abs < 1.0 }
+          pipes = pipes.select { |yy, r, z, *| offsets.any? { |oy, orr, oz| (oy - sgn * yy).abs < 0.5 && orr == r && oz == z } }
+          side = Vec.dot(col[:out], x).positive? ? 1.0 : -1.0
+          part = Supports.column_bracket(offsets, col[:wall], col[:depth], side, steps: steps, detailed: det)
+          reach = col[:wall] + offsets.map { |yy, r, _| yy + r }.max + 60
+          arm = reach + [[col[:depth] - 20, 120].max, 400].min
+          attrs = { 'member_name' => 'Steel SHS 75×75 (column bracket)',
+                    'member_length_mm' => (arm + (reach > 450 ? 0.85 * reach : 0)).round }
         when 'bracket'
           side = Vec.cross(UP, horizontal(dir))
           hits = [side, Vec.scale(side, -1.0)].map { |v| [v, cast(model, point, v, max_dist: SIDE_SEARCH)] }

@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.11.0**
-(`dist/artk_plant_pipe-1.11.0.rbz`). Tests: `rake test` (186 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.12.0**
+(`dist/artk_plant_pipe-1.12.0.rbz`). Tests: `rake test` (188 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -64,6 +64,9 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   ไฟล์ต้นฉบับผู้ใช้: piping=114d1e22, pvc=15235bc6, sch40=08be19ef, valves=27c78d10, meter=d07691db, faucet=5099144e,
   gauge=3df0d85c (~/.claude/uploads) · Library: ซ่อน spool/ซ้ำ (`RefBrowser.hidden?`), ตัวกรองขนาด `fits()` (grow/range/any),
   UI กะทัดรัด (preferences_key ใหม่ → ขนาดเริ่ม 400×620)
+- **v1.12.0**: ซัพพอร์ต 'column' แขนเกาะข้างเสา (`Supports.column_bracket`, `SupportBuilder.find_column`) –
+  หาเสาด้วย raycast ด้านข้าง + วัดความกว้างตามแนวท่อจากด้านในวัตถุ (≤1.2 m = เสา), ย้ายจุดวางไปนอกหน้าข้างเสาที่ใกล้คลิก,
+  เป็นซัพพอร์ตร่วม (create_multi) จึง adapt ได้ · Auto supports ไม่รองรับชนิดนี้ (ต้องวางตรงเสา)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

@@ -49,7 +49,9 @@ module ArtK
         'stand'    => { name: 'Adjustable pipe stand', th: 'ขาตั้งท่อปรับระดับ (Pipe stand)', mount: :below },
         'hframe'   => { name: 'H-frame / goalpost', th: 'โครง H-frame / Goalpost', mount: :below, multi: true },
         'shoe'     => { name: 'Sleeper + pipe shoe', th: 'คานรองท่อ + Pipe shoe', mount: :below },
-        'bracket'  => { name: 'Wall bracket', th: 'แขนค้ำยึดผนัง (Wall bracket)', mount: :side }
+        'bracket'  => { name: 'Wall bracket', th: 'แขนค้ำยึดผนัง (Wall bracket)', mount: :side },
+        'column'   => { name: 'Column side bracket', th: 'แขนเกาะข้างเสา (Column side bracket)', mount: :side,
+                        multi: true }
       }.freeze
 
       # Neighbouring pipes share one support when they run parallel (within
@@ -66,8 +68,11 @@ module ArtK
       # What a single-pipe support becomes when it carries several pipes.
       MULTI_OF = {
         'clevis' => 'trapeze', 'beam' => 'trapeze', 'trapeze' => 'trapeze', 'stand' => 'hframe',
-        'hframe' => 'hframe', 'shoe' => 'sleeper', 'bracket' => 'bracket'
+        'hframe' => 'hframe', 'shoe' => 'sleeper', 'bracket' => 'bracket', 'column' => 'column'
       }.freeze
+
+      COLUMN_ARM = 75.0   # mm, square hollow section of the column bracket arm
+      COLUMN_PLATE = 12.0 # mm, plate bolted to the column face
 
       module_function
 
@@ -436,6 +441,50 @@ module ArtK
           sub = shoe(r, 0.0, 0.0, steps: steps, base: z.to_f - z_sleeper)
           part.merge(sub, M.frame([0, y, z.to_f], [1, 0, 0], [0, 1, 0]))
         end
+        part
+      end
+
+      # Bracket fixed to the SIDE face of a column (the face across the pipe
+      # run): a plate bolted to that face with 4 anchors, the arm (SHS 75)
+      # welded to it, running along the face past the column edge and under
+      # every pipe, 45° knee brace back to the plate when the cantilever is
+      # long. Frame: pipes along X, Y from the column toward the pipes; the
+      # column's long face at y = -wall, its depth behind it; the column
+      # side face at x = -side·(arm/2 + plate) (side = ±1, column on −side).
+      # offsets = [[y, r, z], …] from the pipe it was placed on.
+      def column_bracket(offsets, wall, depth, side, steps: 16, detailed: true)
+        part = Mesh::Part.new
+        a = COLUMN_ARM
+        t = COLUMN_PLATE
+        arm_top = offsets.map { |_y, r, z| z.to_f - r }.min - 2.0
+        y_col = -wall                                   # column face toward the pipes
+        y0 = y_col - [[depth - 20.0, 120.0].max, 400.0].min # arm runs along the column for bolting
+        y1 = offsets.map { |y, r, _z| y + r }.max + 60.0
+        reach = y1 - y_col
+        f = M.frame([0, 0, 0], [1, 0, 0], [0, 1, 0])
+        part.add(:steel, M.box(f, [0, (y0 + y1) / 2.0, arm_top - a / 2.0], [a, y1 - y0, a]))
+        brace = reach > 450.0
+        drop = brace ? [0.6 * reach, 250.0].max : 0.0
+        z_hi = arm_top + 70.0
+        z_lo = arm_top - a - [drop, 90.0].max - 60.0
+        xp = -side * (a / 2.0 + t / 2.0)
+        part.add(:steel, M.box(f, [xp, (y0 + y_col) / 2.0 - 5.0, (z_hi + z_lo) / 2.0], [t, y_col - y0 - 10.0, z_hi - z_lo]))
+        if brace
+          foot = [0.0, (y0 + y_col) / 2.0, arm_top - a - drop]
+          head = [0.0, y_col + 0.6 * reach, arm_top - a]
+          part.add(:steel, M.bar(foot, head, 50.0, 50.0, [1, 0, 0]))
+        end
+        # anchors: two above the arm, two at the plate foot
+        ys = [y0 + 40.0, y_col - 50.0]
+        [z_hi - 35.0, z_lo + 35.0].each do |z|
+          ys.each do |y|
+            x0 = xp + side * t / 2.0
+            part.add(:galv, M.cylinder([x0 - side * 2.0, y, z], [x0 + side * 25.0, y, z], 6.0, steps: 8))
+            part.add(:galv, M.ngon_prism([x0, y, z], [x0 + side * 10.0, y, z], 11.0, 6)) if detailed
+          end
+        end
+        packers(part, offsets, arm_top)
+        offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [0.06 * r, 5.0].max, z.to_f - r - 2.0, steps) } if detailed
         part
       end
 

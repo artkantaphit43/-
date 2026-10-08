@@ -152,4 +152,64 @@ class TestSharedSupports < Minitest::Test
     Commands.clear_supports
     assert_empty shared
   end
+
+  # Ray against axis-aligned boxes [min, max] (mm): nearest exit/entry.
+  def box_rays(boxes)
+    lambda do |pt, dir|
+      best = nil
+      boxes.each do |mn, mx|
+        t0 = -Float::INFINITY
+        t1 = Float::INFINITY
+        ok = (0..2).all? do |i|
+          if dir[i].abs < 1e-9
+            pt[i].between?(mn[i], mx[i])
+          else
+            a = (mn[i] - pt[i]) / dir[i]
+            b = (mx[i] - pt[i]) / dir[i]
+            a, b = b, a if a > b
+            t0 = [t0, a].max
+            t1 = [t1, b].min
+            t0 <= t1
+          end
+        end
+        next unless ok
+
+        t = t0 > 1e-6 ? t0 : t1
+        next unless t > 1e-6
+
+        best = t if best.nil? || t < best
+      end
+      best && [pt.each_with_index.map { |c, i| c + dir[i] * best }, []]
+    end
+  end
+
+  # The user's case: a pipe pair along a wall passing a column; the
+  # bracket is bolted to the column's side face and its arm runs past the
+  # column under both pipes.
+  def test_column_side_bracket_carries_both_pipes_from_the_column_face
+    column = [[2900.0, -900.0, -2000.0], [3100.0, -500.0, 3000.0]] # 200 along the pipes, 400 deep
+    wall = [[-5000.0, 400.0, -2000.0], [9000.0, 500.0, 3000.0]]     # wall on the other side
+    @model.ray_hits = box_rays([column, wall])
+    a = run_at(0)
+    run_at(250)
+    note = SupportBuilder.place(@model, 'column', hit_on(a, 3080))
+    assert_nil note
+    g = shared.first
+    assert_equal 'column', g.get_attribute(H::DICT, 'support_type')
+    assert_equal 2, H.get_json(g, 'members').size, 'both pipes on the arm'
+    at = JSON.parse(g.get_attribute(H::DICT, 'at'))
+    # just outside the column face nearer the click (x = 3100), plate + half arm
+    assert_in_delta 3100 + Supports::COLUMN_PLATE + Supports::COLUMN_ARM / 2, at[0], 0.5
+    assert_operator g.get_attribute(H::DICT, 'member_length_mm'), :>, 500 + 250 + 30 + 60
+    # the column side is found even though the wall is nearer on the other side
+    col = SupportBuilder.find_column(@model, [3080.0, 0.0, 1000.0], [1.0, 0, 0])
+    assert_in_delta 500.0, col[:wall], 0.5
+    assert_in_delta 400.0, col[:depth], 0.5
+  end
+
+  def test_column_bracket_needs_a_column
+    @model.ray_hits = box_rays([[[-5000.0, 400.0, -2000.0], [9000.0, 500.0, 3000.0]]]) # only a long wall
+    a = run_at(0)
+    assert_raises(RuntimeError) { SupportBuilder.place(@model, 'column', hit_on(a, 3000)) }
+  end
 end

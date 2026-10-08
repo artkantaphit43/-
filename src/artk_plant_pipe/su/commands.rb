@@ -296,6 +296,11 @@ module ArtK
         end
         st = H.load_settings
         type = st['support_type']
+        if type == 'column'
+          UI.messagebox('แขนเกาะข้างเสา วางทีละจุด: ใช้ "วางทีละจุด" แล้วคลิกท่อตรงช่วงที่ผ่านเสา ' \
+                        '(column brackets go where the columns are – use the Support tool)')
+          return
+        end
         world = H.edit_transform(model)
         notes = []
         total = 0
