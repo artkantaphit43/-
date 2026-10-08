@@ -29,6 +29,7 @@ module ArtK
 
       def activate
         @model = Sketchup.active_model
+        RunEditor.sync_context(@model) if defined?(RunEditor)
         @ip = Sketchup::InputPoint.new
         @anchor = Sketchup::InputPoint.new
         load_settings

@@ -22,6 +22,7 @@ module ArtK
       def activate
         self.class.active = self
         @model = Sketchup.active_model
+        RunEditor.sync_context(@model) if defined?(RunEditor)
         @type = @fixed || H.load_settings['support_type']
         @ip = Sketchup::InputPoint.new
         @hit = nil

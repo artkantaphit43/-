@@ -1,8 +1,21 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.10.2**
-(`dist/artk_plant_pipe-1.10.2.rbz`). Tests: `rake test` (163 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.11.0**
+(`dist/artk_plant_pipe-1.11.0.rbz`). Tests: `rake test` (all green).
+
+**1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
+**1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
+`Pipe End Center` (วงกลมจริง `add_arc` 360° ตรงกับ mesh + construction point) → SketchUp สแนป Center ได้เอง
+(`Builder#add_end_center`). ผู้ใช้เลือกต่อจาก 1.6 เพราะไม่ชอบสีของ 1.7 (2026-10-02).
+**1.6.2** (`dist/artk_plant_pipe-1.6.2.rbz`, branch `claude/sketchup-editable-pipe-fittings-pfgyf5`) = 1.6.1 + ท่อแก้ไขได้:
+ปัญหาเดิม = ทุกคำสั่งอ่านเส้นแนว `cl` ไม่ใช่รูปทรง → ยืดท่อด้วย Push/Pull/Scale แล้วข้อต่อสแนปปลายเก่า, Rebuild หดกลับ.
+`lib/run_edit.rb` (ย้ายจุด cl + พาวาล์ว/ซัพพอร์ต/ข้อต่อปลายท่อตาม, จุดต่อแนวอื่นล็อก; `measure_pipe` อ่านปลายท่อจาก mesh),
+`su/run_editor.rb` (`RunEditor.apply/inspect/sync`, `AutoSync` = ModelObserver อ่านกลับหลังแก้ / ออกจากกลุ่มท่อ, op แบบ transparent;
+`sync_context` ตอนเปิดเครื่องมือ), `su/stretch_tool.rb` (ยืด/ย้ายท่อ), คำสั่ง *ตรวจท่อ* (`Commands.check_pipes`),
+ข้อต่อจากคลังที่ปลายท่อผูกกับแนวท่อ (`end_part` บน instance, `Builder#place_end_part`). อ่านกลับอัตโนมัติเฉพาะ
+ปลายเปิดที่ยืด/หดตามแนว; เลื่อนข้าง/หมุน/Scale ขนาด/ยืดเข้าข้อต่อ → แจ้งเตือนแล้วกลับตามข้อมูลเมื่อ Rebuild.
+pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้อต่อ) ตั้งแต่ 1.6.2. ยังไม่ได้ลองใน SketchUp จริง.
 
 ## ผู้ใช้ต้องการอะไร (สรุป)
 - ปลั๊กอิน SketchUp (.rbz + ไอคอน) งานระบบน้ำ/ประปา/ท่อโรงงาน – ทำให้ถูกต้อง ครบ มีเหตุผล

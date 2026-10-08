@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands support_tool].each do |f|
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports library commands support_tool].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
 
@@ -43,6 +43,21 @@ class TestSuIntegration < Minitest::Test
     assert_equal [:commit], @model.ops.last
     len = children(run, 'pipe').sum { |p| p.get_attribute(H::DICT, 'length_mm') }
     assert_in_delta 9000 - 2 * 152.4, len, 0.2
+  end
+
+  # Open pipe ends carry a real circle + construction point so SketchUp's
+  # own tools snap to "Center"; ends inside fittings get none.
+  def test_open_pipe_ends_get_snappable_center
+    run, = Builder.create_run(@model, l_run, @settings)
+    centers = children(run, 'pipe').flat_map do |p|
+      p.entities.select { |e| H.instance?(e) && H.type_of(e) == 'end_center' }
+    end
+    assert_equal 2, centers.size
+    centers.each do |c|
+      assert_equal 1, c.entities.count { |e| e.is_a?(Sketchup::ConstructionPoint) }
+      assert_operator c.entities.count { |e| e.is_a?(Sketchup::Edge) }, :>=, 12
+    end
+    assert_empty children(run, 'end_center')
   end
 
   def test_line_numbers_increment_per_service

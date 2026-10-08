@@ -9,12 +9,12 @@ module ArtK
 
     # Pure engineering core (no SketchUp API – unit tested outside SketchUp)
     %w[vec catalog services fittings_data hydraulics network bom supports settings profile run_check clash
-       mesh valve_models parts meter_models refs data_format].each do |f|
+       mesh valve_models parts meter_models refs data_format run_edit].each do |f|
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
     # SketchUp integration
-    %w[model_helpers migrate builder ref_models ref_builder support_builder collector picker pipe_tool valve_tool support_tool reports
-       library commands dialog ref_browser color_pick_tool].each do |f|
+    %w[model_helpers migrate builder ref_models ref_builder support_builder collector run_editor picker pipe_tool
+       stretch_tool valve_tool support_tool reports library commands dialog ref_browser color_pick_tool].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
 
@@ -52,6 +52,10 @@ module ArtK
         draw: command('Draw Pipe / วาดท่อ', 'วาดแนวท่อพร้อมข้องอ/Tee อัตโนมัติ', 'draw') { Commands.draw_pipe },
         parts: command('Reference Library / คลังอุปกรณ์จริง',
                        'วาล์ว ข้อต่อ มิเตอร์ ก๊อก เกจ จากไฟล์ตัวอย่าง – เลือกแล้วชี้ที่ท่อ ขนาดปรับตามท่อ', 'library') { RefBrowser.show },
+        stretch: command('Stretch / Move Pipe / ยืด-ย้ายท่อ', 'คลิกปลายท่อเพื่อยืด/หด หรือมุมท่อเพื่อย้าย – อุปกรณ์บนท่อตามไปเอง',
+                         'stretch') { Commands.stretch_tool },
+        check: command('Check Pipes / ตรวจท่อ', 'หาท่อที่รูปทรงไม่ตรงกับข้อมูล (ยืด/เลื่อนด้วยเครื่องมือ SketchUp) แล้วซ่อม',
+                       'check') { Commands.check_pipes },
         convert: command('Convert Edges to Pipe / แปลงเส้นเป็นท่อ', 'แปลงเส้นที่เลือกเป็นท่อ', 'convert') { Commands.convert_selection },
         rebuild: command('Rebuild Selected Runs / ปรับท่อที่เลือก', 'เปลี่ยนขนาด/วัสดุ/ระบบ ของท่อที่เลือก', 'rebuild') { Commands.rebuild_selection },
         flow: command('Set Design Flow / กำหนดอัตราไหล', 'กำหนดอัตราการไหลออกแบบให้ท่อที่เลือก', 'flow') { Commands.set_design_flow },
@@ -70,7 +74,9 @@ module ArtK
       }
 
       menu = UI.menu('Extensions').add_submenu('Plant Piping TH')
-      %i[settings draw parts convert].each { |k| menu.add_item(cmds[k]) }
+      %i[settings draw stretch parts convert check].each { |k| menu.add_item(cmds[k]) }
+      sync_item = menu.add_item('อ่านความยาวท่อที่ยืดเองอัตโนมัติ (Auto-read stretched pipes)') { Commands.toggle_auto_sync }
+      menu.set_validation_proc(sync_item) { AutoSync.enabled? ? MF_CHECKED : MF_UNCHECKED }
       menu.add_separator
       %i[auto_support support clear_support].each { |k| menu.add_item(cmds[k]) }
       sups = menu.add_submenu('Support Type / ชนิดซัพพอร์ต')
@@ -84,7 +90,7 @@ module ArtK
       menu.add_item(cmds[:diag])
 
       tb = UI::Toolbar.new('Plant Piping TH')
-      %i[settings draw parts convert auto_support support rebuild flow hydraulic clash bom style].each do |k|
+      %i[settings draw stretch parts convert check auto_support support rebuild flow hydraulic clash bom style].each do |k|
         tb.add_item(cmds[k])
       end
       tb.get_last_state == TB_NEVER_SHOWN ? tb.show : tb.restore
@@ -98,7 +104,7 @@ module ArtK
         sub = ctx.add_submenu('Plant Piping')
         sub.add_item(cmds[:convert]) unless edges.empty?
         unless runs.empty?
-          %i[rebuild auto_support clear_support flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
+          %i[stretch check rebuild auto_support clear_support flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
         end
       end
 
@@ -109,6 +115,10 @@ module ArtK
       rescue StandardError => e
         puts "Plant Piping: data upgrade failed – #{e.message}"
       end
+
+      # Pipes stretched with SketchUp's own tools are read back right away.
+      AutoSync.attach(Sketchup.active_model)
+      Sketchup.add_observer(AutoSync::AppObs.new) if defined?(AutoSync::AppObs)
 
       file_loaded(__FILE__)
     end

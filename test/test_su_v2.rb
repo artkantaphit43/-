@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands support_tool].each do |f|
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports library commands support_tool].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
 
@@ -216,7 +216,9 @@ class TestDiagnostics < Minitest::Test
     model = Sketchup::Model.new
     Sketchup.active_active = nil if Sketchup.respond_to?(:active_active=)
     Sketchup.active_model = model
-    def Sketchup.version = '26.0'
+    def Sketchup.version
+      '26.0'
+    end
     ArtK::PlantPipe::ModelHelpers.save_settings(Settings.sanitize('service' => 'FP', 'catalog' => 'CS_B36_10', 'size' => '4"'))
     ArtK::PlantPipe::Commands.diagnostics
     html = UI.last_html

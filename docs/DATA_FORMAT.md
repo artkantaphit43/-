@@ -73,6 +73,13 @@ older `rev` are rebuilt in place, so every copy in the file updates.
   - `model` – the reference-library key. Always the base key; a standard-size key
     `…@DN25-33.4` also resolves.
 
+- Library parts fixed to an open pipe end (since 1.6.2) carry `end_part` – JSON with
+  `key`, `at` (run mm) and `angle`. They are re-placed on every rebuild.
+- `geom` of a pipe holds `a`, `b` and, since 1.6.2, `ea` and `eb` (insertion into the
+  fittings).
+- `type = end_center` – a group inside a pipe at an open end (since 1.6.1). It holds a
+  real circle and a construction point, so SketchUp's own tools can snap to Center.
+
 **Placed library parts** (`type = component`):
 - `category`
 - `size`
