@@ -74,7 +74,11 @@ module ArtK
         def stale(model)
           parts = model.definitions.to_a.filter_map do |d|
             key = d.get_attribute(H::DICT, 'ref_key').to_s
-            next unless key.start_with?('gen:')
+            unless key.start_with?('gen:')
+              # a library part whose model was corrected since (item 'rev')
+              item = !key.empty? && !key.include?('@') && Refs.get(key)
+              next item && !current?(d, item) && H.faces?(d.entities) ? [d, item] : nil
+            end
 
             inst = d.instances.find { |i| i.valid? && i.get_attribute(H::DICT, 'size') }
             next unless inst
@@ -98,7 +102,7 @@ module ArtK
           mats.each { |mat, tex| clean_texture(mat, tex) }
           parts.each do |d, item|
             d.entities.clear!
-            build(model, d, item, false)
+            build(model, d, item, d.name.to_s.end_with?('(plain)'))
           end
           parts.size
         end

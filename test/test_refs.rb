@@ -232,4 +232,44 @@ class TestRefs < Minitest::Test
     mat = @model.materials.find { |x| x.texture }
     assert_nil mat.color, 'no colour on the dial – SketchUp would tint the image'
   end
+
+  # Library audit (1.11): repaired items, hidden duplicates, size filter.
+  def test_repaired_library_items_have_their_ends
+    tee = Refs.get('pvc:pvc_tis/tee/-/1-1/4"')
+    assert_equal 3, tee['ports'].size
+    assert_equal tee['ports'][1]['depth'], tee['ports'][0]['depth'], 'run sockets equally deep'
+    assert_equal 2, Refs.get('pvc:pvc_tis_dwv/u_trap/-/2"')['ports'].size
+    assert_equal 3, Refs.get('pvc:pvc_tis_dwv/wye/-/2"')['ports'].size, 'run end without its end face found'
+    trap = Refs.get('piping:gi_thrd/steam_trap/-/3/4"')
+    assert_in_delta 150.0, Vec.dist(*trap['ports'].map { |p| p['p'] }), 0.5, 'ends at the body, as the other sizes'
+    assert_equal 2, Refs.geometry_rev(trap)
+    refute_nil Refs.fitting_for('tee', Catalog.spec('PVC_TIS17', '1-1/4"')), 'real 1-1/4" tee used in runs'
+  end
+
+  def test_browser_hides_spools_and_duplicates_and_offers_gate_6in
+    pl = RefBrowser.payload
+    keys = pl.map { |i| i[:key] }
+    assert(keys.none? { |k| k.start_with?('piping:wafer150/check') }, 'piping-file wafer checks (1 m spools) hidden')
+    assert_includes keys, 'valves:wafer150/check/-/6"'
+    refute_includes keys, 'piping:cs_bw/hose/-/6"'
+    assert(pl.all? { |i| Refs.get(i[:key])['ports'].any? }, 'every part offered snaps to a pipe')
+    gate = pl.find { |i| i[:grow] }
+    assert_equal 'valves:flg150/gate/wheel/4"', gate[:key]
+    assert_equal [4.0, 24.0], gate[:grow], 'offered as 5"–24", scaled to B16.10 / B16.5'
+    assert_equal [0.5, 12.0], pl.find { |i| i[:type] == 'water_meter' }[:range]
+    assert(pl.select { |i| i[:type] == 'gauge' }.all? { |i| i[:any] })
+  end
+
+  def test_library_gate_on_a_6in_pipe_takes_the_standard_length
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '6"')
+    Builder.create_run(@model, [[[0, 0, 0], [4000, 0, 0]]], s)
+    tool = RefPlaceTool.new(Refs.get('valves:flg150/gate/wheel/4"'))
+    tool.instance_variable_set(:@model, @model)
+    tool.instance_variable_set(:@angle, 0.0)
+    pl = tool.placement([2000.0, 0.0, 30.0])
+    assert_equal :inline, pl[:mode]
+    spec = Catalog.spec('CS_B36_10', '6"')
+    kx, = Builder.valve_scale('gate', spec, pl[:item])
+    assert_in_delta FittingsData.face_to_face('gate', spec.od, :flanged), Builder.port_gap(pl[:item]) * kx, 0.5
+  end
 end

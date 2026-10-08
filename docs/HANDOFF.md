@@ -2,7 +2,7 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.11.0**
-(`dist/artk_plant_pipe-1.11.0.rbz`). Tests: `rake test` (all green).
+(`dist/artk_plant_pipe-1.11.0.rbz`). Tests: `rake test` (186 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -57,6 +57,13 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **v1.10.1**: จุดที่สแนป (เส้นไกด์/ขอบ/จุด) ใช้ตรง ๆ ทุกระบบ – ท่อระบาย (SAN/SD/V) ไม่ใส่ความลาดทับจุดสแนปแล้ว
   (ความลาดอัตโนมัติเฉพาะจุดอิสระ) + เตือนถ้าลาดน้อยกว่าขั้นต่ำ · **แก้อะไรต้องทดสอบทุกระบบ ไม่ใช่แค่น้ำประปา**
 - **v1.10.2**: ปุ่ม "ดูดสีจากโมเดล" (su/color_pick_tool.rb – eyedropper ของ input color ใช้ใน HtmlDialog ไม่ได้) + ช่องรหัสสี
+- **v1.11.0**: รวม branch 1.6.1 (Center ปลายท่อ) + 1.6.2 (ท่อแก้ไขได้) เข้าสายนี้ · **ไม่รวม** 1.7.0 realistic-materials
+  (ผู้ใช้ไม่ชอบสี) – ถ้าจะรวม ให้ทำเป็นตัวเลือก color scheme 'realistic' ไม่ใช่ค่าเริ่มต้น ·
+  ตรวจคลัง: `tools/refs/extract.rb` ปรับ circle fit (least squares), U-trap ปลายขนานกันได้, สามทางที่ไม่มีหน้าปลาย run
+  (mirrored) → สกัดใหม่ทั้งหมดแล้ว**รับเฉพาะ 4 ชิ้นที่ซ่อม** (item `rev` 2 → definition เก่ารีบิวด์ตอนเปิดไฟล์) ชิ้นอื่น byte เดิม ·
+  ไฟล์ต้นฉบับผู้ใช้: piping=114d1e22, pvc=15235bc6, sch40=08be19ef, valves=27c78d10, meter=d07691db, faucet=5099144e,
+  gauge=3df0d85c (~/.claude/uploads) · Library: ซ่อน spool/ซ้ำ (`RefBrowser.hidden?`), ตัวกรองขนาด `fits()` (grow/range/any),
+  UI กะทัดรัด (preferences_key ใหม่ → ขนาดเริ่ม 400×620)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

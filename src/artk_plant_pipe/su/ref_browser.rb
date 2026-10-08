@@ -28,8 +28,8 @@ module ArtK
           end
           @dialog = UI::HtmlDialog.new(
             dialog_title: 'Plant Piping TH – Reference Library / คลังอุปกรณ์จริง',
-            preferences_key: 'ArtK_PlantPipe_RefLibrary',
-            width: 520, height: 760, min_width: 420, resizable: true,
+            preferences_key: 'ArtK_PlantPipe_RefLibrary_v2', # new compact default size
+            width: 400, height: 620, min_width: 300, resizable: true,
             style: UI::HtmlDialog::STYLE_UTILITY
           )
           @dialog.set_file(File.join(PLUGIN_ROOT, 'ui', 'library.html'))
@@ -38,13 +38,41 @@ module ArtK
           @dialog.show
         end
 
+        # Sizes (NPS) a standard-size part comes in: water meters ½"–12",
+        # taps ½"–1".
+        SIZED_RANGE = { 'water_meter' => [0.5, 12.0], 'faucet' => [0.5, 1.0] }.freeze
+        GROW_MAX = 24.0 # NPS: largest size a standards-scaled valve is offered for
+
+        def group_key(i)
+          [i['type'], i['family'], i['operator'], i['variant']]
+        end
+
+        # Parts not offered in the browser: duplicates of a better copy of
+        # the same part (the valve database beats the piping file, whose
+        # wafer checks are drawn on a 1 m spool), and spools without ends.
+        def hidden?(i, better)
+          return true if i['ports'].empty? && i['bbox'].transpose.map { |a, b| b - a }.max >= 900.0
+
+          i['src'] == 'piping' && better[group_key(i) + [i['size'], i['size2']]]
+        end
+
         def payload
-          Refs.items.map do |i|
-            { key: i['key'], name: Refs.display_name(i), type: i['type'], family: i['family'],
-              family_name: Refs::FAMILY_NAMES[i['family']] || i['family'], size: i['size'].to_s,
-              nps: i['nps'] || 0, group: GROUPS.fetch(i['type'], 'valves'), standard: i['standard'].to_s,
-              snap: MOUNT_TEXT[Refs.mount(i)], sized: Refs::SIZED_TEXT[i['type']] || (i['scalable'] ? true : false), src: i['src_name'],
-              thumb: Refs.thumb_name(i) }
+          better = Refs.items.select { |i| i['src'] == 'valves' && !i['ports'].empty? }
+                       .to_h { |i| [group_key(i) + [i['size'], i['size2']], true] }
+          # largest real model of a family scaled to standard dimensions (gate)
+          grow = Refs.items.select { |i| Refs::SCALABLE[i['type']] == [i['family'], i['operator']] && i['nps'] }
+                     .group_by { |i| group_key(i) }.transform_values { |l| l.max_by { |i| i['nps'] }['key'] }.values
+          Refs.items.reject { |i| hidden?(i, better) }.map do |i|
+            rec = { key: i['key'], name: Refs.display_name(i), type: i['type'], family: i['family'],
+                    family_name: Refs::FAMILY_NAMES[i['family']] || i['family'], size: i['size'].to_s,
+                    nps: i['nps'] || 0, group: GROUPS.fetch(i['type'], 'valves'), standard: i['standard'].to_s,
+                    snap: MOUNT_TEXT[Refs.mount(i)] || 'วางอิสระ (ไม่สแนป)',
+                    sized: Refs::SIZED_TEXT[i['type']] || (i['scalable'] ? true : false), src: i['src_name'],
+                    thumb: Refs.thumb_name(i), grp: group_key(i).compact.join('|') }
+            rec[:range] = SIZED_RANGE[i['type']] if SIZED_RANGE[i['type']]
+            rec[:any] = true if i['size'].nil? # gauges: one size for every pipe
+            rec[:grow] = [i['nps'], GROW_MAX] if grow.include?(i['key'])
+            rec
           end
         end
 

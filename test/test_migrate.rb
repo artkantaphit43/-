@@ -135,4 +135,13 @@ class TestMigrate < Minitest::Test
     refute_nil dial.texture
     assert_equal 0, Migrate.model(@model)[:parts], 'nothing left to do on the next open'
   end
+
+  def test_corrected_library_part_is_rebuilt_on_open
+    item = Refs.get('piping:gi_thrd/steam_trap/-/3/4"')
+    d = RefModels.definition(@model, item)
+    d.set_attribute(H::DICT, 'rev', 1) # as built before the correction
+    assert_equal 1, Migrate.model(@model)[:parts]
+    assert_equal 2, d.get_attribute(H::DICT, 'rev')
+    assert_equal 0, Migrate.model(@model)[:parts]
+  end
 end

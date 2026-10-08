@@ -315,15 +315,60 @@ module ArtK
         mul(pts.reduce([0.0, 0.0, 0.0]) { |s, p| add(s, p) }, 1.0 / pts.size)
       end
 
+      # Centre and radius of a polygon that is a circle. The centre is a
+      # least-squares fit in the loop's plane, so an extra vertex on one
+      # side (a split edge) does not pull it off as a vertex average would.
       def circle(pts)
         return nil if pts.size < 8
 
-        c = centroid(pts)
+        c = circle_fit(pts) || centroid(pts)
         rs = pts.map { |p| len(sub(p, c)) }
         r = rs.sum / rs.size
         return nil if r < 1.0 || (rs.max - rs.min) / r > 0.04
 
         [c, r]
+      end
+
+      def circle_fit(pts)
+        n = newell(pts)
+        return nil if len(n) < 1e-9
+
+        n = unit(n)
+        u = unit(perp(n, [0.0, 0.0, 1.0]))
+        v = cross(n, u)
+        o = centroid(pts)
+        xy = pts.map { |p| [dot(sub(p, o), u), dot(sub(p, o), v)] }
+        # x² + y² + D x + E y + F = 0 (normal equations, 3×3)
+        a = Array.new(3) { [0.0, 0.0, 0.0] }
+        b = [0.0, 0.0, 0.0]
+        xy.each do |x, y|
+          row = [x, y, 1.0]
+          rhs = -(x * x + y * y)
+          3.times do |i|
+            3.times { |j| a[i][j] += row[i] * row[j] }
+            b[i] += row[i] * rhs
+          end
+        end
+        sol = solve3(a, b) or return nil
+        d, e, = sol
+        add(o, add(mul(u, -d / 2.0), mul(v, -e / 2.0)))
+      end
+
+      def solve3(a, b)
+        m = a.each_with_index.map { |r, i| r + [b[i]] }
+        3.times do |col|
+          piv = (col...3).max_by { |r| m[r][col].abs }
+          return nil if m[piv][col].abs < 1e-12
+
+          m[col], m[piv] = m[piv], m[col]
+          (0...3).each do |r|
+            next if r == col
+
+            f = m[r][col] / m[col][col]
+            4.times { |k| m[r][k] -= f * m[col][k] }
+          end
+        end
+        (0...3).map { |i| m[i][3] / m[i][i] }
       end
 
       # Annular end faces standing at an extreme of the part.
@@ -445,7 +490,8 @@ module ArtK
         if ANGLED.key?(t)
           best = nil
           cands.combination(2).each do |a, b|
-            next if dot(a[:d], b[:d]) > 0.999
+            # a U-trap's two ends face the same way
+            next if dot(a[:d], b[:d]) > 0.999 && t != 'u_trap'
 
             ang = Math.acos(dot(a[:d], b[:d]).clamp(-1.0, 1.0)) * 180.0 / Math::PI
             defl = 180.0 - ang
@@ -480,14 +526,22 @@ module ArtK
         end
         if BRANCHED.include?(t)
           runs = cands.combination(2).select { |a, b| collinear_opposite?(a, b) }
-          best_run = runs.max_by { |x, y| len(sub(x[:p], y[:p])) + [x[:ri], y[:ri]].min } or return nil
-          a, b = best_run
-          others = cands - [a, b]
-          branches = others.select do |c|
-            q = line_closest(a[:p], a[:d], c[:p], c[:d])
-            q && q[2] < 0.1 * c[:ro] + 1.0 && dot(sub(c[:p], a[:p]), c[:d]).positive?
+          # a run end modelled without its end face (open tube): the far end
+          # of the run is the opposite extreme along the found end's axis
+          runs = cands.filter_map { |c| mirrored_pair([c], verts) } if runs.empty?
+          a = b = branches = nil
+          runs.sort_by { |x, y| -(len(sub(x[:p], y[:p])) + [x[:ri], y[:ri]].min) }.each do |x, y|
+            others = cands.reject { |c| [x, y].any? { |e| len(sub(e[:p], c[:p])) < 1.0 } }
+            br = others.select do |c|
+              q = line_closest(x[:p], x[:d], c[:p], c[:d])
+              q && q[2] < 0.1 * c[:ro] + 1.0 && dot(sub(c[:p], x[:p]), c[:d]).positive?
+            end
+            next if br.empty?
+
+            a, b, branches = x, y, br
+            break
           end
-          return nil if branches.empty?
+          return nil unless branches
 
           # the wye/sanitary branch leans toward port b (flow into b)
           x = unit(sub(b[:p], a[:p]))
