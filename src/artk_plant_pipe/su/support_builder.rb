@@ -63,7 +63,9 @@ module ArtK
 
       # Build a support record for a point on a run (run-local at/dir).
       # tr = world transformation of the run. Returns [record or nil, note].
-      def record_for(model, run, tr, type, at, dir)
+      # level: world z of the structure to hang from, when it is already
+      # known (hangers paired beside the first one clamp the same beam).
+      def record_for(model, run, tr, type, at, dir, level: nil)
         spec = Builder.run_spec(run)
         ins = Builder.run_settings(run)['insulation_mm'].to_f
         r = spec.od / 2.0 + ins
@@ -74,7 +76,7 @@ module ArtK
         note = nil
         case Supports::TYPES[type][:mount]
         when :above
-          hit = cast(model, Vec.add(at_w, [0, 0, r + 5.0]), UP)
+          hit = level ? { point: [at_w[0], at_w[1], level] } : cast(model, Vec.add(at_w, [0, 0, r + 5.0]), UP)
           target = hit ? hit[:point] : Vec.add(at_w, [0, 0, r + FALLBACK_DROP])
           note = 'ไม่พบโครงสร้างด้านบน – ใช้ความยาวก้านแขวนสมมติ (no structure found above, assumed drop)' unless hit
           rec['target'] = H.transform_mm(inv, target)
@@ -244,13 +246,20 @@ module ArtK
       # already have a support within COVER (+have+: extra world points
       # per run id, for supports not stored yet), +skip+ (a run id), and a
       # pipe with another one right above it (its rod would pass through).
+      # All hang from one level – the structure found above the first pipe
+      # (+level+ when known), so every rod reaches the same beam.
       # Returns [{ run => [record, …] }, notes].
-      def paired_records(model, type, point, dir, mem, skip: nil, have: {})
+      def paired_records(model, type, point, dir, mem, skip: nil, have: {}, level: nil)
         x = horizontal(dir)
         y = Vec.cross(UP, x)
         runs = H.active_runs(model).to_h { |r, tr| [r.persistent_id, [r, tr]] }
         out = {}
         notes = []
+        level ||= hang_level(model, point, y, mem)
+        unless level # nothing above any of them: the same assumed drop for all
+          level = point[2] + mem.map { |_, r, dz, *| dz + r }.max + FALLBACK_DROP
+          notes << 'ไม่พบโครงสร้างด้านบน – ใช้ความยาวก้านแขวนสมมติ (no structure found above, assumed drop)'
+        end
         mem.each do |off, r, dz, _size, pid, _ins|
           next if pid == skip
 
@@ -268,11 +277,24 @@ module ArtK
           inv = tr.inverse
           at = H.transform_mm(inv, at_w)
           d = Vec.unit(H.from_vec(H.to_vec(dir).transform(inv)))
-          rec, note = record_for(model, run, tr, type, at, d)
+          rec, note = record_for(model, run, tr, type, at, d, level: level)
           (out[run] ||= []) << rec if rec
           notes << "#{run.name}: #{note}" if note
         end
         [out, notes]
+      end
+
+      # World z to hang a group of pipes from: the structure above the pipe
+      # at +point+ (the one clicked), else the lowest structure found above
+      # any of them; nil when there is none (each gets the assumed drop).
+      def hang_level(model, point, y, mem)
+        hits = mem.sort_by { |off, *| off.abs }.filter_map do |off, r, dz, *|
+          at = Vec.add(Vec.add(point, Vec.scale(y, off)), [0.0, 0.0, dz + r + 5.0])
+          h = cast(model, at, UP)
+          h && [off.abs < 1.0, h[:point][2]]
+        end
+        first = hits.find(&:first)
+        first ? first[1] : hits.map(&:last).min
       end
 
       # The clicked pipe and each neighbour get their own support.
@@ -416,7 +438,8 @@ module ArtK
             mem = members(model, at, dir, gap: gap)
             next if mem.size < 2
 
-            recs, = paired_records(model, rec['type'], at, dir, mem, skip: run.persistent_id)
+            level = rec['target'] && H.transform_mm(tr, rec['target'])[2]
+            recs, = paired_records(model, rec['type'], at, dir, mem, skip: run.persistent_id, level: level)
             recs.each do |r2, list|
               H.set_json(r2, 'supports', H.get_json(r2, 'supports', []) + list)
               Builder.render(model, r2, Builder.run_settings(r2))

@@ -76,6 +76,7 @@ module ArtK
       # its own beam clamp, as the user builds them.
       EACH_PIPE = %w[beam].freeze
 
+      ROUND = 16 # segments of rods, bolts and U-bolts: smooth (soft edges), not faceted
       COLUMN_ARM = 75.0   # mm, square hollow section of the column bracket arm
       COLUMN_PLATE = 12.0 # mm, plate bolted to the column face
 
@@ -263,10 +264,10 @@ module ArtK
       def u_bolt(part, cy, cz, r, rod_r, down_to, steps)
         # bent rod over the top of the pipe + two legs
         part.add(:galv, M.bend([0, cy, cz], [0, 1, 0], [1, 0, 0], r + rod_r, Math::PI, rod_r, nil,
-                               steps: 8, arc_steps: [steps / 2, 6].max))
+                               steps: ROUND, arc_steps: [steps, 8].max))
         [-1, 1].each do |s|
           y = cy + s * (r + rod_r)
-          part.add(:galv, M.cylinder([0, y, down_to], [0, y, cz], rod_r, steps: 8))
+          part.add(:galv, M.cylinder([0, y, down_to], [0, y, cz], rod_r, steps: ROUND))
         end
       end
 
@@ -275,7 +276,7 @@ module ArtK
       end
 
       def rod_part(part, z0, z1, rod_r)
-        part.add(:galv, M.cylinder([0, 0, z0], [0, 0, z1], rod_r, steps: 8))
+        part.add(:galv, M.cylinder([0, 0, z0], [0, 0, z1], rod_r, steps: ROUND))
       end
 
       # Top attachment: :slab (drop-in anchor + washer) or :beam (clamp).
@@ -284,10 +285,10 @@ module ArtK
           f = M.frame([0, 0, z], [1, 0, 0], [0, 1, 0])
           part.add(:steel, M.box(f, [0, 0, -12], [70, 45, 24]))       # clamp body under flange
           part.add(:steel, M.box(f, [0, -30, 8], [70, 12, 40]))       # jaw
-          part.add(:galv, M.cylinder([0, -26, 22], [0, 10, 22], rod_r * 0.9, steps: 8)) # set screw
+          part.add(:galv, M.cylinder([0, -26, 22], [0, 10, 22], rod_r * 0.9, steps: ROUND)) # set screw
         else
-          part.add(:galv, M.cylinder([0, 0, z - 45], [0, 0, z], rod_r * 1.45, steps: 10)) # anchor sleeve
-          part.add(:galv, M.cylinder([0, 0, z - 48], [0, 0, z - 45], rod_r * 2.6, steps: 12)) # washer
+          part.add(:galv, M.cylinder([0, 0, z - 45], [0, 0, z], rod_r * 1.45, steps: ROUND)) # anchor sleeve
+          part.add(:galv, M.cylinder([0, 0, z - 48], [0, 0, z - 45], rod_r * 2.6, steps: ROUND)) # washer
         end
       end
 
@@ -305,7 +306,7 @@ module ArtK
         [-1, 1].each do |s|
           part.add(:galv, M.bar([0, s * (rr + t / 2), 0], [0, s * (rod_r * 1.5 + t / 2), top], t, w, [1, 0, 0]))
         end
-        part.add(:galv, M.cylinder([0, -(rod_r * 2 + t), top], [0, rod_r * 2 + t, top], rod_r, steps: 8)) # cross bolt
+        part.add(:galv, M.cylinder([0, -(rod_r * 2 + t), top], [0, rod_r * 2 + t, top], rod_r, steps: ROUND)) # cross bolt
         rod_part(part, top, drop, rod_r)
         if detailed
           nut(part, top + rod_r * 1.2, rod_r)
@@ -355,7 +356,7 @@ module ArtK
         y1 = ys.max + rmax + 100
         strut(part, y0, y1, z_top)
         [y0 + 25, y1 - 25].each do |y|
-          part.add(:galv, M.cylinder([0, y, z_top - 60], [0, y, drop], rod_r, steps: 8))
+          part.add(:galv, M.cylinder([0, y, z_top - 60], [0, y, drop], rod_r, steps: ROUND))
           nut_at = M.frame([0, y, 0], [1, 0, 0], [0, 1, 0])
           sub = Mesh::Part.new
           nut(sub, z_top - 41 - rod_r * 1.6, rod_r)
@@ -391,14 +392,14 @@ module ArtK
         if detailed
           [[-1, -1], [1, -1], [1, 1], [-1, 1]].each do |sx, sy|
             c = [sx * (base / 2 - 20), sy * (base / 2 - 20), zf + 12]
-            part.add(:galv, M.cylinder(c, Vec.add(c, [0, 0, 25]), 6.0, steps: 6))
+            part.add(:galv, M.cylinder(c, Vec.add(c, [0, 0, 25]), 6.0, steps: ROUND))
           end
         end
         saddle_z = -r - 10.0
         adj = [0.25 * (height - r), 60.0].min
         post_top = saddle_z - 12 - adj
         part.add(:steel, M.cylinder([0, 0, zf + 12], [0, 0, post_top], post_r, ri: post_r - 4, steps: steps))
-        part.add(:galv, M.cylinder([0, 0, post_top - 20], [0, 0, saddle_z - 12], post_r * 0.55, steps: 10))
+        part.add(:galv, M.cylinder([0, 0, post_top - 20], [0, 0, saddle_z - 12], post_r * 0.55, steps: ROUND))
         part.add(:galv, M.ngon_prism([0, 0, post_top], [0, 0, post_top + 14], post_r * 1.1, 6))
         part.add(:steel, M.box(M.frame([0, 0, saddle_z - 12], [1, 0, 0], [0, 1, 0]), [0, 0, 6],
                                [[2 * r, 80].max, 2 * r + 30, 12]))
@@ -512,7 +513,7 @@ module ArtK
         [z_hi - 35.0, z_lo + 35.0].each do |z|
           ys.each do |y|
             x0 = xp + side * t / 2.0
-            part.add(:galv, M.cylinder([x0 - side * 2.0, y, z], [x0 + side * 25.0, y, z], 6.0, steps: 8))
+            part.add(:galv, M.cylinder([x0 - side * 2.0, y, z], [x0 + side * 25.0, y, z], 6.0, steps: ROUND))
             part.add(:galv, M.ngon_prism([x0, y, z], [x0 + side * 10.0, y, z], 11.0, 6)) if detailed
           end
         end

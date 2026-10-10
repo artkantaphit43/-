@@ -350,10 +350,13 @@ module ArtK
             mem = SupportBuilder.members(model, at_w, dir_w)
             multi = Supports::TYPES[type][:multi] ? type : (mem.size > 1 && Supports::MULTI_OF[type])
             if each && mem.size > 1
-              rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir])
+              # every pipe at this section hangs from the same beam
+              level = SupportBuilder.hang_level(model, at_w, Vec.cross([0, 0, 1.0], SupportBuilder.horizontal(dir_w)), mem)
+              rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir], level: level)
               recs << rec if rec
+              level ||= rec && rec['target'] && H.transform_mm(tr, rec['target'])[2]
               added, ns = SupportBuilder.paired_records(model, type, at_w, dir_w, mem, skip: run.persistent_id,
-                                                                                      have: pending.call)
+                                                                                      have: pending.call, level: level)
               added.each { |r2, list| (extra[r2] ||= []).concat(list) }
               paired += added.values.sum(&:size)
               notes.concat(ns)

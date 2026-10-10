@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.0**
-(`dist/artk_plant_pipe-1.15.0.rbz`). Tests: `rake test` (218 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.1**
+(`dist/artk_plant_pipe-1.15.1.rbz`). Tests: `rake test` (220 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -97,6 +97,9 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `SupportBuilder.paired_records` ใส่ record เดี่ยวให้ทุกท่อใน members ที่หน้าตัดเดียวกัน (ข้ามท่อที่มีซัพพอร์ตใกล้ ≤ COVER และท่อที่มีท่ออื่นทับด้านบน) ·
   `place_each` (เครื่องมือวางทีละจุด), Auto supports เขียนทุก run ตอนท้าย (own + extra, fixed รวมจุดที่ท่อข้างใส่ให้แล้ว),
   `adapt_each` (วาดท่อใหม่ข้าง Beam clamp เดิม → ได้ของตัวเอง) · Clevis ยังเป็น trapeze เหมือนเดิม
+- **v1.15.1**: Beam clamp คู่ – ท่อที่ไม่ได้อยู่ใต้คานพอดีได้ก้านสมมติ 600 มม. (ลอย) → `hang_level` ใช้คานเหนือท่อที่คลิก
+  (ไม่มีก็คานต่ำสุดที่เจอเหนือท่อใดท่อหนึ่ง, ไม่มีเลยก็ระดับสมมติเดียวกันทุกท่อ) ส่ง `level:` ให้ record_for → ก้านยาวถึงคานเดียวกันทุกตัว ·
+  เหล็กกลมของซัพพอร์ต (ก้าน, U-bolt, โบลต์, พุก) 16 เหลี่ยม `Supports::ROUND` → ขอบ soften (22.5° < 28.5°) ไม่เป็นเหลี่ยม
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

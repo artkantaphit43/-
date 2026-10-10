@@ -186,6 +186,47 @@ class TestSharedSupports < Minitest::Test
     assert_empty shared
   end
 
+  # The user's case: only the first pipe is under the beam – the hanger
+  # beside it got an assumed short rod. Both now clamp the same beam.
+  def test_paired_beam_clamps_hang_from_the_same_beam
+    @model.ray_hits = lambda do |pt, dir|
+      next nil unless dir[2] > 0.5
+
+      pt[1].between?(-100.0, 100.0) ? [[pt[0], pt[1], 3000.0], []] : nil # a narrow beam over pipe a only
+    end
+    a = run_at(0, size: '4"')
+    b = run_at(250)
+    assert_nil SupportBuilder.place(@model, 'beam', hit_on(a, 3000))
+    assert_in_delta 3000.0, beams(a).first['target'][2], 1.0
+    assert_in_delta 3000.0, beams(b).first['target'][2], 1.0, 'same beam level, not an assumed drop'
+    # clicking the pipe that is not under the beam works the same way
+    c = run_at(-1600, size: '4"')
+    d = run_at(-1350)
+    @model.ray_hits = lambda do |pt, dir|
+      next nil unless dir[2] > 0.5
+
+      pt[1].between?(-1700.0, -1500.0) ? [[pt[0], pt[1], 3200.0], []] : nil
+    end
+    SupportBuilder.place(@model, 'beam', hit_on(d, 4000))
+    assert_in_delta 3200.0, beams(c).first['target'][2], 1.0
+    assert_in_delta 3200.0, beams(d).first['target'][2], 1.0
+  end
+
+  def test_auto_paired_beam_clamps_share_the_level
+    @model.ray_hits = lambda do |pt, dir|
+      next nil unless dir[2] > 0.5
+
+      pt[1].between?(150.0, 350.0) ? [[pt[0], pt[1], 2800.0], []] : nil # beam over pipe b only
+    end
+    a = run_at(0, size: '4"')
+    b = run_at(250)
+    @model.selection.push(a)
+    @model.selection.push(b)
+    H.save_settings(@s.merge('support_type' => 'beam'))
+    Commands.auto_supports
+    [a, b].each { |r| beams(r).each { |rec| assert_in_delta 2800.0, rec['target'][2], 1.0 } }
+  end
+
   def test_no_beam_clamp_under_a_pipe_above
     a = run_at(0, 1000)
     b = run_at(0, 1200) # right above a
