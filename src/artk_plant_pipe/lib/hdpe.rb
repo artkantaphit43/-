@@ -172,6 +172,8 @@ module ArtK
       # reducing couplers are a short core between two sockets, a butt
       # fusion reducer is a cone between two clamping legs.
       def reducer_length(big, small)
+        return stepped_length(big, small) if big.style == :fusion && small.style == :fusion
+
         [big, small].sum do |o|
           case o.style
           when :electrofusion then 0.25 * big.od + 10.0
@@ -179,6 +181,59 @@ module ArtK
           else (leg(big.od) + leg(small.od) + [1.2 * (big.od - small.od), 20.0].max) / 2.0
           end
         end.round(1)
+      end
+
+      # Standard PE pipe ODs (ISO 4427) – the steps of a stepped reducer.
+      ODS = [20, 25, 32, 40, 50, 63, 75, 90, 110, 125, 140, 160, 180, 200, 225, 250, 280, 315, 355, 400, 450,
+             500, 560, 630].freeze
+
+      # Outer radii from a to b (either order): the standard sizes in
+      # between, at most three, evenly picked.
+      def step_ods(a_od, b_od)
+        lo, hi = [a_od, b_od].minmax
+        mid = ODS.select { |d| d > lo + 0.5 && d < hi - 0.5 }
+        mid = (1..3).map { |k| mid[(k * mid.size / 4.0).floor] }.uniq if mid.size > 3
+        a_od > b_od ? mid.reverse : mid
+      end
+
+      # Stepped butt fusion reducer (as moulded / machined on site): a leg
+      # at each end and a short shoulder + collar for every size between.
+      def step_profile(a, b, lead: nil, tail: nil)
+        targets = step_ods(a.od, b.od).map { |d| d / 2.0 } + [b.ro]
+        pts = [[0.0, a.ro]]
+        x = lead || 0.6 * leg(a.od)
+        r = a.ro
+        targets.each_with_index do |r2, i|
+          pts << [x, r]                       # end of the collar / leg
+          x += (r - r2).abs * 0.6             # shoulder
+          pts << [x, r2]
+          x += i == targets.size - 1 ? (tail || 0.6 * leg(b.od)) : [0.5 * r2, 12.0].max
+          r = r2
+        end
+        pts << [x, r]
+      end
+
+      def stepped_length(a, b, lead: nil, tail: nil)
+        step_profile(a, b, lead: lead, tail: tail).last[0].round(1)
+      end
+
+      # The reducer solid from a (x = 0) to b; the bore follows the outside
+      # at the SDR of each end (a's wall ratio up to the last step).
+      def stepped_reducer(a, b, lead: nil, tail: nil, ends: true)
+        prof = step_profile(a, b, lead: lead, tail: tail)
+        ka = a.ri / a.ro
+        inner = prof.each_with_index.map do |(x, r), i|
+          [x, i == prof.size - 1 || (r - b.ro).abs < 1e-6 ? b.ri : r * ka]
+        end
+        loop2d = prof + inner.reverse
+        part = Mesh::Part.new
+        part.add(:fitting, M.revolve([loop2d], axis_o: [0.0, 0.0, 0.0], axis: [1.0, 0.0, 0.0], steps: [a.steps, b.steps].max))
+        len = prof.last[0]
+        if ends
+          joint_end(part, [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0], a)
+          joint_end(part, [len, 0.0, 0.0], [1.0, 0.0, 0.0], b)
+        end
+        part
       end
 
       # Radius of the fitting body (insulation, clash).

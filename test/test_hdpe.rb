@@ -167,6 +167,40 @@ class TestHdpe < Minitest::Test
     assert_in_delta (0.25 * 110 + 10) + (0.2 * 110 + 12), len, 0.1
   end
 
+  def test_small_branch_is_an_equal_tee_and_a_stepped_reducer
+    main, = Builder.create_run(@model, [[[0, 0, 0], [10_000, 0, 0]]], settings('160 mm'))
+    tee = { 'at' => [4000.0, 0.0, 0.0], 'main_dir' => [1.0, 0.0, 0.0], 'main_catalog' => 'HDPE_PE100',
+            'main_size' => '160 mm', 'main_rating' => 'SDR11 PN16', 'main_service' => 'CW',
+            'main_pid' => main.persistent_id, 'main_joint' => 'auto' }
+    br, w = Builder.create_run(@model, [[[4000, 0, 0], [4000, 3000, 0]]], settings('32 mm'), tees: [tee])
+    assert_empty w
+    t = children(br, 'tee').first
+    assert_equal '160 mm', t.get_attribute(H::DICT, 'branch_size'), 'equal tee on the main'
+    red = children(br, 'reducer').first
+    assert_equal '160 mm x 32 mm', red.get_attribute(H::DICT, 'size')
+    assert_equal 1, children(br, 'coupling').size, '32 mm is compression: a coupler on the reducer spigot'
+    mo = opts('160 mm')
+    small = opts('32 mm').dup.tap { |x| x.style = :fusion }
+    big = mo.dup.tap { |x| x.style = :fusion }
+    len = Hdpe.stepped_length(big, small, lead: 0.6 * Hdpe.leg(160), tail: Hdpe.leg(32))
+    c = Hdpe.tee_c(mo)
+    assert_in_delta 3000 - c - len, children(br, 'pipe').first.get_attribute(H::DICT, 'length_mm'), 0.1
+    rows = bom
+    assert(rows.any? { |r| r.category == 'tee' && r.description == 'Equal Tee – Butt fusion spigot' && r.size == '160 mm' })
+    assert(rows.any? { |r| r.category == 'reducer' && r.size == '160 mm x 32 mm' })
+    Hdpe.stepped_reducer(big, small).solids.each { |_, sol| assert Mesh.closed?(sol) }
+    assert_equal [125, 110, 90], Hdpe.step_ods(160, 63)
+  end
+
+  def test_water_pipe_stripes_with_true_colours
+    run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], settings('110 mm').merge('color_scheme' => 'material'))
+    pipe = children(run, 'pipe').first
+    mats = pipe.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }
+    assert_includes mats, 'PP_Stripe_Blue'
+    run2, = Builder.create_run(@model, [[[0, 900, 0], [3000, 900, 0]]], settings('110 mm').merge('color_scheme' => 'distinct'))
+    refute_includes children(run2, 'pipe').first.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }, 'PP_Stripe_Blue'
+  end
+
   def test_old_hdpe_runs_rebuild_with_the_new_fittings
     run, = Builder.create_run(@model, l_run, settings('110 mm'))
     s = H.get_json(run, 'settings')

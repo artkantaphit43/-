@@ -198,6 +198,8 @@ module ArtK
         gasket:   ['PP_Gasket', [38, 38, 38]],
         comp_nut: ['PP_Compression_Nut', [28, 92, 196]],      # PP compression nut, blue (water)
         pp_black: ['PP_PP_Black', [40, 42, 46]],              # PP compression valve body
+        stripe_blue: ['PP_Stripe_Blue', [26, 110, 214]],      # PE water pipe stripe
+        stripe_brown: ['PP_Stripe_Brown', [150, 86, 40]],     # PE sewer pipe stripe
         indicator: ['PP_Fusion_Indicator', [232, 176, 24]]   # electrofusion fusion indicator
       }.freeze
 

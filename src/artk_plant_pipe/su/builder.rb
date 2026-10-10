@@ -261,7 +261,25 @@ module ArtK
       # it is an equal tee from the reference library, else the standard C.
       def branch_c(t, ctx)
         item = branch_ref_tee(t, ctx)
-        item ? Vec.length(item['ports'][2]['p']) : main_tee_c(t, ctx)
+        return Vec.length(item['ports'][2]['p']) if item
+
+        br = branch_reducer(main_opts(t, ctx), ctx[:opts])
+        main_tee_c(t, ctx) + (br ? br[:len] : 0.0)
+      end
+
+      # A smaller HDPE branch off a butt fusion / EF main is made as on
+      # site: an equal tee, then a stepped spigot reducer down to the
+      # branch size (its long small leg joined by the branch's own system).
+      # Compression mains keep their reducing tees.
+      def branch_reducer(mo, bo)
+        return nil unless Hdpe.style?(mo) && Hdpe.style?(bo) && mo.style != :compression && bo.od < mo.od - 0.5
+
+        big = mo.dup.tap { |x| x.style = :fusion }
+        small = bo.dup.tap { |x| x.style = :fusion }
+        lead = mo.style == :electrofusion ? Hdpe.ef_socket(mo.od) + 15.0 : 0.6 * Hdpe.leg(mo.od)
+        tail = Hdpe.leg(bo.od).to_f
+        { big: big, small: small, lead: lead, tail: tail,
+          len: Hdpe.stepped_length(big, small, lead: lead, tail: tail) }
       end
 
       def main_opts(t, ctx)
@@ -403,6 +421,7 @@ module ArtK
         pa = Vec.sub(a, Vec.scale(dir, ea))
         pb = Vec.add(b, Vec.scale(dir, eb))
         part = Mesh::Part.new.add(:pipe, Mesh.cylinder(pa, pb, o.ro, ri: o.ri, steps: ctx[:steps]))
+        add_stripes(ctx, part, [pa, pb])
         g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: ctx[:steps])
         cut = Vec.dist(pa, pb)
         finish_piece(ctx, g, "Pipe #{spec.size} L=#{cut.round}", ctx[:mat],
@@ -415,6 +434,41 @@ module ArtK
         end
         add_stick_joints(ctx, [pa, pb])
         insulate(ctx, Mesh.cylinder(a, b, o.ro + ctx[:ins], ri: o.ro + 0.5, steps: ctx[:steps]), d[:length])
+      end
+
+      # Co-extruded colour stripes of PE pipe (ISO 4427 / TIS 982: blue for
+      # water, brown for sewer) – four, as on the pipe. Drawn only with the
+      # true-material colour scheme, where the pipe itself is black.
+      STRIPE_SERVICES = {
+        stripe_blue: %w[CW HW HWR CHWS CHWR CDW PW DI],
+        stripe_brown: %w[SAN SD V IWW]
+      }.freeze
+
+      def stripe_role(ctx)
+        s = ctx[:settings]
+        return nil unless ctx[:spec].family == 'HDPE' && s['color_scheme'] == 'material' && s['pipe_color'].to_s.empty?
+
+        code = ctx[:svc][:code]
+        STRIPE_SERVICES.find { |_, codes| codes.include?(code) }&.first
+      end
+
+      def add_stripes(ctx, part, path)
+        role = stripe_role(ctx) or return
+        ro = ctx[:opts].ro
+        w = [0.025 * 2 * ro, 2.0].max
+        h = 0.6
+        path.each_cons(2) do |p, q|
+          dir = Vec.unit(Vec.sub(q, p))
+          up = stem_direction(dir)
+          side = Vec.cross(dir, up)
+          4.times do |k|
+            t = Math::PI / 4 + k * Math::PI / 2
+            u = Vec.add(Vec.scale(up, Math.cos(t)), Vec.scale(side, Math.sin(t)))
+            off = Vec.scale(u, ro + h / 2.0 - 0.1)
+            part.add(role, Mesh.bar(Vec.add(p, off), Vec.add(q, off), w, h, u))
+          end
+        end
+        part
       end
 
       # HDPE: a joint every stock length along the pipe (6 m sticks, 50 /
@@ -467,7 +521,9 @@ module ArtK
         path[0] = Vec.sub(a, Vec.scale(da, ea))
         path[-1] = Vec.add(b, Vec.scale(db, eb))
         solid, end_ref = Mesh.sweep(path, o.ro, o.ri, steps: ctx[:steps])
-        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:pipe, solid), steps: ctx[:steps])
+        part = Mesh::Part.new.add(:pipe, solid)
+        add_stripes(ctx, part, path)
+        g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: ctx[:steps])
         cut = d[:length] + ea + eb
         r = d[:radius].round
         finish_piece(ctx, g, "Pipe #{spec.size} L=#{cut.round} bent R=#{r}", ctx[:mat],
@@ -755,6 +811,9 @@ module ArtK
 
         c = main_tee_c(t, ctx)
         mo = main_opts(t, ctx)
+        br = branch_reducer(mo, ctx[:opts])
+        bo = br ? mo : ctx[:opts] # equal tee when a reducer follows
+        bsize = br ? main.size : spec.size
         arms = [main_dir, Vec.scale(main_dir, -1.0), bdir]
         f = junction_frame(at, arms)
         loc = local_dirs(f, arms)
@@ -762,19 +821,20 @@ module ArtK
         angle = 180.0 - angle if angle > 90.0
         kind = (angle - 90.0).abs <= 1.0 ? 'tee' : 'lateral'
         sgn = Hdpe.style?(mo) ? up_sign(f) : 1
-        name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}" \
-               "#{style_key(mo)}#{style_key(ctx[:opts])}#{sgn.negative? ? ' | dn' : ''}"
+        name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{bsize} | #{lod_key(ctx)}" \
+               "#{style_key(mo)}#{style_key(bo)}#{sgn.negative? ? ' | dn' : ''}"
         main_code = t['main_service'] || ctx[:common]['service']
         mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'], t['main_color'])
         item = kind == 'tee' && branch_ref_tee(t, ctx)
         inst = item && ref_or_nil(ctx, item) { place_ref(ctx, item, Mesh.frame(at, main_dir, bdir), mat, plain: true) }
         item = nil unless inst
         inst ||= place_part(ctx, name, f) do
-          Hdpe.flip(sgn) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
+          Hdpe.flip(sgn) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, bo]]) }
         end
-        finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{spec.size}", mat,
+        render_branch_reducer(ctx, br, Vec.add(at, Vec.scale(bdir, c)), bdir, main, mat, main_code) if br
+        finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{bsize}", mat,
                      'type' => 'tee', 'kind' => kind, 'role' => 'branch', 'branch_angle' => angle.round(1),
-                     'size' => main.size, 'branch_size' => spec.size, 'rating' => main.rating,
+                     'size' => main.size, 'branch_size' => bsize, 'rating' => main.rating,
                      'service' => main_code, 'catalog_name' => main.catalog_name, 'material' => main.material,
                      'od' => main.od,
                      'geom' => JSON.generate('center' => at, 'arms' => arms, 'c' => c)).tap do |e|
@@ -783,6 +843,35 @@ module ArtK
         end
       rescue StandardError => e
         warnings << "Branch tee: #{e.message}"
+      end
+
+      # Stepped reducer on the tee's branch outlet (+start+, along +dir+) and
+      # the joint onto the branch pipe: a bead (butt fusion) or the branch
+      # system's coupler.
+      def render_branch_reducer(ctx, br, start, dir, main, mat, main_code)
+        spec = ctx[:spec]
+        bo = ctx[:opts]
+        up = stem_direction(dir)
+        f = Mesh.frame(start, dir, Vec.cross(up, dir))
+        len = br[:len]
+        name = "PP Branch reducer #{len} | #{spec_key(main)} > #{spec_key(spec)} | #{lod_key(ctx)}#{style_key(bo)}"
+        inst = place_part(ctx, name, f) do
+          part = Hdpe.stepped_reducer(br[:big], br[:small], lead: br[:lead], tail: br[:tail], ends: false)
+          bo.style == :fusion ? Hdpe.bead(part, [len, 0.0, 0.0], [1.0, 0.0, 0.0], br[:small]) : part
+        end
+        finish_piece(ctx, inst, "Reducer #{main.size} x #{spec.size}", mat,
+                     'type' => 'reducer', 'kind' => 'Concentric Reducer', 'size' => "#{main.size} x #{spec.size}",
+                     'service' => main_code, 'catalog_name' => main.catalog_name, 'material' => main.material,
+                     'od' => main.od, 'joint_desc' => 'Butt fusion spigot, stepped',
+                     'geom' => JSON.generate('a' => start, 'b' => Vec.add(start, Vec.scale(dir, len)), 'r' => main.od / 2.0))
+        return if bo.style == :fusion
+
+        at = Vec.add(start, Vec.scale(dir, len))
+        desc = bo.style == :electrofusion ? 'EF coupler' : 'Compression coupler (PP)'
+        cn = "PP Coupler | #{spec_key(spec)} | #{lod_key(ctx)}#{style_key(bo)}"
+        ci = place_part(ctx, cn, Mesh.frame(at, dir, Vec.cross(up, dir))) { Hdpe.coupler(bo) }
+        finish_piece(ctx, ci, "#{desc} #{spec.size}", ctx[:mat],
+                     { 'type' => 'coupling', 'fitting_desc' => desc, 'at' => JSON.generate(at) }.merge(joint_attrs(bo)))
       end
 
       # ------------------------------------------------------------------

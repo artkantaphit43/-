@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.14.0**
-(`dist/artk_plant_pipe-1.14.0.rbz`). Tests: `rake test` (211 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.14.1**
+(`dist/artk_plant_pipe-1.14.1.rbz`). Tests: `rake test` (213 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -86,6 +86,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   stub end/backing ring (`Hdpe.flanged_valve`), สวมอัด = บอลวาล์ว PP ตัวดำฝาฟ้า · ข้อต่อตรงทุก stick (`add_stick_joints`) ·
   BOM: `fitting_desc`/`joint_desc`, `coupling`, valve `stub_ends` → แถว stub end · HDPE แข็งเพิ่มขนาด 355–630 (ISO 4427) ·
   ทดสอบ: ทุก part ปิดสนิท 97,074 solids, 648 เคสแนวท่อ (2 แค็ตตาล็อก × ทุกขนาด × 4 ระบบ × 2 LOD × 3 ระบบท่อ + tee/join/วาล์วทุกชนิด/rebuild)
+- **v1.14.1**: ผู้ใช้ส่งรูปหน้างาน (สามทาง HDPE เท่าเมน + ข้อลดขั้นบันได + ท่อเล็ก, ท่อดำคาดฟ้า) → ท่อแยกที่เล็กกว่าเมนหลอม/EF
+  = สามทางเท่าเมน + `Hdpe.stepped_reducer` (ขั้นตามขนาดมาตรฐานคั่นกลาง ≤3 ขั้น, ขาเล็กยาว) + ข้อต่อตามระบบท่อเล็กที่ปลาย
+  (`Builder.branch_reducer` / `render_branch_reducer`; branch_c รวมความยาวข้อลด) · เมนสวมอัดยังใช้สามทางลด · join HDPE ชนหลอมทั้งสองฝั่ง
+  ใช้ข้อลดขั้นบันได (ยาวสมมาตร) · แถบสีท่อ PE (`add_stripes`) เฉพาะ color scheme 'material' และไม่มีสีเอง: ฟ้า=น้ำ, น้ำตาล=ระบาย
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

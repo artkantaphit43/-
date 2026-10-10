@@ -206,6 +206,8 @@ module ArtK
       # Concentric reducer / expander / adaptor from pipe +a+ (at x = 0) to
       # pipe +b+ (at x = len) along +X. Transition cone in the middle third.
       def reducer(len, a, b)
+        return Hdpe.stepped_reducer(a, b) if a.style == :fusion && b.style == :fusion
+
         part = Mesh::Part.new
         ra = body_radius(a)
         rb = body_radius(b)
