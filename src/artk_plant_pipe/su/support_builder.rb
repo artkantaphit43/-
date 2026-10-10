@@ -74,7 +74,7 @@ module ArtK
         note = nil
         case Supports::TYPES[type][:mount]
         when :above
-          hit = cast(model, at_w, UP)
+          hit = cast(model, Vec.add(at_w, [0, 0, r + 5.0]), UP)
           target = hit ? hit[:point] : Vec.add(at_w, [0, 0, r + FALLBACK_DROP])
           note = 'ไม่พบโครงสร้างด้านบน – ใช้ความยาวก้านแขวนสมมติ (no structure found above, assumed drop)' unless hit
           rec['target'] = H.transform_mm(inv, target)
@@ -406,7 +406,11 @@ module ArtK
         rmax = offsets.map { |_, r, _| r }.max
         case type
         when 'trapeze'
-          hit = cast(model, bottom, UP)
+          # look for the structure from just above the highest pipe: anything
+          # the pipes rest on or pass through (a beam, a wall, another
+          # bracket) is below that and must not stop the search
+          z_high = offsets.map { |_, r, z| z + r }.max
+          hit = cast(model, Vec.add(point, [0, 0, z_high + 5.0]), UP)
           drop = hit ? hit[:point][2] - point[2] : z_low + FALLBACK_DROP + 300
           note = 'ไม่พบโครงสร้างด้านบน – ใช้ความยาวก้านแขวนสมมติ' unless hit
           rod = rmax > 60 ? 12.7 : 9.5

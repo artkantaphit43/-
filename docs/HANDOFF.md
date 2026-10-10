@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.14.1**
-(`dist/artk_plant_pipe-1.14.1.rbz`). Tests: `rake test` (213 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.14.2**
+(`dist/artk_plant_pipe-1.14.2.rbz`). Tests: `rake test` (214 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -90,6 +90,9 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   = สามทางเท่าเมน + `Hdpe.stepped_reducer` (ขั้นตามขนาดมาตรฐานคั่นกลาง ≤3 ขั้น, ขาเล็กยาว) + ข้อต่อตามระบบท่อเล็กที่ปลาย
   (`Builder.branch_reducer` / `render_branch_reducer`; branch_c รวมความยาวข้อลด) · เมนสวมอัดยังใช้สามทางลด · join HDPE ชนหลอมทั้งสองฝั่ง
   ใช้ข้อลดขั้นบันได (ยาวสมมาตร) · แถบสีท่อ PE (`add_stripes`) เฉพาะ color scheme 'material' และไม่มีสีเอง: ฟ้า=น้ำ, น้ำตาล=ระบาย
+- **v1.14.2**: Beam clamp ข้างท่ออีกเส้น → trapeze แต่ก้านแขวนยาว 0 (beam clamp นอนที่ราง) เพราะ create_multi หาโครงสร้างด้วย
+  ray จากใต้ท่อ แล้วไปชนของที่ท่อแตะอยู่ (ไม่ใช่ของปลั๊กอิน) → ตอนนี้ยิงจากเหนือท่อที่สูงที่สุด +5 มม. (record_for แบบเดี่ยวก็ยิงจากหลังท่อ) ·
+  trapeze เดิมที่เพี้ยนไม่แก้เอง (adapt ทำเมื่อ members เปลี่ยน) – ให้ผู้ใช้ลบแล้ววางใหม่
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

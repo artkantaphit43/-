@@ -108,6 +108,25 @@ class TestSharedSupports < Minitest::Test
     assert_empty H.get_json(a, 'supports', []), 'the single hanger was replaced'
   end
 
+  # The user's case: a beam-clamp hanger beside a second pipe became a
+  # trapeze whose rods had no length – the search for the beam started at
+  # the pipe bottom and stopped on what the pipes rest on there.
+  def test_trapeze_rods_reach_the_structure_even_when_the_pipes_touch_something
+    @model.ray_hits = lambda do |pt, dir|
+      next nil unless dir[2] > 0.5
+      next [pt, []] if (pt[2] - (1000 - 30.15)).abs < 1.0 # a face touching the pipe bottoms
+
+      [[pt[0], pt[1], 4000.0], []]
+    end
+    a = run_at(0)
+    run_at(250)
+    assert_nil SupportBuilder.place(@model, 'beam', hit_on(a, 3000))
+    g = shared.first
+    assert_equal 'trapeze', g.get_attribute(H::DICT, 'support_type')
+    assert_equal 'beam', g.get_attribute(H::DICT, 'base_type')
+    assert_in_delta 2 * (3000 + 30.15), g.get_attribute(H::DICT, 'rod_length_mm'), 1.0
+  end
+
   def test_column_bracket_carries_the_pipes_beside_it
     a = run_at(0)
     run_at(300)
