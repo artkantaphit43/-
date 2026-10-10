@@ -313,7 +313,20 @@ module ArtK
         total = 0
         shared = 0
         risers = 0
+        paired = 0
+        # one-per-pipe types (beam clamps): neighbours get their own at the
+        # same sections; every run is written once all are placed
+        each = SupportBuilder.each_pipe?(type)
+        own = {}
+        extra = {}
         model.start_operation('Plant Piping: Auto Supports', true)
+        runs.each { |run| H.set_json(run, 'supports', []) } if each
+        pending = lambda do
+          (own.keys + extra.keys).uniq.to_h do |r|
+            t = world * r.transformation
+            [r.persistent_id, ((own[r] || []) + (extra[r] || [])).map { |rec| H.transform_mm(t, rec['at']) }]
+          end
+        end
         runs.each do |run|
           tr = world * run.transformation
           inv = tr.inverse
@@ -327,6 +340,7 @@ module ArtK
           loads = Collector.pieces(run, 'valve').map { |v| JSON.parse(v.get_attribute(H::DICT, 'at')) }
           # supports shared with neighbouring pipes already carry this run
           fixed = SupportBuilder.shared_points(model, run.persistent_id).map { |w| H.transform_mm(inv, w) }
+          fixed += (extra[run] || []).map { |rec| rec['at'] } # hung here already by a neighbour
           res = Supports.place(pipes, span, loads: loads, fixed: fixed)
           risers += res[:risers]
           recs = []
@@ -335,7 +349,15 @@ module ArtK
             dir_w = Vec.unit(H.from_vec(H.to_vec(s[:dir]).transform(tr)))
             mem = SupportBuilder.members(model, at_w, dir_w)
             multi = Supports::TYPES[type][:multi] ? type : (mem.size > 1 && Supports::MULTI_OF[type])
-            if multi
+            if each && mem.size > 1
+              rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir])
+              recs << rec if rec
+              added, ns = SupportBuilder.paired_records(model, type, at_w, dir_w, mem, skip: run.persistent_id,
+                                                                                      have: pending.call)
+              added.each { |r2, list| (extra[r2] ||= []).concat(list) }
+              paired += added.values.sum(&:size)
+              notes.concat(ns)
+            elsif multi
               _g, note = SupportBuilder.create_multi(model, multi, at_w, dir_w, base: type, lod: st['lod'].to_sym,
                                                                                 steps: st['segments'], pipes: mem, op: false)
               SupportBuilder.drop_covered(model, at_w, mem.reject { |o| o[4] == run.persistent_id })
@@ -349,12 +371,22 @@ module ArtK
             notes << "#{run.name}: #{e.message}"
           end
           total += res[:supports].size
-          H.set_json(run, 'supports', recs)
-          notes.concat(Builder.render(model, run, Builder.run_settings(run)).map { |w| "#{run.name}: #{w}" })
+          if each
+            own[run] = recs
+          else
+            H.set_json(run, 'supports', recs)
+            notes.concat(Builder.render(model, run, Builder.run_settings(run)).map { |w| "#{run.name}: #{w}" })
+          end
           notes << "#{run.name}: ระยะห่างสูงสุด #{(span / 1000.0).round(2)} m (#{spec.size} #{spec.material})"
+        end
+        (own.keys + extra.keys).uniq.each do |run|
+          base = own.key?(run) ? own[run] : H.get_json(run, 'supports', [])
+          H.set_json(run, 'supports', base + (extra[run] || []))
+          notes.concat(Builder.render(model, run, Builder.run_settings(run)).map { |w| "#{run.name}: #{w}" })
         end
         model.commit_operation
         summary = "วางซัพพอร์ต #{total} จุด (placed #{total} supports)"
+        summary += " · ที่แขวนท่อข้างเคียงอีก #{paired} ตัว" if paired.positive?
         summary += " · ใช้ร่วมกับท่อข้างเคียง #{shared} จุด" if shared.positive?
         summary += " · ท่อแนวตั้ง #{risers} ช่วง ต้องใช้ riser clamp ที่ระดับพื้น" if risers.positive?
         show_warnings(notes, summary)

@@ -220,6 +220,8 @@ module ArtK
       # support becomes its multi-pipe form. Returns a note or nil.
       def place(model, type, hit, lod: :detailed, steps: 16, gap: group_gap)
         mem = members(model, hit[:proj], hit[:dir], gap: gap)
+        return place_each(model, type, hit, mem) if each_pipe?(type) && mem.size > 1
+
         multi = Supports::TYPES[type][:multi] ? type : (mem.size > 1 && Supports::MULTI_OF[type])
         return add_record(model, hit[:run], hit[:tr], type, hit[:proj], hit[:dir]) unless multi
 
@@ -228,6 +230,61 @@ module ArtK
         drop_covered(model, hit[:proj], mem)
         model.commit_operation
         note
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
+      def each_pipe?(type)
+        Supports::EACH_PIPE.include?(type)
+      end
+
+      # One support of +type+ on every pipe of +mem+ at the section through
+      # +point+ (world), each sized for its own pipe. Skipped: pipes that
+      # already have a support within COVER (+have+: extra world points
+      # per run id, for supports not stored yet), +skip+ (a run id), and a
+      # pipe with another one right above it (its rod would pass through).
+      # Returns [{ run => [record, …] }, notes].
+      def paired_records(model, type, point, dir, mem, skip: nil, have: {})
+        x = horizontal(dir)
+        y = Vec.cross(UP, x)
+        runs = H.active_runs(model).to_h { |r, tr| [r.persistent_id, [r, tr]] }
+        out = {}
+        notes = []
+        mem.each do |off, r, dz, _size, pid, _ins|
+          next if pid == skip
+
+          run, tr = runs[pid]
+          next unless run
+
+          if mem.any? { |o2, r2, dz2, *| dz2 > dz + 1.0 && (o2 - off).abs < r2 + 10.0 }
+            notes << "#{run.name}: มีท่ออยู่ด้านบน – ไม่ใส่ที่แขวน (another pipe right above)"
+            next
+          end
+          at_w = Vec.add(Vec.add(point, Vec.scale(y, off)), [0.0, 0.0, dz])
+          near = H.get_json(run, 'supports', []).map { |rec| H.transform_mm(tr, rec['at']) } + (have[pid] || [])
+          next if near.any? { |q| Vec.dist(q, at_w) <= COVER }
+
+          inv = tr.inverse
+          at = H.transform_mm(inv, at_w)
+          d = Vec.unit(H.from_vec(H.to_vec(dir).transform(inv)))
+          rec, note = record_for(model, run, tr, type, at, d)
+          (out[run] ||= []) << rec if rec
+          notes << "#{run.name}: #{note}" if note
+        end
+        [out, notes]
+      end
+
+      # The clicked pipe and each neighbour get their own support.
+      def place_each(model, type, hit, mem)
+        model.start_operation('Plant Piping: Support', true)
+        recs, notes = paired_records(model, type, hit[:proj], hit[:dir], mem)
+        recs.each do |run, list|
+          H.set_json(run, 'supports', H.get_json(run, 'supports', []) + list)
+          Builder.render(model, run, Builder.run_settings(run))
+        end
+        model.commit_operation
+        notes.empty? ? nil : notes.uniq.join("\n")
       rescue StandardError
         model.abort_operation
         raise
@@ -317,6 +374,7 @@ module ArtK
           drop_covered(model, at, mem)
           n += 1
         end
+        n += adapt_each(model, near, gap)
         H.active_runs(model).each do |run, tr|
           H.get_json(run, 'supports', []).each do |rec|
             multi = Supports::MULTI_OF[rec['type']]
@@ -341,6 +399,32 @@ module ArtK
       rescue StandardError
         model.abort_operation
         raise
+      end
+
+      # One-per-pipe supports (beam clamps) near the changed runs: a pipe
+      # now running beside one gets its own at the same section.
+      def adapt_each(model, near, gap)
+        n = 0
+        H.active_runs(model).each do |run, tr|
+          H.get_json(run, 'supports', []).each do |rec|
+            next unless each_pipe?(rec['type'])
+
+            at = H.transform_mm(tr, rec['at'])
+            next unless near.call(at)
+
+            dir = Vec.unit(H.from_vec(H.to_vec(rec['dir']).transform(tr)))
+            mem = members(model, at, dir, gap: gap)
+            next if mem.size < 2
+
+            recs, = paired_records(model, rec['type'], at, dir, mem, skip: run.persistent_id)
+            recs.each do |r2, list|
+              H.set_json(r2, 'supports', H.get_json(r2, 'supports', []) + list)
+              Builder.render(model, r2, Builder.run_settings(r2))
+              n += list.size
+            end
+          end
+        end
+        n
       end
 
       # A column beside the pipe at +point+: the nearest object within

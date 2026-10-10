@@ -67,9 +67,14 @@ module ArtK
 
       # What a single-pipe support becomes when it carries several pipes.
       MULTI_OF = {
-        'clevis' => 'trapeze', 'beam' => 'trapeze', 'trapeze' => 'trapeze', 'stand' => 'hframe',
+        'clevis' => 'trapeze', 'trapeze' => 'trapeze', 'stand' => 'hframe',
         'hframe' => 'hframe', 'shoe' => 'sleeper', 'bracket' => 'bracket', 'column' => 'column'
       }.freeze
+
+      # Supports hung one per pipe: beside a neighbour, the neighbour gets
+      # its own (sized for that pipe) at the same section – each pipe from
+      # its own beam clamp, as the user builds them.
+      EACH_PIPE = %w[beam].freeze
 
       COLUMN_ARM = 75.0   # mm, square hollow section of the column bracket arm
       COLUMN_PLATE = 12.0 # mm, plate bolted to the column face

@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.14.2**
-(`dist/artk_plant_pipe-1.14.2.rbz`). Tests: `rake test` (214 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.0**
+(`dist/artk_plant_pipe-1.15.0.rbz`). Tests: `rake test` (218 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -93,6 +93,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **v1.14.2**: Beam clamp ข้างท่ออีกเส้น → trapeze แต่ก้านแขวนยาว 0 (beam clamp นอนที่ราง) เพราะ create_multi หาโครงสร้างด้วย
   ray จากใต้ท่อ แล้วไปชนของที่ท่อแตะอยู่ (ไม่ใช่ของปลั๊กอิน) → ตอนนี้ยิงจากเหนือท่อที่สูงที่สุด +5 มม. (record_for แบบเดี่ยวก็ยิงจากหลังท่อ) ·
   trapeze เดิมที่เพี้ยนไม่แก้เอง (adapt ทำเมื่อ members เปลี่ยน) – ให้ผู้ใช้ลบแล้ววางใหม่
+- **v1.15.0**: ผู้ใช้ขอ Beam clamp "2 ท่อติดกันก็ทำ 2 อัน ขนาดตามท่อ" → `Supports::EACH_PIPE = ['beam']` (เอาออกจาก MULTI_OF) ·
+  `SupportBuilder.paired_records` ใส่ record เดี่ยวให้ทุกท่อใน members ที่หน้าตัดเดียวกัน (ข้ามท่อที่มีซัพพอร์ตใกล้ ≤ COVER และท่อที่มีท่ออื่นทับด้านบน) ·
+  `place_each` (เครื่องมือวางทีละจุด), Auto supports เขียนทุก run ตอนท้าย (own + extra, fixed รวมจุดที่ท่อข้างใส่ให้แล้ว),
+  `adapt_each` (วาดท่อใหม่ข้าง Beam clamp เดิม → ได้ของตัวเอง) · Clevis ยังเป็น trapeze เหมือนเดิม
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

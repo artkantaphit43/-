@@ -108,9 +108,9 @@ class TestSharedSupports < Minitest::Test
     assert_empty H.get_json(a, 'supports', []), 'the single hanger was replaced'
   end
 
-  # The user's case: a beam-clamp hanger beside a second pipe became a
-  # trapeze whose rods had no length – the search for the beam started at
-  # the pipe bottom and stopped on what the pipes rest on there.
+  # A hanger beside a second pipe became a trapeze whose rods had no
+  # length – the search for the structure started at the pipe bottom and
+  # stopped on what the pipes rest on there.
   def test_trapeze_rods_reach_the_structure_even_when_the_pipes_touch_something
     @model.ray_hits = lambda do |pt, dir|
       next nil unless dir[2] > 0.5
@@ -120,11 +120,78 @@ class TestSharedSupports < Minitest::Test
     end
     a = run_at(0)
     run_at(250)
-    assert_nil SupportBuilder.place(@model, 'beam', hit_on(a, 3000))
+    assert_nil SupportBuilder.place(@model, 'clevis', hit_on(a, 3000))
     g = shared.first
     assert_equal 'trapeze', g.get_attribute(H::DICT, 'support_type')
-    assert_equal 'beam', g.get_attribute(H::DICT, 'base_type')
     assert_in_delta 2 * (3000 + 30.15), g.get_attribute(H::DICT, 'rod_length_mm'), 1.0
+  end
+
+  def beams(run)
+    H.get_json(run, 'supports', []).select { |r| r['type'] == 'beam' }
+  end
+
+  # Beam clamps are hung one per pipe: clicking one of two pipes side by
+  # side hangs both, each from its own clamp and sized for its own pipe.
+  def test_beam_clamp_hangs_each_neighbour_separately
+    a = run_at(0, size: '4"')
+    b = run_at(250)
+    assert_nil SupportBuilder.place(@model, 'beam', hit_on(a, 3000))
+    assert_empty shared, 'no trapeze'
+    assert_equal 1, beams(a).size
+    assert_equal 1, beams(b).size
+    assert_in_delta 3000.0, beams(b).first['at'][0], 1.0
+    assert_in_delta 250.0, beams(b).first['at'][1], 1.0
+    assert_in_delta 4000.0, beams(b).first['target'][2], 1.0, 'its own rod up to the slab'
+    # each rendered for its own size (4" and 2" rods / clamps)
+    sizes = [a, b].map { |r| r.entities.select { |e| H.type_of(e) == 'support' }.map { |e| e.get_attribute(H::DICT, 'pipe_size') } }
+    assert_equal [['4"'], ['2"']], sizes
+    # clicking the same place again adds nothing
+    SupportBuilder.place(@model, 'beam', hit_on(b, 3100))
+    assert_equal [1, 1], [beams(a).size, beams(b).size]
+  end
+
+  def test_auto_beam_clamps_pair_up_along_two_pipes
+    a = run_at(0, size: '4"')
+    b = run_at(250)
+    c = run_at(1500) # too far – on its own
+    @model.selection.push(a)
+    @model.selection.push(b)
+    H.save_settings(@s.merge('support_type' => 'beam'))
+    Commands.auto_supports
+    assert_empty shared
+    xa = beams(a).map { |r| r['at'][0].round }.sort
+    xb = beams(b).map { |r| r['at'][0].round }.sort
+    refute_empty xa
+    xa.each { |x| assert(xb.any? { |y| (y - x).abs <= 1 }, "pipe b hung at #{x} too") }
+    [xa, xb].each { |xs| xs.each_cons(2) { |p, q| assert_operator q - p, :>, SupportBuilder::COVER, 'no doubles' } }
+    span_b = Supports.max_span_m(Catalog.spec('CS_B36_10', '2"')) * 1000
+    xb.each_cons(2) { |p, q| assert_operator q - p, :<=, span_b + 1.0 }
+    assert_empty beams(c)
+  end
+
+  def test_pipe_drawn_beside_beam_clamps_gets_its_own
+    a = run_at(0)
+    SupportBuilder.place(@model, 'beam', hit_on(a, 2000))
+    t = PipeTool.new
+    t.activate
+    [[0, 300, 1000], [6000, 300, 1000]].each do |p|
+      Sketchup::InputPoint.next_position = H.to_pt(p)
+      t.onMouseMove(0, 0, 0, @model.active_view)
+      t.onLButtonDown(0, 0, 0, @model.active_view)
+    end
+    t.onReturn(@model.active_view)
+    b = Collector.all_runs(@model).map(&:first).find { |r| r != a }
+    assert_equal 1, beams(b).size
+    assert_in_delta 2000.0, beams(b).first['at'][0], 1.0
+    assert_empty shared
+  end
+
+  def test_no_beam_clamp_under_a_pipe_above
+    a = run_at(0, 1000)
+    b = run_at(0, 1200) # right above a
+    SupportBuilder.place(@model, 'beam', hit_on(b, 3000))
+    assert_equal 1, beams(b).size
+    assert_empty beams(a), 'its rod would pass through the pipe above'
   end
 
   def test_column_bracket_carries_the_pipes_beside_it
