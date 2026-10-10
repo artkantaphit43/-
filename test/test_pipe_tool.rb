@@ -342,6 +342,28 @@ class TestPipeTool < Minitest::Test
     assert_equal '#224f22', ColorPickTool.hex([34, 79, 34])
   end
 
+  def test_eyedropper_reads_outlines_through_the_pick_helper
+    green = @model.materials.add('g')
+    green.color = Sketchup::Color.new(34, 79, 34)
+    pipe = Sketchup::Group.new
+    pipe.material = green
+    edge = Sketchup::Edge.new([0, 0, 0], [1, 0, 0])
+    edge.material = @model.materials.add('e')
+    assert_equal [34, 79, 34], ColorPickTool.color_of(edge, [pipe, edge]), 'edge colour is not the surface colour'
+    assert_nil ColorPickTool.color_of_paths([[], [Sketchup::Group.new, Sketchup::Face.new]])
+    assert_equal [34, 79, 34], ColorPickTool.color_of_paths([[Sketchup::Face.new], [pipe, edge]])
+
+    # no face under the input point (pointer on the pipe outline)
+    @view.pick_paths = [[pipe, edge]]
+    t = ColorPickTool.new
+    t.activate
+    t.onMouseMove(0, 10, 10, @view)
+    assert_equal 'สี #224f22 – คลิกเพื่อใช้', @view.tooltip
+    t.onLButtonDown(0, 10, 10, @view)
+    assert_equal '#224f22', H.load_settings['pipe_color']
+    assert_nil @model.tool, 'returns to Select after picking'
+  end
+
   def test_eyedropper_sets_the_pipe_colour_for_new_pipes
     H.save_settings(Settings.sanitize('service' => 'CW'))
     ColorPickTool.new.apply('#224f22')

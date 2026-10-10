@@ -42,6 +42,17 @@
   .note.warn { background: var(--warnbg); color: var(--warn); }
   .note.tip { background: var(--panel); color: var(--mut); border: 1px dashed var(--line); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cbtn { width: 44px; height: 20px; margin-left: 8px; vertical-align: middle; border: 1px solid var(--line);
+          border-radius: 5px; cursor: pointer; padding: 0; }
+  .cpop { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); margin: 2px 0 8px; }
+  .cpop canvas { display: block; width: 100%; border-radius: 5px; cursor: crosshair; touch-action: none; }
+  #sv { height: 92px; }
+  #hue { margin-top: 6px; height: 12px; }
+  .cgrid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 8px; }
+  .cgrid button { height: 18px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; padding: 0; }
+  .crow { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .crow .dropper { display: flex; align-items: center; gap: 6px; padding: 6px 10px; white-space: nowrap; }
+  .crow input { flex: 1; font-family: monospace; }
   .btn { background: var(--acc); color: var(--acc-fg); border: 0; border-radius: 7px; padding: 8px 10px;
          font: inherit; cursor: pointer; text-align: left; }
   .btn.sec { background: var(--panel); color: var(--fg); border: 1px solid var(--line); }
@@ -102,11 +113,19 @@
   <fieldset>
     <legend>การแสดงผล / BOM</legend>
     <label>สีท่อ (Colours)<select id="color_scheme"></select></label>
-    <label class="chk"><input type="checkbox" id="use_color"><span>กำหนดสีท่อเอง</span>
-      <input type="color" id="pipe_color" value="#2f80ed" style="margin-left:8px;width:48px;height:24px;padding:0"></label>
-    <div class="grid2" style="margin-top:4px">
-      <button class="btn sec" data-cmd="pick_color">ดูดสีจากโมเดล<small>คลิกท่อ/ผิวใน SketchUp</small></button>
-      <label>รหัสสี<input type="text" id="pipe_hex" placeholder="#22a14a" maxlength="7" style="min-width:84px;font-family:monospace"></label>
+    <label class="chk"><input type="checkbox" id="use_color"><span>กำหนดสีท่อเอง
+      <button type="button" id="cbtn" class="cbtn" title="เลือกสี"></button></span></label>
+    <input type="hidden" id="pipe_color" value="#2f80ed">
+    <div id="cpop" class="cpop" hidden>
+      <canvas id="sv" width="240" height="110"></canvas>
+      <canvas id="hue" width="240" height="12"></canvas>
+      <div class="cgrid" id="cgrid"></div>
+      <div class="crow">
+        <button type="button" class="btn dropper" data-cmd="pick_color" title="ดูดสีจากโมเดล: คลิกท่อ/ผิวใน SketchUp">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M20.7 5.6 18.4 3.3a1 1 0 0 0-1.4 0l-3.1 3.1-1.4-1.4-1.4 1.4 1.4 1.4-8.3 8.3a2 2 0 0 0-.6 1.4V20h2.5a2 2 0 0 0 1.4-.6l8.3-8.3 1.4 1.4 1.4-1.4-1.4-1.4 3.1-3.1a1 1 0 0 0 0-1.4ZM7.6 18H6v-1.6l8.1-8.1 1.6 1.6Z"/></svg>
+          ดูดสีจากโมเดล</button>
+        <input type="text" id="pipe_hex" placeholder="#22a14a" maxlength="7" title="รหัสสี (Enter)">
+      </div>
     </div>
     <div class="info">สีเองใช้กับท่อที่วาดใหม่ และท่อที่เลือกเมื่อกด "ปรับท่อที่เลือก"</div>
     <label>ระดับรายละเอียด<select id="lod">
@@ -208,6 +227,8 @@ const PP = (() => {
     $('use_color').checked = !!S.pipe_color;
     if (S.pipe_color) $('pipe_color').value = S.pipe_color;
     $('pipe_hex').value = S.pipe_color || '';
+    $('cbtn').style.background = $('pipe_color').value;
+    if (!$('cpop').hidden) syncPicker();
     info();
   }
 
@@ -246,6 +267,83 @@ const PP = (() => {
 
   function save() { call('save', JSON.stringify(S)); }
 
+  // ---- own colour picker: the browser's colour box has an eyedropper that
+  // cannot read the SketchUp model, so the picker is drawn here and its
+  // dropper runs the plugin's model eyedropper (ColorPickTool). ----
+  const PRESETS = ['#2f80ed', '#1e5bb8', '#00a8a8', '#22a14a', '#0f7a35', '#50e600', '#f2c500', '#ff7a00',
+                   '#d93636', '#e84393', '#8e44ad', '#8b5a2b', '#7f8c8d', '#bdc3c7', '#ffffff', '#2d3436'];
+  let hsv = [210, 0.8, 0.93];
+  let drag = null;
+  const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const rgb2hex = (r, g, b) => '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  function hsv2rgb(h, s, v) {
+    const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return [f(5) * 255, f(3) * 255, f(1) * 255];
+  }
+  function rgb2hsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [(h * 60 + 360) % 360, mx ? d / mx : 0, mx];
+  }
+  function drawPicker() {
+    // canvas pixels = shown size, so the marker stays round
+    ['sv', 'hue'].forEach((id) => { const cv = $(id); if (cv.clientWidth && cv.width !== cv.clientWidth) { cv.width = cv.clientWidth; cv.height = cv.clientHeight; } });
+    const sv = $('sv'), c = sv.getContext('2d'), W = sv.width, H = sv.height;
+    c.fillStyle = `hsl(${hsv[0]},100%,50%)`; c.fillRect(0, 0, W, H);
+    let g = c.createLinearGradient(0, 0, W, 0); g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.lineWidth = 2; c.strokeStyle = hsv[2] > 0.5 ? '#000' : '#fff';
+    c.beginPath(); c.arc(hsv[1] * W, (1 - hsv[2]) * H, 5, 0, 7); c.stroke();
+    const hu = $('hue'), d = hu.getContext('2d');
+    g = d.createLinearGradient(0, 0, hu.width, 0);
+    for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${i * 60},100%,50%)`);
+    d.fillStyle = g; d.fillRect(0, 0, hu.width, hu.height);
+    d.fillStyle = '#fff'; d.strokeStyle = '#000'; d.lineWidth = 1;
+    const x = hsv[0] / 360 * hu.width;
+    d.fillRect(x - 2, 0, 4, hu.height); d.strokeRect(x - 2, 0.5, 4, hu.height - 1);
+  }
+  function syncPicker() {
+    hsv = rgb2hsv(...hex2rgb($('pipe_color').value));
+    drawPicker();
+  }
+  // live = while dragging (no save yet)
+  function setColor(hex, live) {
+    $('pipe_color').value = hex;
+    $('cbtn').style.background = hex;
+    $('pipe_hex').value = hex;
+    $('use_color').checked = true;
+    S.pipe_color = hex;
+    if (live) { $('swatch').style.background = hex; return; }
+    render();
+    save();
+  }
+  function pickAt(e) {
+    const r = drag.getBoundingClientRect();
+    const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    if (drag.id === 'hue') hsv[0] = fx * 359.9; else { hsv[1] = fx; hsv[2] = 1 - fy; }
+    drawPicker();
+    setColor(rgb2hex(...hsv2rgb(...hsv)), true);
+  }
+  function initPicker() {
+    $('cgrid').innerHTML = PRESETS.map((c) => `<button type="button" data-c="${c}" title="${c}" style="background:${c}"></button>`).join('');
+    $('cgrid').addEventListener('click', (e) => { const c = e.target.dataset.c; if (c) { setColor(c); syncPicker(); } });
+    $('cbtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      $('cpop').hidden = !$('cpop').hidden;
+      if (!$('cpop').hidden) syncPicker();
+    });
+    ['sv', 'hue'].forEach((id) => {
+      $(id).addEventListener('pointerdown', (e) => { drag = $(id); drag.setPointerCapture(e.pointerId); pickAt(e); });
+      $(id).addEventListener('pointermove', (e) => { if (drag) pickAt(e); });
+      $(id).addEventListener('pointerup', () => { if (drag) { drag = null; setColor($('pipe_color').value); } });
+    });
+  }
+
   function onChange(e) {
     const id = e.target.id;
     if (id === 'service') {
@@ -265,10 +363,6 @@ const PP = (() => {
       if (!(S.rating in sizeRec().walls)) S.rating = Object.keys(sizeRec().walls)[0];
     } else if (id === 'use_color') {
       S.pipe_color = e.target.checked ? $('pipe_color').value : '';
-    } else if (id === 'pipe_color') {
-      S.pipe_color = e.target.value;
-      $('use_color').checked = true;
-      $('pipe_hex').value = S.pipe_color;
     } else if (id === 'pipe_hex') {
       let v = e.target.value.trim().toLowerCase();
       if (!v.startsWith('#')) v = '#' + v;
@@ -276,6 +370,7 @@ const PP = (() => {
       S.pipe_color = v;
       $('pipe_color').value = v;
       $('use_color').checked = true;
+      if (!$('cpop').hidden) syncPicker();
     } else if (['snap45', 'centerline', 'labels'].includes(id)) {
       S[id] = e.target.checked;
     } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments', 'support_group_mm'].includes(id)) {
@@ -334,6 +429,7 @@ const PP = (() => {
   }));
   document.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => call('command', b.dataset.cmd)));
   $('calc').addEventListener('click', calc);
+  initPicker();
   $('userec').addEventListener('click', () => {
     if (!recommended) return;
     S.size = recommended;

@@ -637,9 +637,32 @@ module Sketchup
   end
 
   class View
-    attr_accessor :tooltip
+    attr_accessor :tooltip, :pick_paths
 
     def invalidate; end
+
+    def pick_helper
+      PickHelper.new(pick_paths || [])
+    end
+  end
+
+  # PickHelper over the paths the test put on the view.
+  class PickHelper
+    def initialize(paths)
+      @paths = paths
+    end
+
+    def do_pick(_x, _y)
+      @paths.size
+    end
+
+    def count
+      @paths.size
+    end
+
+    def path_at(i)
+      @paths[i]
+    end
   end
 
   class Model

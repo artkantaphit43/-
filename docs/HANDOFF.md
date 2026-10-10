@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.12.0**
-(`dist/artk_plant_pipe-1.12.0.rbz`). Tests: `rake test` (188 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.12.1**
+(`dist/artk_plant_pipe-1.12.1.rbz`). Tests: `rake test` (189 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -67,6 +67,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **v1.12.0**: ซัพพอร์ต 'column' แขนเกาะข้างเสา (`Supports.column_bracket`, `SupportBuilder.find_column`) –
   หาเสาด้วย raycast ด้านข้าง + วัดความกว้างตามแนวท่อจากด้านในวัตถุ (≤1.2 m = เสา), ย้ายจุดวางไปนอกหน้าข้างเสาที่ใกล้คลิก,
   เป็นซัพพอร์ตร่วม (create_multi) จึง adapt ได้ · Auto supports ไม่รองรับชนิดนี้ (ต้องวางตรงเสา)
+- **v1.12.1**: ตัวเลือกสีของปลั๊กอินเอง (ui/settings.html: canvas SV + hue + สีสำเร็จ + รหัสสี) แทน `<input type=color>` –
+  หลอดดูดสีของกล่องสีเบราว์เซอร์อ่านจอ SketchUp ไม่ได้ ผู้ใช้กดแล้วงง → ปุ่ม "ดูดสีจากโมเดล" อยู่ในตัวเลือกสีเลย ·
+  ColorPickTool: ถ้า InputPoint ไม่มี face (ชี้ขอบท่อ) ใช้ PickHelper `path_at` หาสีของกลุ่ม/คอมโพเนนต์ (`color_of_paths`),
+  เคอร์เซอร์ icons/eyedropper_cursor.png (hotspot 2,21) + กล่องสีตัวอย่างข้างเคอร์เซอร์ (`draw`)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
