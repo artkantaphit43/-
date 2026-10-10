@@ -205,8 +205,22 @@ module Sketchup
     end
   end
 
+  # Curve / ArcCurve: the edges drawn by one Arc / Freehand stroke.
+  class Curve
+    attr_reader :edges
+
+    def initialize(edges)
+      @edges = edges
+      edges.each { |e| e.curve = self }
+    end
+
+    def vertices
+      [edges.first.start] + edges.map(&:end)
+    end
+  end
+
   class Edge < Entity
-    attr_accessor :soft, :smooth
+    attr_accessor :soft, :smooth, :curve
     attr_reader :start, :end
 
     def initialize(a, b)

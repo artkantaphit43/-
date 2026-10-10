@@ -11,7 +11,8 @@ module ArtK
     # 1. Merge segment end points that are within +tol+ into nodes.
     # 2. Classify each node by its number of arms (degree) and angles:
     #      1 arm  → :end
-    #      2 arms → :pass (collinear, no fitting) or :elbow
+    #      2 arms → :pass (collinear, no fitting), :curve (a point the pipe
+    #               bends through, from a drawn arc / curve) or :elbow
     #      3 arms → :tee (branch ≈ 90°) or :lateral (e.g. 45° wye)
     #      4 arms → :cross,  >4 → :manifold (warned)
     # 3. Merge segments through :pass nodes into straight "chains", so a
@@ -23,12 +24,17 @@ module ArtK
     #    elbows are first downgraded to short-radius, then to a mitre joint
     #    (and a warning is issued) – the same decision a piping designer
     #    makes on a tight run.
-    # 5. Emit pieces with full 3D geometry ready for rendering.
+    # 5. Emit pieces with full 3D geometry ready for rendering. Straight
+    #    chains joined through :curve nodes become one :curve piece – a
+    #    continuous bent pipe along the drawn curve, no fittings.
     class Network
       Piece = Struct.new(:type, :data)
 
       STRAIGHT_TOL_DEG = 0.5   # deflection below this is treated as straight
       FOLD_TOL_DEG     = 179.0 # deflection above this cannot be fitted
+      CURVE_MAX_DEG    = 30.0  # sharpest step of a drawn curve still bent through
+      FACETED_MAX_DEG  = 15.0  # step of an exploded arc (no curve info left)
+      FACETED_MIN      = 3     # ... and how many such steps in a row make one
 
       attr_reader :pieces, :warnings, :nodes
 
@@ -37,8 +43,11 @@ module ArtK
       # takes: optional take-outs of real fittings (reference models):
       #   elbow: ->(deflection_deg, radius_type) { mm or nil }
       #   tee_run / tee_branch: centre-to-end of the equal tee (mm)
-      def initialize(segments, spec, tol: 1.0, radius_type: :lr, takes: nil)
+      # smooth: centre-line points the pipe bends through without a fitting
+      #   (vertices of drawn arcs / curves, see Network.curve_points).
+      def initialize(segments, spec, tol: 1.0, radius_type: :lr, takes: nil, smooth: [])
         @segments = segments
+        @smooth = smooth || []
         @od = fetch(spec, :od)
         @r_lr = fetch(spec, :elbow_radius_lr)
         @r_sr = fetch(spec, :elbow_radius_sr)
@@ -58,6 +67,18 @@ module ArtK
         net.send(:connected_segments)
       end
 
+      # Points of +segments+ where a drawn curve passes: the vertices of the
+      # SketchUp curves in +curves+ (each a list of points, ends included)
+      # and runs of FACETED_MIN or more evenly spaced shallow vertices (an
+      # arc that was exploded). Corners sharper than CURVE_MAX_DEG stay
+      # fittings – that is checked when the network is solved.
+      def self.curve_points(segments, curves = [], tol: 1.0)
+        dummy = { od: 1.0, elbow_radius_lr: 1.0, elbow_radius_sr: 1.0, tee_c: 1.0 }
+        net = new(segments, dummy, tol: tol)
+        net.send(:build_graph)
+        net.send(:faceted_points) + curves.flatten(1).map { |p| p.map(&:to_f) }.uniq
+      end
+
       def solve
         build_graph
         classify_nodes
@@ -72,7 +93,7 @@ module ArtK
       end
 
       def fittings
-        @pieces.reject { |p| p.type == :pipe || p.type == :end }
+        @pieces.reject { |p| %i[pipe curve end].include?(p.type) }
       end
 
       private
@@ -219,12 +240,62 @@ module ArtK
         n[:deflection] = defl
         if defl < STRAIGHT_TOL_DEG
           :pass
+        elsif defl <= CURVE_MAX_DEG && smooth?(n[:pt])
+          :curve
         elsif defl > FOLD_TOL_DEG
           warn_at(n[:pt], 'ท่อพับกลับ 180° ไม่สามารถใส่ข้องอได้ (pipe folds back on itself)')
           :mitre
         else
           :elbow
         end
+      end
+
+      def smooth?(pt)
+        @smooth.any? { |p| Vec.dist(p, pt) <= @tol }
+      end
+
+      # Vertices of exploded arcs: FACETED_MIN or more 2-arm vertices in a
+      # row, each turning 0.5–15°, joined by chords of similar length (max /
+      # min ≤ 2). Deliberate small bends (an 11.25° pair) are never three in
+      # a row at equal spacing.
+      def faceted_points
+        shallow = {}
+        @nodes.each_with_index do |n, idx|
+          next unless n[:arms].size == 2
+
+          d1 = arm_dir(idx, n[:arms][0])
+          d2 = arm_dir(idx, n[:arms][1])
+          defl = deg(Vec.angle(Vec.scale(d1, -1.0), d2))
+          shallow[idx] = true if defl >= STRAIGHT_TOL_DEG && defl <= FACETED_MAX_DEG
+        end
+        seen = {}
+        out = []
+        shallow.each_key do |start|
+          next if seen[start]
+
+          group = [start]
+          seen[start] = true
+          stack = [start]
+          until stack.empty?
+            i = stack.pop
+            @nodes[i][:arms].each do |e|
+              j = other(e, i)
+              next unless shallow[j] && !seen[j]
+
+              seen[j] = true
+              group << j
+              stack << j
+            end
+          end
+          next if group.size < FACETED_MIN
+
+          chords = @edges.select { |i, j| shallow[i] && shallow[j] && group.include?(i) }
+                         .map { |i, j| Vec.dist(@nodes[i][:pt], @nodes[j][:pt]) }
+          next if chords.empty? || chords.max > 2.0 * chords.min
+
+          out.concat(group.map { |i| @nodes[i][:pt] })
+        end
+        out
       end
 
       def classify_three(idx, arms)
@@ -405,7 +476,8 @@ module ArtK
       # ---------- 5. emit ----------
 
       def emit
-        @chains.each do |c|
+        bent = {}
+        @chains.each_with_index do |c, ci|
           pa = @nodes[c[:a]][:pt]
           pb = @nodes[c[:b]][:pt]
           dir = Vec.unit(Vec.sub(pb, pa))
@@ -420,11 +492,16 @@ module ArtK
           end
           s = Vec.add(pa, Vec.scale(dir, ta))
           e = Vec.sub(pb, Vec.scale(dir, tb))
+          if @nodes[c[:a]][:kind] == :curve || @nodes[c[:b]][:kind] == :curve
+            bent[ci] = [s, e]
+            next
+          end
           plen = Vec.dist(s, e)
           next if plen < 0.5
 
           @pieces << Piece.new(:pipe, { from: s, to: e, length: plen, dir: dir })
         end
+        emit_curves(bent)
 
         @nodes.each_with_index do |n, idx|
           case n[:kind]
@@ -435,6 +512,59 @@ module ArtK
           when :end
             @pieces << Piece.new(:end, { at: n[:pt], dir: Vec.scale(arm_dir(idx, n[:arms][0]), -1.0) })
           end
+        end
+      end
+
+      # Chains meeting at :curve nodes, walked end to end into one bent
+      # pipe each: { points:, length:, radius: (tightest), angle_deg: }.
+      def emit_curves(bent)
+        done = {}
+        starts = bent.keys.flat_map do |ci|
+          c = @chains[ci]
+          %i[a b].reject { |w| @nodes[c[w]][:kind] == :curve }.map { |w| [ci, w] }
+        end
+        # a closed ring has no free end – start anywhere
+        starts += bent.keys.map { |ci| [ci, :a] }
+        starts.each do |ci0, from0|
+          next if done[ci0]
+
+          pts = []
+          turns = []
+          ci = ci0
+          from = from0
+          loop do
+            done[ci] = true
+            s, e = bent[ci]
+            c = @chains[ci]
+            seg = from == :a ? [s, e] : [e, s]
+            pts << seg[0] if pts.empty?
+            pts << seg[1]
+            arrive = from == :a ? :b : :a
+            ni = c[arrive]
+            n = @nodes[ni]
+            break unless n[:kind] == :curve
+
+            nxt = n[:chains].find { |cj, w| [cj, w] != [ci, arrive] }
+            break if nxt.nil? || done[nxt[0]] || !bent.key?(nxt[0])
+
+            lens = [chain_len(c), chain_len(@chains[nxt[0]])]
+            turns << [n[:deflection], lens.min]
+            ci, from = nxt
+          end
+          # drop points closer than 0.5 mm (a chain trimmed to nothing); the
+          # ends stay exact
+          kept = [pts.first]
+          pts[1..].each { |p| kept << p if Vec.dist(p, kept.last) >= 0.5 }
+          kept[-1] = pts.last if kept.size > 1
+          pts = kept
+          next if pts.size < 2
+
+          length = pts.each_cons(2).sum { |p, q| Vec.dist(p, q) }
+          next if length < 0.5
+
+          radius = turns.map { |d, l| l / (2.0 * Math.sin(rad(d) / 2.0)) }.min || 0.0
+          @pieces << Piece.new(:curve, { points: pts, length: length, radius: radius,
+                                         angle_deg: turns.sum(&:first).round(1) })
         end
       end
 

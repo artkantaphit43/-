@@ -22,23 +22,24 @@ module ArtK
             g = H.get_json(e, 'geom')
             next unless g
 
-            a = H.transform_mm(tr, g['a'])
-            b = H.transform_mm(tr, g['b'])
-            ab = Vec.sub(b, a)
-            len = Vec.length(ab)
-            next if len < 1.0
-
-            t = Vec.dot(Vec.sub(pt, a), ab) / (len * len)
-            next if t < 0.0 || t > 1.0
-
-            proj = Vec.add(a, Vec.scale(ab, t))
-            d = Vec.dist(proj, pt)
             r = e.get_attribute(H::DICT, 'od').to_f / 2.0
-            next if d > r + extra
-            next if best && d >= best[:dist]
+            # a pipe bent along a curve: the straight span under the cursor
+            H.pipe_path(g).map { |p| H.transform_mm(tr, p) }.each_cons(2) do |a, b|
+              ab = Vec.sub(b, a)
+              len = Vec.length(ab)
+              next if len < 1.0
 
-            best = { run: run, tr: tr, pipe: e, attrs: H.attrs(e), a: a, b: b,
-                     dir: Vec.scale(ab, 1.0 / len), proj: proj, t: t, len: len, dist: d }
+              t = Vec.dot(Vec.sub(pt, a), ab) / (len * len)
+              next if t < 0.0 || t > 1.0
+
+              proj = Vec.add(a, Vec.scale(ab, t))
+              d = Vec.dist(proj, pt)
+              next if d > r + extra
+              next if best && d >= best[:dist]
+
+              best = { run: run, tr: tr, pipe: e, attrs: H.attrs(e), a: a, b: b,
+                       dir: Vec.scale(ab, 1.0 / len), proj: proj, t: t, len: len, dist: d }
+            end
           end
         end
         best
@@ -55,9 +56,12 @@ module ArtK
           cl = H.get_json(run, 'cl', [])
           spec = Builder.run_spec(run)
           tol = [spec.od / 2.0 + 0.6 * spec.elbow_radius_lr, 40.0].max
+          smooth = H.get_json(run, 'smooth', [])
           cl.flatten(1).uniq { |p| p.map { |c| c.round(1) } }.each do |p|
             arms = cl.count { |a, b| Vec.dist(a, p) <= 1.0 || Vec.dist(b, p) <= 1.0 }
             next if arms < 2
+            # a point a curve bends through is not a corner
+            next if arms == 2 && smooth.any? { |q| Vec.dist(q, p) <= 1.0 }
 
             w = H.transform_mm(tr, p)
             d = Vec.dist(w, pt)

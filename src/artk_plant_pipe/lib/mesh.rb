@@ -290,6 +290,73 @@ module ArtK
         revolve(loops, axis_o: center, axis: normal, ref: xaxis, angle: angle, steps: arc_steps)
       end
 
+      # Tube swept along a polyline (a pipe bent along a drawn curve).
+      # Each vertex gets a mitre ring in the plane bisecting its two
+      # segments, so neighbouring straight pieces meet without a gap and
+      # every face stays a planar quad. The section frame is carried from
+      # segment to segment by the rotation between them (no twist).
+      # Returns [solid, end_ref]: end_ref is the ring's angle-zero direction
+      # at the last point (the first one is Vec.perpendicular of the first
+      # segment, as for Mesh.cylinder).
+      def sweep(points, ro, ri, steps: 16)
+        pts = points.map { |p| p.map(&:to_f) }
+        dirs = pts.each_cons(2).map { |p, q| Vec.unit(Vec.sub(q, p)) }
+        raise ArgumentError, 'sweep needs two distinct points' if dirs.empty? || dirs.any? { |d| Vec.length(d) < 0.5 }
+
+        us = [Vec.perpendicular(dirs[0])]
+        dirs.each_cons(2) do |d0, d1|
+          ax = Vec.cross(d0, d1)
+          u = us.last
+          u = Vec.rotate(u, ax, Vec.angle(d0, d1)) if Vec.length(ax) > 1e-9
+          u = Vec.unit(Vec.sub(u, Vec.scale(d1, Vec.dot(u, d1))))
+          us << u
+        end
+        ring = lambda do |i, r|
+          k = [i, dirs.size - 1].min
+          d = dirs[k]
+          u = us[k]
+          v = Vec.cross(d, u)
+          m = i.positive? && i < dirs.size ? Vec.unit(Vec.add(dirs[i - 1], dirs[i])) : nil
+          if m
+            d = dirs[i - 1]
+            u = us[i - 1]
+            v = Vec.cross(d, u)
+          end
+          (0...steps).map do |j|
+            t = TWO_PI * j / steps
+            off = Vec.add(Vec.scale(u, r * Math.cos(t)), Vec.scale(v, r * Math.sin(t)))
+            off = Vec.sub(off, Vec.scale(d, Vec.dot(off, m) / Vec.dot(d, m))) if m
+            Vec.add(pts[i], off)
+          end
+        end
+        outer = (0...pts.size).map { |i| ring.call(i, ro) }
+        inner = ri && ri.positive? ? (0...pts.size).map { |i| ring.call(i, ri) } : nil
+        solid = Solid.new
+        dirs.each_index do |i|
+          mid = Vec.lerp(pts[i], pts[i + 1], 0.5)
+          steps.times do |j|
+            j2 = (j + 1) % steps
+            q = [outer[i][j], outer[i][j2], outer[i + 1][j2], outer[i + 1][j]]
+            solid.add(orient(q, Vec.sub(centroid(q), Vec.add(mid, Vec.scale(dirs[i], Vec.dot(Vec.sub(centroid(q), mid), dirs[i]))))))
+            next unless inner
+
+            q = [inner[i][j], inner[i][j2], inner[i + 1][j2], inner[i + 1][j]]
+            solid.add(orient(q, Vec.sub(Vec.add(mid, Vec.scale(dirs[i], Vec.dot(Vec.sub(centroid(q), mid), dirs[i]))), centroid(q))))
+          end
+        end
+        [[0, Vec.scale(dirs[0], -1.0)], [pts.size - 1, dirs[-1]]].each do |i, out|
+          if inner
+            steps.times do |j|
+              j2 = (j + 1) % steps
+              solid.add(orient([outer[i][j], outer[i][j2], inner[i][j2], inner[i][j]], out))
+            end
+          else
+            solid.add(orient(outer[i], out))
+          end
+        end
+        [solid, us[-1]]
+      end
+
       # Prism: convex planar polygon extruded by vector.
       def extrude(poly, vec)
         top = poly.map { |p| Vec.add(p, vec) }

@@ -56,7 +56,7 @@ module ArtK
           cl: H.get_json(run, 'cl', []),
           pipes: pieces(run, 'pipe').map do |p|
             g = H.get_json(p, 'geom', {})
-            { from: g['a'], to: g['b'], length_mm: p.get_attribute(H::DICT, 'length_mm').to_f }
+            { from: g['a'], to: g['b'], path: g['path'], length_mm: p.get_attribute(H::DICT, 'length_mm').to_f }
           end,
           elbows: pieces(run, 'elbow').map do |e|
             { angle_deg: e.get_attribute(H::DICT, 'angle').to_f,
@@ -119,7 +119,9 @@ module ArtK
             od = a['od'].to_f
             case a['type']
             when 'pipe'
-              items << Clash::Item.new(owner: owner, label: label, a: w.call(g['a']), b: w.call(g['b']), r: od / 2.0 + ins)
+              H.pipe_path(g).each_cons(2) do |p, q|
+                items << Clash::Item.new(owner: owner, label: label, a: w.call(p), b: w.call(q), r: od / 2.0 + ins)
+              end
             when 'elbow'
               Clash.arc_chords(g['center'], g['xaxis'], g['normal'], g['radius'], g['angle']).each do |p, q|
                 items << Clash::Item.new(owner: owner, label: label, a: w.call(p), b: w.call(q), r: od / 2.0 + ins)

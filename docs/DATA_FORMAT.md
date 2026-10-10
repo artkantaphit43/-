@@ -44,6 +44,8 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 - `tees` – JSON branch connections onto other runs
 - `joins` – JSON joins onto other runs
 - `supports` – JSON support records
+- `smooth` – JSON centre-line points the pipe bends through without a fitting (vertices of
+  drawn arcs / curves, since 1.13). Missing = none: older runs render exactly as before.
 - `settings` – JSON, the full settings used
 - `extras` – JSON
 - `warnings` – JSON
@@ -76,7 +78,10 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 - Library parts fixed to an open pipe end (since 1.6.2) carry `end_part` – JSON with
   `key`, `at` (run mm) and `angle`. They are re-placed on every rebuild.
 - `geom` of a pipe holds `a`, `b` and, since 1.6.2, `ea` and `eb` (insertion into the
-  fittings).
+  fittings). Since 1.13 a pipe bent along a drawn curve also holds `path` – its
+  centre-line points from `a` to `b` (run mm); read it with `ModelHelpers.pipe_path`,
+  never assume `a`–`b` is straight. Such pipes also carry `bend_radius_mm` (tightest
+  radius) and `bend_angle` (total turn, degrees).
 - `type = end_center` – a group inside a pipe at an open end (since 1.6.1). It holds a
   real circle and a construction point, so SketchUp's own tools can snap to Center.
 

@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.12.1**
-(`dist/artk_plant_pipe-1.12.1.rbz`). Tests: `rake test` (189 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.13.0**
+(`dist/artk_plant_pipe-1.13.0.rbz`). Tests: `rake test` (200 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -71,6 +71,14 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   หลอดดูดสีของกล่องสีเบราว์เซอร์อ่านจอ SketchUp ไม่ได้ ผู้ใช้กดแล้วงง → ปุ่ม "ดูดสีจากโมเดล" อยู่ในตัวเลือกสีเลย ·
   ColorPickTool: ถ้า InputPoint ไม่มี face (ชี้ขอบท่อ) ใช้ PickHelper `path_at` หาสีของกลุ่ม/คอมโพเนนต์ (`color_of_paths`),
   เคอร์เซอร์ icons/eyedropper_cursor.png (hotspot 2,21) + กล่องสีตัวอย่างข้างเคอร์เซอร์ (`draw`)
+- **v1.13.0**: ท่อโค้งตามเส้น – Convert Edges เก็บจุดของ Sketchup::Curve (Arc/Freehand/Bezier) + หา arc ที่ถูก explode
+  (`Network.curve_points`: ≥3 จุดติดกันเลี้ยว 0.5–15° คอร์ดยาวใกล้กัน) → run key `smooth` · Network: โหนด 2 แขนที่อยู่ใน smooth
+  และเลี้ยว ≤30° = `:curve` (ไม่มีข้อต่อ, trim 0) → chain ที่ต่อกันผ่าน :curve รวมเป็น piece `:curve` (points/length/radius)
+  · `Mesh.sweep` (ท่อกวาดตาม polyline, mitre ring, frame แบบ parallel transport, quad ระนาบ) · `Builder.render_curve` →
+  record 'pipe' + geom `path` + `bend_radius_mm` · ผู้ใช้ geom ทุกที่อ่านผ่าน `H.pipe_path` (Picker, crossing_pipes,
+  auto supports `Supports.place` path, clash, run_data); RunEditor ข้ามท่อโค้ง; `Picker.run_node` ไม่นับจุดโค้งเป็นมุม ·
+  เตือนรัศมี: HDPE 25×OD, PVC ~300×OD (+ >6" ไม่แนะนำ, AWWA C605/M23), โลหะ 3D, PP-R ไม่มีเกณฑ์ทั่วไป ·
+  run เก่าไม่มี `smooth` → วาดเหมือนเดิมทุกอย่าง (ต้อง Convert ใหม่ถ้าอยากให้โค้ง) · ทดสอบทุกแค็ตตาล็อก×ทุกระบบ (1080 เคส)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

@@ -156,7 +156,8 @@ module ArtK
       end
 
       # Support positions for one run.
-      #   pipes  – [{ from:, to: }] straight pieces (mm)
+      #   pipes  – [{ from:, to: }] straight pieces (mm); a pipe bent along a
+      #            curve also has path: [points] – spacing is measured along it
       #   loads  – [[x,y,z], ...] concentrated loads (valves) needing a support nearby
       # Rules: horizontal pipes only (risers need riser clamps at floors),
       # first/last support within e = min(600 mm, span/4) of each fitting,
@@ -169,24 +170,19 @@ module ArtK
         out = []
         risers = 0
         pipes.each_with_index do |pp, idx|
-          a = pp[:from]
-          b = pp[:to]
-          d = Vec.sub(b, a)
-          len = Vec.length(d)
+          path = pp[:path] || [pp[:from], pp[:to]]
+          spans = path.each_cons(2).map { |p, q| [p, q, Vec.dist(p, q)] }.reject { |_, _, l| l < 1e-6 }
+          len = spans.sum { |_, _, l| l }
           next if len < 1.0
 
-          h = Math.hypot(d[0], d[1])
-          if d[2].abs > h
+          h = spans.sum { |p, q, _| Math.hypot(q[0] - p[0], q[1] - p[1]) }
+          if spans.sum { |p, q, _| (q[2] - p[2]).abs } > h
             risers += 1
             next
           end
-          dir = Vec.scale(d, 1.0 / len)
           e = [near, span_mm / 4.0, len / 2.0].min
           free = len - 2 * e
-          on = fixed.filter_map do |c|
-            t = Vec.dot(Vec.sub(c, a), dir)
-            t if t > -1.0 && t < len + 1.0 && Vec.dist(Vec.add(a, Vec.scale(dir, t)), c) <= 1.0
-          end
+          on = fixed.filter_map { |c| along(spans, c) }
           xs = if on.any?
                  fill(len, span_mm, e, on)
                elsif free <= 1.0
@@ -195,13 +191,18 @@ module ArtK
                  n = (free / span_mm).ceil
                  (0..n).map { |k| e + free * k / n }
                end
-          xs.each { |x| out << { at: Vec.add(a, Vec.scale(dir, x)), dir: dir, pipe: idx } }
+          xs.each do |x|
+            at, dir = point_along(spans, x)
+            out << { at: at, dir: dir, pipe: idx }
+          end
         end
         loads.each do |c|
           next if out.any? { |s| Vec.dist(s[:at], c) <= near } || fixed.any? { |f| Vec.dist(f, c) <= near }
 
           best = nil
           pipes.each_with_index do |pp, idx|
+            next if pp[:path] # valves sit on straight pipe
+
             a = pp[:from]
             ab = Vec.sub(pp[:to], a)
             len = Vec.length(ab)
@@ -221,6 +222,33 @@ module ArtK
           out << best if best
         end
         { supports: out, risers: risers }
+      end
+
+      # Distance along +spans+ ([[p, q, length], …]) of a point lying on
+      # them (within 1 mm), else nil.
+      def along(spans, c)
+        s = 0.0
+        spans.each do |p, q, l|
+          dir = Vec.scale(Vec.sub(q, p), 1.0 / l)
+          t = Vec.dot(Vec.sub(c, p), dir)
+          return s + t if t > -1.0 && t < l + 1.0 && Vec.dist(Vec.add(p, Vec.scale(dir, t)), c) <= 1.0
+
+          s += l
+        end
+        nil
+      end
+
+      # [point, direction] at distance x along +spans+.
+      def point_along(spans, x)
+        rest = x
+        spans.each_with_index do |(p, q, l), i|
+          if rest > l && i < spans.size - 1
+            rest -= l
+            next
+          end
+          dir = Vec.scale(Vec.sub(q, p), 1.0 / l)
+          return [Vec.add(p, Vec.scale(dir, rest.clamp(0.0, l))), dir]
+        end
       end
 
       # ---------------------------------------------------------------

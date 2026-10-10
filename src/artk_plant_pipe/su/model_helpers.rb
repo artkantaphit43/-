@@ -85,6 +85,12 @@ module ArtK
         default
       end
 
+      # Centre-line points of a pipe piece from its geom: [a, b] for a
+      # straight pipe, the whole path for one bent along a curve (1.13).
+      def pipe_path(geom)
+        geom['path'] || [geom['a'], geom['b']]
+      end
+
       def set_json(entity, key, value)
         entity.set_attribute(DICT, key, JSON.generate(value))
       end

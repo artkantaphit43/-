@@ -186,25 +186,25 @@ module ArtK
             next unless H.instance?(e) && H.type_of(e) == 'pipe'
 
             g = H.get_json(e, 'geom')
-            a = H.transform_mm(tr, g['a'])
-            b = H.transform_mm(tr, g['b'])
-            ab = Vec.sub(b, a)
-            next if Vec.length(ab) < 1.0
-            next if Vec.dot(horizontal(ab), x).abs < Math.cos(Supports::GROUP_ANGLE * Math::PI / 180) # not parallel
+            H.pipe_path(g).map { |p| H.transform_mm(tr, p) }.each_cons(2) do |a, b|
+              ab = Vec.sub(b, a)
+              next if Vec.length(ab) < 1.0
+              next if Vec.dot(horizontal(ab), x).abs < Math.cos(Supports::GROUP_ANGLE * Math::PI / 180) # not parallel
 
-            den = Vec.dot(ab, x)
-            next if den.abs < 1e-6
+              den = Vec.dot(ab, x)
+              next if den.abs < 1e-6
 
-            t = Vec.dot(Vec.sub(point, a), x) / den
-            next if t.negative? || t > 1.0
+              t = Vec.dot(Vec.sub(point, a), x) / den
+              next if t.negative? || t > 1.0
 
-            q = Vec.add(a, Vec.scale(ab, t))
-            off = Vec.dot(Vec.sub(q, point), y)
-            dz = q[2] - point[2]
-            next if off.abs > reach || dz.abs > rise
+              q = Vec.add(a, Vec.scale(ab, t))
+              off = Vec.dot(Vec.sub(q, point), y)
+              dz = q[2] - point[2]
+              next if off.abs > reach || dz.abs > rise
 
-            out << [off.round(1), e.get_attribute(H::DICT, 'od').to_f / 2.0 + ins, dz.round(1),
-                    e.get_attribute(H::DICT, 'size'), run.persistent_id, ins]
+              out << [off.round(1), e.get_attribute(H::DICT, 'od').to_f / 2.0 + ins, dz.round(1),
+                      e.get_attribute(H::DICT, 'size'), run.persistent_id, ins]
+            end
           end
         end
         out.uniq { |o| [o[0], o[2]] }

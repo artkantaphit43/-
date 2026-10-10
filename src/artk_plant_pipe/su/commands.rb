@@ -82,10 +82,17 @@ module ArtK
         segs = edges.map { |e| [H.from_pt(e.start.position), H.from_pt(e.end.position)] }
         settings = H.load_settings
         comps = Network.components(segs)
+        # arcs / curves (Arc, Freehand, Bezier, CAD splines) become pipe bent
+        # along them instead of an elbow at every facet
+        curves = edges.filter_map { |e| e.respond_to?(:curve) && e.curve }.uniq
+                      .map { |c| c.vertices.map { |v| H.from_pt(v.position) } }
+        smooth = Network.curve_points(segs, curves)
         warnings = []
         model.start_operation('Plant Piping: Convert Edges', true)
         comps.each do |c|
-          _run, w = Builder.create_run(model, c, settings, op: false)
+          pts = c.flatten(1)
+          own = smooth.select { |p| pts.any? { |q| Vec.dist(p, q) <= 1.0 } }
+          _run, w = Builder.create_run(model, c, settings, op: false, smooth: own)
           warnings.concat(w)
         end
         free = edges.select { |e| e.valid? && e.faces.empty? }
@@ -315,7 +322,7 @@ module ArtK
           span = Supports.max_span_m(spec, hot: %i[hot_water steam].include?(svc[:fluid])) * 1000.0
           pipes = Collector.pieces(run, 'pipe').map do |p|
             g = H.get_json(p, 'geom')
-            { from: g['a'], to: g['b'] }
+            { from: g['a'], to: g['b'], path: g['path'] }
           end
           loads = Collector.pieces(run, 'valve').map { |v| JSON.parse(v.get_attribute(H::DICT, 'at')) }
           # supports shared with neighbouring pipes already carry this run

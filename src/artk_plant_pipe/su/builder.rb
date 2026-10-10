@@ -33,7 +33,8 @@ module ArtK
 
       # Create a run from centreline segments in active-context coordinates.
       # op: false when the caller wraps several runs in one undo step.
-      def create_run(model, segs, settings, tees: [], joins: [], op: true)
+      # smooth: points the pipe bends through (drawn arcs / curves).
+      def create_run(model, segs, settings, tees: [], joins: [], op: true, smooth: [])
         settings = Settings.sanitize(settings)
         model.start_operation('Plant Piping: Draw Run', true) if op
         run = model.active_entities.add_group
@@ -41,6 +42,7 @@ module ArtK
         H.set_json(run, 'cl', segs)
         H.set_json(run, 'tees', tees)
         H.set_json(run, 'joins', joins)
+        H.set_json(run, 'smooth', smooth) unless smooth.nil? || smooth.empty?
         warnings = render(model, run, settings)
         model.commit_operation if op
         [run, warnings]
@@ -168,12 +170,13 @@ module ArtK
         unless segs.empty?
           net = Network.new(segs, network_spec(spec), tol: 1.0,
                                         radius_type: spec.flexible ? :lr : settings['elbow_type'].to_sym,
-                                        takes: ctx[:refs] ? ref_takes(spec) : nil).solve
+                                        takes: ctx[:refs] ? ref_takes(spec) : nil,
+                                        smooth: H.get_json(run, 'smooth', [])).solve
           warnings.concat(spec.flexible ? flexible_warnings(net) : net.warnings)
           ctx[:mitres] = net.pieces.select { |pc| pc.type == :mitre }.map { |pc| pc.data[:at] }
           # fittings first: real fittings record their socket depths, which
           # the pipes then run into
-          net.pieces.sort_by { |pc| pc.type == :pipe ? 1 : 0 }.each { |pc| render_piece(ctx, pc, extras, warnings) }
+          net.pieces.sort_by { |pc| %i[pipe curve].include?(pc.type) ? 1 : 0 }.each { |pc| render_piece(ctx, pc, extras, warnings) }
           add_label(ctx, net) if settings['labels']
         end
         tees.each { |t| render_branch_tee(ctx, t, warnings) }
@@ -332,6 +335,7 @@ module ArtK
         d = pc.data
         case pc.type
         when :pipe then render_pipe(ctx, d)
+        when :curve then render_curve(ctx, d, warnings)
         when :elbow then render_elbow(ctx, d, extras)
         when :tee, :lateral, :cross, :manifold then render_tee(ctx, pc.type, d)
         when :mitre
@@ -391,16 +395,78 @@ module ArtK
         insulate(ctx, Mesh.cylinder(a, b, o.ro + ctx[:ins], ri: o.ro + 0.5, steps: ctx[:steps]), d[:length])
       end
 
+      # Pipe bent along a drawn curve: one continuous tube through the
+      # curve's points (no fittings), cut length measured along it.
+      def render_curve(ctx, d, warnings)
+        spec = ctx[:spec]
+        o = ctx[:opts]
+        pts = d[:points]
+        a = pts.first
+        b = pts.last
+        da = Vec.unit(Vec.sub(pts[1], a))
+        db = Vec.unit(Vec.sub(b, pts[-2]))
+        ins = Parts.insertion(o)
+        ea = pipe_ext(ctx, a) || (joined?(ctx, a) ? ins : 0.0)
+        eb = pipe_ext(ctx, b) || (joined?(ctx, b) ? ins : 0.0)
+        path = pts.dup
+        path[0] = Vec.sub(a, Vec.scale(da, ea))
+        path[-1] = Vec.add(b, Vec.scale(db, eb))
+        solid, end_ref = Mesh.sweep(path, o.ro, o.ri, steps: ctx[:steps])
+        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:pipe, solid), steps: ctx[:steps])
+        cut = d[:length] + ea + eb
+        r = d[:radius].round
+        finish_piece(ctx, g, "Pipe #{spec.size} L=#{cut.round} bent R=#{r}", ctx[:mat],
+                     'type' => 'pipe', 'length_mm' => cut.round(1), 'bend_radius_mm' => r,
+                     'bend_angle' => d[:angle_deg], 'weight_kg_m' => spec.weight_kg_m.round(3),
+                     'stick_m' => spec.stick_length_m,
+                     'geom' => JSON.generate('a' => a, 'b' => b, 'ea' => ea, 'eb' => eb, 'path' => pts),
+                     'remark' => spec.estimated ? 'wall thickness estimated' : nil)
+        add_end_center(ctx, g, path[0], da, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, a) <= 1.0 }
+        add_end_center(ctx, g, path[-1], db, o.ro, ref: end_ref) if ctx[:open_ends].any? { |p| Vec.dist(p, b) <= 1.0 }
+        warnings.concat(bend_warnings(spec, d))
+        insulate(ctx, Mesh.sweep(pts, o.ro + ctx[:ins], o.ro + 0.5, steps: ctx[:steps]).first, d[:length]) if ctx[:ins].positive?
+        g
+      end
+
+      # Tightest radius each pipe material may be bent to (mm) and why, or
+      # nil when there is no general rule (PP-R: see the maker's guide).
+      def bend_limit(spec)
+        od = spec.od
+        if spec.flexible
+          [spec.bend_radius, "ท่อ HDPE ม้วนดัดได้ไม่ต่ำกว่า #{(spec.bend_radius / od).round}×OD"]
+        elsif spec.family == 'HDPE'
+          [25.0 * od, 'ท่อ PE100 ดัดเย็นได้ไม่ต่ำกว่า 25×OD']
+        elsif spec.family.start_with?('PVC')
+          [300.0 * od, 'ท่อ PVC ดัดตามยาวได้ไม่ต่ำกว่า ~300×OD (AWWA C605)']
+        elsif spec.density > 5000
+          [3.0 * od, 'ท่อโลหะดัดด้วยเครื่องได้ไม่ต่ำกว่า 3D (โค้งดัด 3D/5D)']
+        end
+      end
+
+      def bend_warnings(spec, d)
+        out = []
+        at = "@ (#{d[:points][d[:points].size / 2].map(&:round).join(', ')}) mm"
+        lim, why = bend_limit(spec)
+        if lim && d[:radius] < lim - 0.5
+          out << "ท่อโค้งรัศมี #{d[:radius].round} mm แคบเกินไป – #{why} = #{lim.round} mm: " \
+                 "ขยายรัศมีโค้ง หรือใช้ข้องอ (bend radius below the material's minimum) #{at}"
+        end
+        if spec.family.start_with?('PVC') && spec.od > 170.0
+          out << "ท่อ PVC ใหญ่กว่า 6\" ไม่แนะนำให้ดัด (AWWA C605) – ใช้ข้องอ หรือมุมเบี่ยงที่ข้อต่อแหวนยาง #{at}"
+        end
+        out
+      end
+
       # Real circle (ArcCurve) + construction point at an open pipe end, in
       # its own group so it never merges with the pipe mesh. SketchUp's own
       # tools (Move, Line, Tape, …) then infer "Center" / the point there.
       # The circle starts where the pipe mesh starts (same ref axis and
       # segment count), so its edges lie exactly on the pipe rim.
-      def add_end_center(ctx, pipe, at, axis, ro)
+      def add_end_center(ctx, pipe, at, axis, ro, ref: nil)
         g = pipe.entities.add_group
         ax = Vec.unit(axis)
         c = H.to_pt(at)
-        g.entities.add_arc(c, H.to_vec(Vec.perpendicular(ax)), H.to_vec(ax), H.mm(ro), 0.0, 2 * Math::PI, ctx[:steps])
+        g.entities.add_arc(c, H.to_vec(ref || Vec.perpendicular(ax)), H.to_vec(ax), H.mm(ro), 0.0, 2 * Math::PI, ctx[:steps])
         g.entities.add_cpoint(c)
         g.name = 'Pipe End Center'
         H.set_attrs(g, 'type' => 'end_center')
@@ -822,10 +888,11 @@ module ArtK
       end
 
       def add_label(ctx, net)
-        longest = net.pipes.max_by { |p| p.data[:length] }
+        longest = net.pieces.select { |p| %i[pipe curve].include?(p.type) }.max_by { |p| p.data[:length] }
         return unless longest
 
-        mid = Vec.lerp(longest.data[:from], longest.data[:to], 0.5)
+        d = longest.data
+        mid = d[:points] ? d[:points][d[:points].size / 2] : Vec.lerp(d[:from], d[:to], 0.5)
         lift = ctx[:spec].od / 2.0 + ctx[:ins] + 300.0
         txt = ctx[:ents].add_text("#{ctx[:line_no]}  #{ctx[:spec].material}", H.to_pt(mid),
                                   Geom::Vector3d.new(0, 0, H.mm(lift)))

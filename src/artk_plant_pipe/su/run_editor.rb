@@ -119,6 +119,8 @@ module ArtK
         issues = []
         Collector.pieces(run, 'pipe').each do |pipe|
           g = H.get_json(pipe, 'geom') or next
+          next if g['path'] # bent along a curve: edited through its centre line only
+
           a = g['a']
           b = g['b']
           len = Vec.dist(a, b)
