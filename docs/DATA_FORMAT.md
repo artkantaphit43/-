@@ -44,6 +44,9 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 - `tees` – JSON branch connections onto other runs
 - `joins` – JSON joins onto other runs
 - `supports` – JSON support records
+- `drawn` – JSON (since 1.15.2) of the pieces the last rebuild drew: `pipes` (centre lines) and
+  `fittings` (`[node, [arm ends]]`). Pieces missing at the next rebuild were deleted by the user:
+  their centre line is dropped (`RunEdit.prune`) instead of being drawn again. Missing = no check.
 - `smooth` – JSON centre-line points the pipe bends through without a fitting (vertices of
   drawn arcs / curves, since 1.13). Missing = none: older runs render exactly as before.
 - `settings` – JSON, the full settings used

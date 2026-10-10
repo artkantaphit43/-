@@ -187,6 +187,13 @@ module ArtK
         runs.each do |run|
           next unless run.valid?
 
+          if Builder.deletions?(run) # pieces deleted to re-route: let them go now
+            model.start_operation('Plant Piping: Remove Deleted Pipes', true, false, transparent)
+            w = Builder.render(model, run, Builder.run_settings(run))
+            model.commit_operation
+            out[:warnings].concat(w.map { |x| "#{run.name}: #{x}" })
+            out[:synced] << run
+          end
           r = inspect(run)
           out[:issues].concat(r[:issues])
           next if r[:moves].empty?
@@ -252,9 +259,13 @@ module ArtK
         # Runs owning a pipe group that is open for editing right now – wait
         # until the user leaves it (rebuilding would erase the open group).
         def editing(model)
-          (model.active_path || []).each_cons(2).map do |owner, child|
+          path = model.active_path || []
+          runs = path.each_cons(2).map do |owner, child|
             owner if H.run?(owner) && H.type_of(child) == 'pipe'
           end.compact
+          # inside a run (deleting pieces): checked once you leave it
+          runs << path.last if path.last && H.run?(path.last)
+          runs
         end
 
         def check(model)

@@ -149,12 +149,13 @@ module ArtK
         seq = H.next_seq(model, code) if seq.nil? || run.get_attribute(H::DICT, 'service') != code
         line_no = H.line_number(spec.size, code, seq)
 
+        ents = run.entities
+        prune_deleted(run, ents)
         cl = H.get_json(run, 'cl', [])
         tees = H.get_json(run, 'tees', [])
         joins = H.get_json(run, 'joins', [])
         warnings = []
 
-        ents = run.entities
         valves = ents.select { |e| H.instance?(e) && H.type_of(e) == 'valve' }.map { |v| H.attrs(v) }
         end_parts = end_part_records(ents)
         ents.clear!
@@ -202,10 +203,79 @@ module ArtK
         H.set_json(run, 'settings', settings)
         H.set_json(run, 'extras', extras)
         H.set_json(run, 'warnings', warnings.uniq.first(50))
+        H.set_json(run, 'drawn', drawn_pieces(ents))
         run.name = line_no
         run.layer = ctx[:tag]
         run.material = ctx[:mat]
         warnings
+      end
+
+      # ---- pieces deleted in SketchUp stay deleted ----
+      #
+      # Every run is regenerated from its centre line, so a pipe or fitting
+      # the user deleted (to re-route) used to come back on the next rebuild
+      # or when drawing on from it. The pieces drawn last time are recorded
+      # ('drawn'); the ones missing now were deleted, and the centre line
+      # gives them up before the run is drawn again.
+
+      # { 'pipes' => [centre line pts], 'fittings' => [[node, [arm ends]]] }
+      def drawn_pieces(ents)
+        pipes = []
+        fittings = []
+        ents.each do |e|
+          next unless e.valid? && H.instance?(e)
+
+          g = H.get_json(e, 'geom') or next
+          case H.type_of(e)
+          when 'pipe'
+            # a coiled-HDPE bend (arc, no path) stands for a corner, not a pipe
+            bend = !e.get_attribute(H::DICT, 'bend_radius_mm').nil? && g['path'].nil?
+            pipes << H.pipe_path(g) if g['a'] && g['b'] && !bend
+          when 'elbow'
+            fittings << [g['vertex'], [g['start'], g['end']]] if g['vertex']
+          when 'tee'
+            next unless e.get_attribute(H::DICT, 'role') == 'run'
+
+            fittings << [g['center'], g['arms'].map { |u| Vec.add(g['center'], Vec.scale(u, g['c'].to_f)) }]
+          end
+        end
+        { 'pipes' => pipes, 'fittings' => fittings }
+      end
+
+      # [deleted pipe centre lines, deleted fittings] of +run+.
+      def deleted_pieces(run, ents = run.entities)
+        drawn = H.get_json(run, 'drawn') or return [[], []]
+        now = drawn_pieces(ents)
+        same = ->(p, q) { p.size == q.size && p.zip(q).all? { |x, y| Vec.dist(x, y) <= 1.0 } }
+        pipes = drawn['pipes'].reject { |p| now['pipes'].any? { |q| same.call(p, q) } }
+        fits = drawn['fittings'].reject { |n, _| now['fittings'].any? { |m, _| Vec.dist(n, m) <= 1.0 } }
+        [pipes, fits]
+      end
+
+      def deletions?(run)
+        pipes, fits = deleted_pieces(run)
+        !(pipes.empty? && fits.empty?)
+      end
+
+      # Give up the centre line under deleted pieces, and what sat on it
+      # (supports, valves, branch connections of this run).
+      def prune_deleted(run, ents)
+        pipes, fits = deleted_pieces(run, ents)
+        return if pipes.empty? && fits.empty?
+
+        cl = RunEdit.prune(H.get_json(run, 'cl', []), pipes, fits)
+        on = ->(p) { !RunEdit.segment_index(cl, p).nil? }
+        H.set_json(run, 'cl', cl)
+        H.set_json(run, 'supports', H.get_json(run, 'supports', []).select { |r| on.call(r['at']) })
+        %w[tees joins].each do |k|
+          H.set_json(run, k, H.get_json(run, k, []).select { |t| cl.flatten(1).any? { |p| Vec.dist(p, t['at']) <= 1.0 } })
+        end
+        ents.to_a.each do |e|
+          next unless e.valid? && H.instance?(e) && H.type_of(e) == 'valve'
+
+          at = JSON.parse(e.get_attribute(H::DICT, 'at').to_s) rescue nil
+          e.erase! unless at && on.call(at)
+        end
       end
 
       def context(model, run, settings, spec, svc, line_no)
@@ -707,7 +777,7 @@ module ArtK
           'radius_mm' => d[:radius].round(1),
           'geom' => JSON.generate('center' => d[:center], 'xaxis' => d[:xaxis], 'normal' => d[:normal],
                                   'radius' => d[:radius], 'angle' => d[:angle],
-                                  'start' => d[:start], 'end' => d[:end])
+                                  'start' => d[:start], 'end' => d[:end], 'vertex' => d[:vertex])
         }
         attrs['nominal_angle'] = d[:nominal_angle] if d[:nominal_angle]
         attrs.merge!(joint_attrs(o))

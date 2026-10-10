@@ -190,6 +190,80 @@ class TestRunEditor < Minitest::Test
     assert_equal 1, end_parts(run).size
   end
 
+  # ---- deleted pieces stay deleted (the user's re-routing case) ----
+
+  def tee_run
+    # main 0→6000 with a branch from 3000 going up, then on to 6000,4000
+    [[[0.0, 0, 0], [3000.0, 0, 0]], [[3000.0, 0, 0], [6000.0, 0, 0]], [[3000.0, 0, 0], [3000.0, 2000, 0]],
+     [[6000.0, 0, 0], [6000.0, 4000, 0]]]
+  end
+
+  def piece_on(run, type, pt)
+    run.entities.find do |e|
+      next false unless H.instance?(e) && H.type_of(e) == type
+
+      g = H.get_json(e, 'geom')
+      case type
+      when 'pipe' then RunEdit.between?(pt, g['a'], g['b'])
+      else Vec.dist(g['center'] || g['vertex'], pt) <= 1.0 || (g['vertex'] && Vec.dist(g['vertex'], pt) <= 1.0)
+      end
+    end
+  end
+
+  def test_a_deleted_pipe_is_not_drawn_again
+    run, = Builder.create_run(@model, tee_run, @s)
+    assert_equal 1, Collector.pieces(run, 'tee').size
+    piece_on(run, 'pipe', [4500.0, 0, 0]).erase! # the main beyond the tee
+    Builder.rebuild(@model, [run], Builder.run_settings(run))
+    cl = H.get_json(run, 'cl')
+    refute(cl.any? { |a, b| RunEdit.between?([4500.0, 0, 0], a, b) }, 'segment gone')
+    assert_nil piece_on(run, 'pipe', [4500.0, 0, 0])
+    assert_empty Collector.pieces(run, 'tee'), 'the tee became an elbow'
+    assert_equal 1, Collector.pieces(run, 'elbow').size
+    assert(cl.any? { |a, b| RunEdit.between?([6000.0, 2000, 0], a, b) }, 'the rest stays')
+    assert(Collector.open_ends(cl).any? { |p| Vec.dist(p, [6000.0, 0, 0]) <= 1.0 }, 'its far pipe now ends open')
+  end
+
+  def test_a_deleted_tee_leaves_open_ends
+    run, = Builder.create_run(@model, tee_run, @s)
+    tee = Collector.pieces(run, 'tee').first
+    c = H.get_json(tee, 'geom')['c']
+    tee.erase!
+    Builder.rebuild(@model, [run], Builder.run_settings(run))
+    assert_empty Collector.pieces(run, 'tee')
+    ends = Collector.open_ends(H.get_json(run, 'cl'))
+    [[3000.0 - c, 0, 0], [3000.0 + c, 0, 0], [3000.0, c, 0]].each do |p|
+      assert(ends.any? { |q| Vec.dist(p, q) <= 1.0 }, "open end at #{p}")
+    end
+  end
+
+  def test_drawing_on_after_deleting_does_not_bring_the_old_line_back
+    run, = Builder.create_run(@model, tee_run, @s)
+    piece_on(run, 'pipe', [4500.0, 0, 0]).erase!
+    piece_on(run, 'pipe', [6000.0, 2000, 0]).erase!
+    RunEditor.sync_context(@model) # what the pipe tool does when it starts
+    assert_nil piece_on(run, 'pipe', [6000.0, 2000, 0])
+    Builder.extend_run(@model, run, [[[0.0, 0, 0], [-2000.0, 0, 0]]])
+    assert_nil piece_on(run, 'pipe', [4500.0, 0, 0])
+    assert_nil piece_on(run, 'pipe', [6000.0, 2000, 0])
+  end
+
+  def test_runs_drawn_before_keep_their_pieces
+    run, = Builder.create_run(@model, tee_run, @s)
+    run.delete_attribute(H::DICT, 'drawn') # drawn by an older version
+    piece_on(run, 'pipe', [4500.0, 0, 0]).erase!
+    Builder.rebuild(@model, [run], Builder.run_settings(run))
+    refute_nil piece_on(run, 'pipe', [4500.0, 0, 0]), 'no record of what was drawn: rebuilt as stored'
+  end
+
+  def test_untouched_runs_rebuild_unchanged
+    run, = Builder.create_run(@model, tee_run, @s)
+    before = H.get_json(run, 'cl')
+    Builder.rebuild(@model, [run], Builder.run_settings(run))
+    assert_equal before, H.get_json(run, 'cl')
+    assert_equal 1, Collector.pieces(run, 'tee').size
+  end
+
   def test_auto_sync_reads_a_scaled_pipe_after_the_edit
     run, = Builder.create_run(@model, [[[0.0, 0, 0], [2000.0, 0, 0]]], @s)
     p = pipes(run).first

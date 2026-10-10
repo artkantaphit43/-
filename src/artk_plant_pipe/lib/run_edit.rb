@@ -119,6 +119,55 @@ module ArtK
         nil
       end
 
+      # Centre line after pieces were deleted in SketchUp (what you delete
+      # stays deleted – a rebuild must not bring it back):
+      #   pipes    – centre lines ([pt, …]) of deleted pipe pieces: the
+      #              segments under them go, fitting zone to fitting zone;
+      #   fittings – [node, [arm end points]] of deleted elbows / tees: each
+      #              remaining arm stops where its pipe ended (open end).
+      def prune(cl, pipes, fittings)
+        out = cl.map { |a, b| [a.dup, b.dup] }
+        pipes.each do |path|
+          path.each_cons(2) { |p, q| out.reject! { |a, b| on_span?(a, b, p, q) } }
+        end
+        fittings.each do |node, arms|
+          out.each do |seg|
+            [0, 1].each do |k|
+              next unless Vec.dist(seg[k], node) <= TOL
+
+              far = seg[1 - k]
+              arm = arms.find { |m| between?(m, seg[k], far) }
+              seg[k] = arm.map(&:to_f) if arm
+            end
+          end
+        end
+        out.reject { |a, b| Vec.dist(a, b) <= TOL }
+      end
+
+      # Segment a–b lies along span p–q and overlaps its inside.
+      def on_span?(a, b, p, q)
+        pq = Vec.sub(q, p)
+        len = Vec.length(pq)
+        return false if len < TOL
+
+        u = Vec.scale(pq, 1.0 / len)
+        off = ->(x) { Vec.length(Vec.cross(Vec.sub(x, p), u)) }
+        return false unless off.call(a) <= TOL && off.call(b) <= TOL
+
+        ta, tb = [a, b].map { |x| Vec.dot(Vec.sub(x, p), u) }.minmax
+        tb > TOL && ta < len - TOL
+      end
+
+      # m on segment a–b (strictly past a).
+      def between?(m, a, b)
+        ab = Vec.sub(b, a)
+        len = Vec.length(ab)
+        return false if len < TOL
+
+        t = Vec.dot(Vec.sub(m, a), ab) / len
+        t > TOL && t <= len + TOL && Vec.dist(Vec.add(a, Vec.scale(ab, t / len)), m) <= TOL
+      end
+
       def label(key)
         { 'valves' => 'วาล์ว (valve)', 'supports' => 'ซัพพอร์ต (support)',
           'end_parts' => 'ข้อต่อปลายท่อ (end fitting)' }.fetch(key, key)

@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.1**
-(`dist/artk_plant_pipe-1.15.1.rbz`). Tests: `rake test` (220 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.2**
+(`dist/artk_plant_pipe-1.15.2.rbz`). Tests: `rake test` (225 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -100,6 +100,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **v1.15.1**: Beam clamp คู่ – ท่อที่ไม่ได้อยู่ใต้คานพอดีได้ก้านสมมติ 600 มม. (ลอย) → `hang_level` ใช้คานเหนือท่อที่คลิก
   (ไม่มีก็คานต่ำสุดที่เจอเหนือท่อใดท่อหนึ่ง, ไม่มีเลยก็ระดับสมมติเดียวกันทุกท่อ) ส่ง `level:` ให้ record_for → ก้านยาวถึงคานเดียวกันทุกตัว ·
   เหล็กกลมของซัพพอร์ต (ก้าน, U-bolt, โบลต์, พุก) 16 เหลี่ยม `Supports::ROUND` → ขอบ soften (22.5° < 28.5°) ไม่เป็นเหลี่ยม
+- **v1.15.2**: ผู้ใช้ลบท่อ/สามทางด้วย Delete เพื่อเดินใหม่ แต่พอวาดต่อ/rebuild ของเก่ากลับมา (render สร้างจาก cl ทั้งหมด) →
+  render บันทึก `drawn` (ท่อ+ข้อต่อที่วาด) · ตอน render ครั้งถัดไป ชิ้นที่หายไป = ผู้ใช้ลบ → `RunEdit.prune` ตัด cl ใต้ท่อที่ลบ,
+  ข้อต่อที่ลบ → ทุกแขนหยุดที่ปลายท่อ (ปลายเปิด), ทิ้ง supports/tees/joins/วาล์วที่ไม่อยู่บนแนว · RunEditor.sync (AutoSync, เปิดเครื่องมือ)
+  render run ที่มีชิ้นถูกลบก่อน (transparent → Undo พร้อมการลบ) · AutoSync เช็ก run ที่เข้าไปแก้ข้างในเมื่อออกมา · elbow geom มี `vertex`
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
