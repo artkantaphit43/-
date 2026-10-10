@@ -245,8 +245,8 @@ class TestPipeTool < Minitest::Test
     bends = run.entities.select { |e| e.get_attribute(H::DICT, 'bend_radius_mm') }
     assert_equal 1, bends.size
     assert_equal 63 * 25, bends.first.get_attribute(H::DICT, 'bend_radius_mm')
-    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'elbow' } # electrofusion elbow where no room
-    assert(H.get_json(run, 'warnings').any? { |w| w.include?('ข้องอหลอมไฟฟ้า') })
+    assert_equal 1, run.entities.count { |e| H.type_of(e) == 'elbow' } # compression elbow (63 mm) where no room
+    assert(H.get_json(run, 'warnings').any? { |w| w.include?('ใช้ข้องอสวมอัด') })
     total = run.entities.select { |e| H.type_of(e) == 'pipe' }.sum { |e| e.get_attribute(H::DICT, 'length_mm') }
     assert_operator total, :>, 39_000 # bend arc counted as pipe
   end

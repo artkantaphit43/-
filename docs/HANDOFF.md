@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.13.0**
-(`dist/artk_plant_pipe-1.13.0.rbz`). Tests: `rake test` (200 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.14.0**
+(`dist/artk_plant_pipe-1.14.0.rbz`). Tests: `rake test` (211 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -79,6 +79,13 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   auto supports `Supports.place` path, clash, run_data); RunEditor ข้ามท่อโค้ง; `Picker.run_node` ไม่นับจุดโค้งเป็นมุม ·
   เตือนรัศมี: HDPE 25×OD, PVC ~300×OD (+ >6" ไม่แนะนำ, AWWA C605/M23), โลหะ 3D, PP-R ไม่มีเกณฑ์ทั่วไป ·
   run เก่าไม่มี `smooth` → วาดเหมือนเดิมทุกอย่าง (ต้อง Convert ใหม่ถ้าอยากให้โค้ง) · ทดสอบทุกแค็ตตาล็อก×ทุกระบบ (1080 เคส)
+- **v1.14.0**: ข้อต่อ HDPE 4 ระบบ (ผู้ใช้เลือกครบทั้ง 4 + อัตโนมัติตามขนาด) – `lib/hdpe.rb` (`Hdpe`): style ใน `Parts.opts(joint:)`
+  :fusion / :electrofusion / :compression; ขนาด EF จาก GF ELGEF Plus (d20/63/110/160), สวมอัด/ขา butt/stub เป็นสัดส่วนประมาณ ·
+  network ใช้ take ของระบบ (`Builder.fitting_takes`, tee_c ผ่าน `network_spec(spec, o)`) – EF/สวมอัด จุดตัดท่อ = ก้นปลอก, ปลอกยื่นออก ·
+  ชื่อ definition มี style (+ ' | dn' เมื่อ frame Z ชี้ลง → `Hdpe.flip` ให้ขั้วไฟอยู่ด้านบน) · วาล์วบนท่อหลอม = วาล์วหน้าแปลน DN คู่ +
+  stub end/backing ring (`Hdpe.flanged_valve`), สวมอัด = บอลวาล์ว PP ตัวดำฝาฟ้า · ข้อต่อตรงทุก stick (`add_stick_joints`) ·
+  BOM: `fitting_desc`/`joint_desc`, `coupling`, valve `stub_ends` → แถว stub end · HDPE แข็งเพิ่มขนาด 355–630 (ISO 4427) ·
+  ทดสอบ: ทุก part ปิดสนิท 97,074 solids, 648 เคสแนวท่อ (2 แค็ตตาล็อก × ทุกขนาด × 4 ระบบ × 2 LOD × 3 ระบบท่อ + tee/join/วาล์วทุกชนิด/rebuild)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

@@ -428,21 +428,23 @@ module ArtK
         @model.start_operation('Plant Piping: Reducer + New Run', true)
         warnings = []
         if ang > 0.5 * Math::PI / 180
-          leg = stub ? stub_length(run) : spec_a.elbow_radius_lr * Math.tan(ang / 2.0) + 1.0
+          leg = stub ? stub_length(run) : Builder.elbow_take_for(spec_a, Builder.run_settings(run), ang * 180.0 / Math::PI) + 1.0
           q = Vec.add(p0, Vec.scale(d1, leg))
           inv_a = tr.inverse
           warnings.concat(Builder.extend_run(@model, run, [[H.transform_mm(inv_a, p0), H.transform_mm(inv_a, q)]],
                                              op: false))
         end
         segs = [[q, segs.first[1]]] + segs[1..]
-        len = Builder.join_length(spec_a, @spec)
+        len = Builder.join_length(spec_a, @spec, main_joint: Builder.run_settings(run)['hdpe_joint'],
+                                                 joint: @settings['hdpe_joint'])
         raise "ช่วงแรกสั้นเกินไปสำหรับ Reducer (first segment shorter than #{len.round} mm)" if Vec.dist(*segs.first) <= len
 
         inv = H.edit_transform(@model).inverse
         a = H.attrs(run)
         join = { 'at' => H.transform_mm(inv, q), 'dir' => Vec.unit(H.from_vec(H.to_vec(d1).transform(inv))),
                  'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
-                 'main_service' => a['service'], 'main_pid' => run.persistent_id }
+                 'main_service' => a['service'], 'main_pid' => run.persistent_id,
+                 'main_joint' => Builder.run_settings(run)['hdpe_joint'] }
         local = segs.map { |x, y| [H.transform_mm(inv, x), H.transform_mm(inv, y)] }
         new_run, w = Builder.create_run(@model, local, @settings, joins: [join], op: false)
         @model.commit_operation
@@ -457,8 +459,8 @@ module ArtK
       # little pipe for the reducer to start on.
       def stub_length(run)
         spec = Builder.run_spec(run)
-        c = spec.tee_c
         rs = Builder.run_settings(run)
+        c = Builder.tee_c_for(spec, rs)
         tee = Builder.refs_enabled?(rs) && Builder.ref_tee(spec)
         c = [c, Vec.length(tee['ports'][2]['p'])].max if tee
         c + 20.0
@@ -470,7 +472,8 @@ module ArtK
           'main_dir' => Vec.unit(H.from_vec(H.to_vec(hit[:dir]).transform(inv))),
           'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
           'main_service' => a['service'], 'main_pid' => hit[:run].persistent_id,
-          'main_color' => Builder.run_settings(hit[:run])['pipe_color'] }
+          'main_color' => Builder.run_settings(hit[:run])['pipe_color'],
+          'main_joint' => Builder.run_settings(hit[:run])['hdpe_joint'] }
       end
 
       # A branch must leave the main pipe at a real angle.

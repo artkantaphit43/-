@@ -195,7 +195,10 @@ module ArtK
         steel:    ['PP_Support_Steel', [96, 102, 112]],
         concrete: ['PP_Concrete', [192, 188, 178]],
         weld:     ['PP_Weld', [72, 72, 72]],
-        gasket:   ['PP_Gasket', [38, 38, 38]]
+        gasket:   ['PP_Gasket', [38, 38, 38]],
+        comp_nut: ['PP_Compression_Nut', [28, 92, 196]],      # PP compression nut, blue (water)
+        pp_black: ['PP_PP_Black', [40, 42, 46]],              # PP compression valve body
+        indicator: ['PP_Fusion_Indicator', [232, 176, 24]]   # electrofusion fusion indicator
       }.freeze
 
       def role_material(model, role)

@@ -9,7 +9,7 @@ module ArtK
 
     # Pure engineering core (no SketchUp API – unit tested outside SketchUp)
     %w[vec catalog services fittings_data hydraulics network bom supports settings profile run_check clash
-       mesh valve_models parts meter_models refs data_format run_edit].each do |f|
+       mesh valve_models hdpe parts meter_models refs data_format run_edit].each do |f|
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
     # SketchUp integration

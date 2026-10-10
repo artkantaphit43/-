@@ -5,7 +5,7 @@ module ArtK
     # Reads piping data back out of the model (BOM, hydraulic check, clash).
     module Collector
       H = ModelHelpers
-      ITEM_TYPES = %w[pipe elbow tee reducer valve flange component insulation support].freeze
+      ITEM_TYPES = %w[pipe elbow tee reducer valve flange component insulation support coupling].freeze
 
       module_function
 

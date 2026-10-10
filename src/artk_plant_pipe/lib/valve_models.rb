@@ -35,6 +35,8 @@ module ArtK
         d = o.od
         c = { d: d, len: FittingsData.face_to_face(type, d, fam), o: o, fam: fam, body: BODY[fam],
               st: [o.steps, 16].max, det: o.detailed? }
+        # HDPE compression lines: black PP body, blue compression nuts
+        c.merge!(body: :pp_black, nut: :comp_nut) if fam == :plastic && o.style == :compression
         part = Mesh::Part.new
         return Parts.flange_pair(o) if type == 'flange'
 
@@ -159,13 +161,13 @@ module ArtK
             nut_r = hub_r * 1.42
             n0 = s * (l2 - 0.06 * c[:len])
             n1 = s * (l2 - tail - 0.02 * c[:len])
-            part.add(role, M.ngon_prism([n0, 0, 0], [n1, 0, 0], nut_r, 24))
+            part.add(c[:nut] || role, M.ngon_prism([n0, 0, 0], [n1, 0, 0], nut_r, 24))
             if c[:det]
               8.times do |k|
                 t = 2 * Math::PI * k / 8
                 y = nut_r * Math.cos(t)
                 z = nut_r * Math.sin(t)
-                part.add(role, M.bar([n0, y, z], [n1, y, z], [0.06 * d, 2.5].max, [0.06 * d, 2.5].max, [0, y, z]))
+                part.add(c[:nut] || role, M.bar([n0, y, z], [n1, y, z], [0.06 * d, 2.5].max, [0.06 * d, 2.5].max, [0, y, z]))
               end
             end
             tube(part, role, [s * (l2 - tail), 0, 0], [s * 0.16 * c[:len], 0, 0], hub_r * 1.05, o.ri, c)
@@ -335,7 +337,7 @@ module ArtK
         metallic = c[:fam] != :plastic
         fl = FittingsData.flange(d)
         body_r = metallic ? fl.bolt_circle / 2.0 - fl.hole * 0.9 : o.ro * 1.55
-        b = metallic ? :cast : :valve_plastic
+        b = metallic ? :cast : c[:body]
         tube(part, b, [-l / 2.0, 0, 0], [l / 2.0, 0, 0], body_r, o.ri, c)
         if metallic && c[:det]
           fl.bolts.times do |k|

@@ -80,21 +80,28 @@ module ArtK
         when 'elbow'
           ang = r['nominal_angle'] ? "#{fmt_angle(r['nominal_angle'])}°" : "#{fmt_angle(r['angle'])}° (bend)"
           rt = r['radius_type'].to_s.upcase
-          desc = "Elbow #{ang} #{rt}".strip
+          desc = r['fitting_desc'] || "Elbow #{ang} #{rt}".strip
           [['elbow', svc, mat, size, rating, desc], pcs('elbow', desc, svc, mat, size, rating)]
         when 'tee'
-          desc = tee_desc(r)
+          desc = with_joint(tee_desc(r), r)
           bsize = r['branch_size'] && r['branch_size'] != size ? "#{size} x #{r['branch_size']}" : size
           [['tee', svc, mat, bsize, rating, desc], pcs('tee', desc, svc, mat, bsize, rating)]
         when 'reducer'
-          desc = r['kind'] || 'Concentric Reducer'
+          desc = with_joint(r['kind'] || 'Concentric Reducer', r)
           [['reducer', svc, mat, size, desc], pcs('reducer', desc, svc, mat, size, rating)]
         when 'valve'
           desc = r['valve_name'] || r['valve_type'].to_s
           cat = inline_category(r['valve_type'])
           [[cat, svc, mat, size, desc], pcs(cat, desc, svc, mat, size, r['valve_rating'] || 'Class 150')]
+        when 'coupling'
+          desc = r['fitting_desc'] || 'Coupling'
+          [['fitting', svc, mat, size, desc], pcs('fitting', desc, svc, mat, size, rating)]
+        when 'stub_end'
+          desc = "PE stub end + backing ring DN#{r['stub_dn']}"
+          [['flange', svc, mat, size, desc], pcs('flange', desc, svc, mat, size, 'PN16 / Class 150 drilling')]
         when 'flange'
-          desc = r['kind'] == 'companion' ? 'Companion flange (slip-on)' : "Flange #{r['kind']}".strip
+          desc = r['fitting_desc'] ||
+                 (r['kind'] == 'companion' ? 'Companion flange (slip-on)' : "Flange #{r['kind']}".strip)
           [['flange', svc, mat, size, desc, rating], pcs('flange', desc, svc, mat, size, rating)]
         when 'component'
           # item inserted from the reference library on its own
@@ -129,6 +136,10 @@ module ArtK
       # A support also consumes threaded rod and steel members, bought by
       # the metre – split them into their own purchasing lines.
       def expand(r)
+        if r['type'] == 'valve' && r['stub_ends'].to_i.positive?
+          stub = r.merge('type' => 'stub_end')
+          return [r] + Array.new(r['stub_ends'].to_i) { stub }
+        end
         return [r] unless r['type'] == 'support'
 
         out = [r]
@@ -163,6 +174,11 @@ module ArtK
         when 'manifold' then 'Header / manifold junction'
         else r['branch_size'] && r['branch_size'] != r['size'] ? 'Reducing Tee' : 'Equal Tee'
         end
+      end
+
+      # HDPE pieces name their joint system: "Equal Tee – Electrofusion".
+      def with_joint(desc, r)
+        r['joint_desc'] ? "#{desc} – #{r['joint_desc']}" : desc
       end
 
       def fmt_angle(a)

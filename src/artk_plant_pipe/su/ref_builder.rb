@@ -156,8 +156,21 @@ module ArtK
         kx, kr = valve_scale(type, spec, item)
         inst = place_ref(ctx, item, f, RefModels.role_material(ctx[:model], item['material']), scale: [kx, kr, kr])
         half = port_gap(item) * kx / 2.0
-        fl = flanged?(item) && Refs.companion_flange(spec, item)
-        if fl
+        hdpe = flanged?(item) && Hdpe.style?(ctx[:opts]) && ctx[:opts].style != :compression
+        fl = !hdpe && flanged?(item) && Refs.companion_flange(spec, item)
+        if hdpe
+          # PE line: a stub end + backing ring on each face, not a steel flange
+          o = ctx[:opts]
+          [1.0, -1.0].each do |sgn|
+            face = Vec.add(at, Vec.scale(dir, sgn * (half + 1.5)))
+            name = "PP Stub end | #{spec_key(spec)} | #{lod_key(ctx)}#{style_key(o)}"
+            x = Vec.scale(dir, sgn)
+            fi = place_part(ctx, name, Mesh.frame(face, x, Vec.cross(up, x))) { Hdpe.stub_flange(o) }
+            finish_piece(ctx, fi, "Stub end + backing ring #{spec.size}", ctx[:mat],
+                         'type' => 'flange', 'kind' => 'stub', 'rating' => 'PN16',
+                         'fitting_desc' => "PE stub end + backing ring DN#{Hdpe.dn(o.od)}")
+          end
+        elsif fl
           lf = port_gap(fl)
           # flange face (port 1, +X) against the valve end, hub on the pipe
           [[1.0, half], [-1.0, half]].each do |sgn, h|
@@ -196,7 +209,7 @@ module ArtK
         item = refs_enabled?(settings) && (Refs.valve_for(type, spec) || Refs.scalable_valve(type, spec))
         return ref_valve_length(spec, item, type) if item
 
-        Parts.valve_length(type, Parts.opts(spec), metallic: spec.density > 5000)
+        Parts.valve_length(type, Parts.opts(spec, joint: settings['hdpe_joint']), metallic: spec.density > 5000)
       end
     end
   end

@@ -102,6 +102,7 @@ module ArtK
               t['main_rating'] = main.get_attribute(H::DICT, 'rating')
               t['main_service'] = main.get_attribute(H::DICT, 'service')
               t['main_color'] = run_settings(main)['pipe_color']
+              t['main_joint'] = run_settings(main)['hdpe_joint']
               changed = true
             end
             [key, recs]
@@ -117,7 +118,8 @@ module ArtK
       # Keys that a rebuild applies from the current settings.
       def settings_for_rebuild(settings)
         settings.select do |k, _|
-          %w[service catalog size rating insulation_mm elbow_type segments centerline labels lod pipe_color].include?(k)
+          %w[service catalog size rating insulation_mm elbow_type segments centerline labels lod pipe_color
+             hdpe_joint].include?(k)
         end
       end
 
@@ -158,7 +160,7 @@ module ArtK
         ents.clear!
         ctx = context(model, run, settings, spec, svc, line_no)
         segs = apply_branch_trims(cl, tees, warnings, ctx)
-        segs = apply_join_trims(segs, joins, spec, warnings)
+        segs = apply_join_trims(segs, joins, spec, warnings, settings['hdpe_joint'])
 
         ctx[:cl] = cl
         ctx[:warnings] = warnings
@@ -168,11 +170,11 @@ module ArtK
         extras = []
         tees.each { |t| premark_branch(ctx, t) }
         unless segs.empty?
-          net = Network.new(segs, network_spec(spec), tol: 1.0,
+          net = Network.new(segs, network_spec(spec, ctx[:opts]), tol: 1.0,
                                         radius_type: spec.flexible ? :lr : settings['elbow_type'].to_sym,
-                                        takes: ctx[:refs] ? ref_takes(spec) : nil,
+                                        takes: fitting_takes(ctx, spec),
                                         smooth: H.get_json(run, 'smooth', [])).solve
-          warnings.concat(spec.flexible ? flexible_warnings(net) : net.warnings)
+          warnings.concat(spec.flexible ? flexible_warnings(net, ctx[:opts]) : net.warnings)
           ctx[:mitres] = net.pieces.select { |pc| pc.type == :mitre }.map { |pc| pc.data[:at] }
           # fittings first: real fittings record their socket depths, which
           # the pipes then run into
@@ -211,7 +213,7 @@ module ArtK
         {
           model: model, run: run, ents: run.entities, spec: spec, settings: settings, svc: svc,
           line_no: line_no, steps: steps, ins: settings['insulation_mm'].to_f,
-          lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps),
+          lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps, joint: settings['hdpe_joint']),
           refs: refs_enabled?(settings), ext: {},
           tag: H.service_tag(model, svc[:code]),
           mat: H.pipe_material(model, svc[:code], spec.family, settings['color_scheme'], settings['pipe_color']),
@@ -259,7 +261,16 @@ module ArtK
       # it is an equal tee from the reference library, else the standard C.
       def branch_c(t, ctx)
         item = branch_ref_tee(t, ctx)
-        item ? Vec.length(item['ports'][2]['p']) : main_spec(t).tee_c
+        item ? Vec.length(item['ports'][2]['p']) : main_tee_c(t, ctx)
+      end
+
+      def main_opts(t, ctx)
+        Parts.opts(main_spec(t), lod: ctx[:lod], steps: ctx[:steps], joint: t['main_joint'])
+      end
+
+      def main_tee_c(t, ctx)
+        mo = main_opts(t, ctx)
+        Hdpe.style?(mo) ? Hdpe.tee_c(mo) : main_spec(t).tee_c
       end
 
       def branch_ref_tee(t, ctx)
@@ -279,7 +290,13 @@ module ArtK
       end
 
       # Length of the reducer / adaptor joining the main run's pipe to ours.
-      def join_length(main, spec)
+      def join_length(main, spec, main_joint: nil, joint: nil)
+        mo = Parts.opts(main, joint: main_joint)
+        so = Parts.opts(spec, joint: joint)
+        if Hdpe.style?(mo) || Hdpe.style?(so)
+          big, small = [mo, so].sort_by { |x| -x.od }
+          return Hdpe.reducer_length(big, small)
+        end
         big, small = [main, spec].sort_by { |x| -x.od }
         style = big.style == small.style ? big.style : :butt_weld
         FittingsData.reducer_length(big.od, small.od, style)
@@ -287,9 +304,9 @@ module ArtK
 
       # A run that continues another run at a different size/material starts
       # (or ends) with a reducer: pull that segment end back by its length.
-      def apply_join_trims(segs, joins, spec, warnings)
+      def apply_join_trims(segs, joins, spec, warnings, joint = nil)
         joins.each do |j|
-          len = join_length(main_spec(j), spec)
+          len = join_length(main_spec(j), spec, main_joint: j['main_joint'], joint: joint)
           segs.each_with_index do |(a, b), i|
             if Vec.dist(a, j['at']) <= 1.0
               next warnings << 'ท่อสั้นกว่า Reducer (pipe shorter than reducer)' if Vec.dist(a, b) <= len + 1.0
@@ -311,15 +328,19 @@ module ArtK
         main = main_spec(j)
         spec = ctx[:spec]
         dir = Vec.unit(j['dir'])
-        len = join_length(main, spec)
-        mo = Parts.opts(main, lod: ctx[:lod], steps: ctx[:steps])
+        len = join_length(main, spec, main_joint: j['main_joint'], joint: ctx[:settings]['hdpe_joint'])
+        mo = main_opts(j, ctx)
         kind = (main.od - spec.od).abs < 0.5 ? 'Adaptor' : (main.od > spec.od ? 'Concentric Reducer' : 'Concentric Expander')
-        name = "PP #{kind} #{len} | #{spec_key(main)} > #{spec_key(spec)} | #{lod_key(ctx)}"
-        inst = place_part(ctx, name, Mesh.frame(j['at'], dir)) { Parts.reducer(len, mo, ctx[:opts]) }
+        f = Mesh.frame(j['at'], dir)
+        sgn = Hdpe.style?(mo) || Hdpe.style?(ctx[:opts]) ? up_sign(f) : 1
+        name = "PP #{kind} #{len} | #{spec_key(main)} > #{spec_key(spec)} | #{lod_key(ctx)}" \
+               "#{style_key(mo)}#{style_key(ctx[:opts])}#{sgn.negative? ? ' | dn' : ''}"
+        inst = place_part(ctx, name, f) { Hdpe.flip(sgn) { Parts.reducer(len, mo, ctx[:opts]) } }
         main_code = j['main_service'] || ctx[:common]['service']
         big, small = [main, spec].sort_by { |x| -x.od }
         finish_piece(ctx, inst, "#{kind} #{main.size} x #{spec.size}", ctx[:mat],
                      'type' => 'reducer', 'kind' => kind, 'size' => "#{big.size} x #{small.size}",
+                     'joint_desc' => joint_attrs(Hdpe.style?(ctx[:opts]) ? ctx[:opts] : mo)['joint_desc'],
                      'service' => ctx[:common]['service'], 'main_service' => main_code,
                      'geom' => JSON.generate('a' => j['at'], 'b' => Vec.add(j['at'], Vec.scale(dir, len)),
                                              'r' => Parts.body_radius(main.od >= spec.od ? mo : ctx[:opts])))
@@ -392,7 +413,41 @@ module ArtK
         [[a, pa], [b, pb]].each do |end_pt, at|
           add_end_center(ctx, g, at, dir, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, end_pt) <= 1.0 }
         end
+        add_stick_joints(ctx, [pa, pb])
         insulate(ctx, Mesh.cylinder(a, b, o.ro + ctx[:ins], ri: o.ro + 0.5, steps: ctx[:steps]), d[:length])
+      end
+
+      # HDPE: a joint every stock length along the pipe (6 m sticks, 50 /
+      # 100 m coils) – EF or compression coupler, or the bead of a butt
+      # fusion weld. Couplers go in the BOM; the joint count already comes
+      # from the pipe length.
+      def add_stick_joints(ctx, path)
+        o = ctx[:opts]
+        spec = ctx[:spec]
+        return unless Hdpe.style?(o) && spec.stick_length_m.to_f.positive?
+        return if o.style == :fusion && !o.detailed? # a bead is detail only
+
+        stick = spec.stick_length_m * 1000.0
+        spans = path.each_cons(2).map { |p, q| [p, q, Vec.dist(p, q)] }.reject { |_, _, l| l < 1e-6 }
+        total = spans.sum { |_, _, l| l }
+        n = ((total - 300.0) / stick).floor
+        return if n < 1
+
+        desc = case o.style
+               when :electrofusion then 'EF coupler'
+               when :compression then 'Compression coupler (PP)'
+               end
+        (1..n).each do |k|
+          at, dir = Supports.point_along(spans, k * stick)
+          up = stem_direction(dir)
+          name = "PP Coupler | #{spec_key(spec)} | #{lod_key(ctx)}#{style_key(o)}"
+          inst = place_part(ctx, name, Mesh.frame(at, dir, Vec.cross(up, dir))) { Hdpe.coupler(o) }
+          attrs = desc ? { 'type' => 'coupling', 'fitting_desc' => desc } : { 'type' => 'bead' }
+          finish_piece(ctx, inst, desc ? "#{desc} #{spec.size}" : "Butt fusion joint #{spec.size}", ctx[:mat],
+                       attrs.merge(joint_attrs(o)).merge('at' => JSON.generate(at)))
+        end
+      rescue StandardError => e
+        (ctx[:warnings] ||= []) << "Coupler: #{e.message}"
       end
 
       # Pipe bent along a drawn curve: one continuous tube through the
@@ -424,6 +479,7 @@ module ArtK
         add_end_center(ctx, g, path[0], da, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, a) <= 1.0 }
         add_end_center(ctx, g, path[-1], db, o.ro, ref: end_ref) if ctx[:open_ends].any? { |p| Vec.dist(p, b) <= 1.0 }
         warnings.concat(bend_warnings(spec, d))
+        add_stick_joints(ctx, path)
         insulate(ctx, Mesh.sweep(pts, o.ro + ctx[:ins], o.ro + 0.5, steps: ctx[:steps]).first, d[:length]) if ctx[:ins].positive?
         g
       end
@@ -482,22 +538,73 @@ module ArtK
 
       # Coiled HDPE turns by bending the pipe itself (LR = the minimum bend
       # radius); the SR alternative is an electrofusion elbow.
-      def network_spec(spec)
-        return spec unless spec.flexible
+      def network_spec(spec, o = nil)
+        return spec unless spec.flexible || (o && Hdpe.style?(o))
 
         s = spec.dup
-        s.elbow_radius_lr = spec.bend_radius
+        s.elbow_radius_lr = spec.bend_radius if spec.flexible
+        s.tee_c = Hdpe.tee_c(o) if o && Hdpe.style?(o)
         s
       end
 
-      def flexible_warnings(net)
+      # Take-outs for the network: HDPE fittings of the run's joint system,
+      # else the real fittings of the reference library (detailed LOD).
+      def fitting_takes(ctx, spec)
+        o = ctx[:opts]
+        if Hdpe.style?(o)
+          flexible = spec.flexible
+          return {
+            elbow: lambda do |deg, rtype|
+              next nil if flexible && rtype == :lr # bent pipe, not a fitting
+
+              Hdpe.elbow_take(o, deg, rtype == :sr ? spec.elbow_radius_sr : spec.elbow_radius_lr)
+            end
+          }
+        end
+        ctx[:refs] ? ref_takes(spec) : nil
+      end
+
+      # Tee centre-to-end for a run's spec / settings (pipe tool stubs).
+      def tee_c_for(spec, settings)
+        o = Parts.opts(spec, joint: settings['hdpe_joint'])
+        Hdpe.style?(o) ? Hdpe.tee_c(o) : spec.tee_c
+      end
+
+      # Elbow tangent length at +deg+ for a run's spec / settings.
+      def elbow_take_for(spec, settings, deg)
+        o = Parts.opts(spec, joint: settings['hdpe_joint'])
+        return Hdpe.elbow_take(o, deg, spec.elbow_radius_lr) if Hdpe.style?(o) && !spec.flexible
+
+        r = spec.flexible ? spec.bend_radius : spec.elbow_radius_lr
+        r * Math.tan(deg * Math::PI / 360.0)
+      end
+
+      # ' | EF' etc. – HDPE part names carry the joint system, so a run
+      # switched to another system never reuses the old definitions.
+      def style_key(o)
+        Hdpe.style?(o) ? " | #{o.style}#{Hdpe.segmented?(o) ? '-seg' : ''}" : ''
+      end
+
+      # Terminals face up: built on −Z when the part frame's Z points down.
+      def up_sign(frame)
+        frame[:z][2] < -0.1 ? -1 : 1
+      end
+
+      def joint_attrs(o)
+        return {} unless Hdpe.style?(o)
+
+        { 'joint_desc' => Hdpe.segmented?(o) ? 'Butt fusion – fabricated (segmented)' : Hdpe.name(o.style, 1) }
+      end
+
+      def flexible_warnings(net, o)
         out = net.warnings.reject { |w| w.include?('Long Radius') }
         net.pieces.each do |pc|
           next unless pc.type == :elbow && pc.data[:radius_type] == :sr
 
           at = pc.data[:vertex].map(&:round).join(', ')
-          out << "ระยะท่อไม่พอดัดโค้งท่อ HDPE ม้วน – ใช้ข้องอหลอมไฟฟ้าแทน @ (#{at}) mm " \
-                 '(no room for the minimum bend radius, electrofusion elbow used)'
+          kind = Hdpe.name(o.style).split(' ').first
+          out << "ระยะท่อไม่พอดัดโค้งท่อ HDPE ม้วน – ใช้ข้องอ#{kind}แทน @ (#{at}) mm " \
+                 "(no room for the minimum bend radius, #{Hdpe.name(o.style, 1).downcase} elbow used)"
         end
         out
       end
@@ -530,12 +637,15 @@ module ArtK
 
         o = ctx[:opts]
         ang = d[:angle]
-        name = "PP Elbow #{d[:angle_deg].round(1)}° #{d[:radius_type].to_s.upcase} | #{spec_key(spec)} | #{lod_key(ctx)}"
         n1 = Vec.unit(Vec.sub(d[:center], d[:start]))
+        f = Mesh.frame(d[:start], d[:dir_in], n1)
+        sgn = Hdpe.style?(o) ? up_sign(f) : 1
+        name = "PP Elbow #{d[:angle_deg].round(1)}° #{d[:radius_type].to_s.upcase} | #{spec_key(spec)} | #{lod_key(ctx)}" \
+               "#{style_key(o)}#{sgn.negative? ? ' | dn' : ''}"
         item = ctx[:refs] && ref_elbow(spec, d[:angle_deg], d[:radius_type])
         inst = item && ref_or_nil(ctx, item) { render_ref_elbow(ctx, d, item) }
         item = nil unless inst
-        inst ||= place_part(ctx, name, Mesh.frame(d[:start], d[:dir_in], n1)) { Parts.elbow(ang, d[:radius], o) }
+        inst ||= place_part(ctx, name, f) { Hdpe.flip(sgn) { Parts.elbow(ang, d[:radius], o) } }
         attrs = {
           'type' => 'elbow', 'angle' => d[:angle_deg], 'radius_type' => d[:radius_type].to_s,
           'radius_mm' => d[:radius].round(1),
@@ -544,6 +654,8 @@ module ArtK
                                   'start' => d[:start], 'end' => d[:end])
         }
         attrs['nominal_angle'] = d[:nominal_angle] if d[:nominal_angle]
+        attrs.merge!(joint_attrs(o))
+        attrs['fitting_desc'] = hdpe_elbow_desc(o, d) if Hdpe.style?(o)
         attrs.merge!(ref_attrs(item)) if item
         finish_piece(ctx, inst, "Elbow #{d[:angle_deg].round}° #{spec.size}", ctx[:mat], attrs)
         return unless ctx[:ins].positive?
@@ -559,6 +671,22 @@ module ArtK
           # solid; still count it in the BOM.
           extras << ctx[:common].merge('type' => 'insulation', 'thickness' => ctx[:ins],
                                        'length_mm' => arc_len.round(1))
+        end
+      end
+
+      def hdpe_elbow_desc(o, d)
+        ang = "#{Bom.fmt_angle(d[:nominal_angle] || d[:angle_deg])}°"
+        case o.style
+        when :electrofusion then "EF elbow #{ang}"
+        when :compression then "Compression elbow #{ang} (PP)"
+        else
+          take = d[:radius] * Math.tan(d[:angle] / 2.0)
+          r = ((take - [Hdpe.leg(o.od), take * 0.9].min) / Math.tan(d[:angle] / 2.0) / o.od).round(1)
+          if Hdpe.segmented?(o)
+            "Segmented bend #{ang} R=#{Bom.fmt_angle(r)}D, #{Hdpe.welds(d[:angle])} welds (fabricated)"
+          else
+            "Elbow #{ang} R=#{Bom.fmt_angle(r)}D, spigot (butt fusion)"
+          end
         end
       end
 
@@ -581,13 +709,14 @@ module ArtK
         f = junction_frame(d[:center], d[:arms])
         loc = local_dirs(f, d[:arms])
         sig = loc.map { |u| u.map { |v| v.round(3) }.join(',') }.join(' / ')
-        name = "PP #{kind.to_s.capitalize} #{sig} | #{spec_key(spec)} | #{lod_key(ctx)}"
+        sgn = Hdpe.style?(o) ? up_sign(f) : 1
+        name = "PP #{kind.to_s.capitalize} #{sig} | #{spec_key(spec)} | #{lod_key(ctx)}#{style_key(o)}#{sgn.negative? ? ' | dn' : ''}"
         item = kind == :tee && ctx[:refs] && d[:run] && ref_tee(spec)
         inst = item && ref_or_nil(ctx, item) { render_ref_tee(ctx, d, item) }
         item = nil unless inst
-        inst ||= place_part(ctx, name, f) { Parts.branch(loc.map { |u| [u, c, o] }) }
+        inst ||= place_part(ctx, name, f) { Hdpe.flip(sgn) { Parts.branch(loc.map { |u| [u, c, o] }) } }
         attrs = { 'type' => 'tee', 'kind' => kind.to_s, 'role' => 'run',
-                  'geom' => JSON.generate('center' => d[:center], 'arms' => d[:arms], 'c' => c) }
+                  'geom' => JSON.generate('center' => d[:center], 'arms' => d[:arms], 'c' => c) }.merge(joint_attrs(o))
         attrs.merge!(ref_attrs(item)) if item
         attrs['branch_angle'] = d[:branch_angle] if d[:branch_angle]
         label = { cross: 'Cross', lateral: 'Lateral' }.fetch(kind, 'Tee')
@@ -624,27 +753,32 @@ module ArtK
         at, main_dir, bdir = branch_geometry(ctx, t)
         return warnings << 'Branch tee: centreline not found' unless at
 
-        c = main.tee_c
-        mo = Parts.opts(main, lod: ctx[:lod], steps: ctx[:steps])
+        c = main_tee_c(t, ctx)
+        mo = main_opts(t, ctx)
         arms = [main_dir, Vec.scale(main_dir, -1.0), bdir]
         f = junction_frame(at, arms)
         loc = local_dirs(f, arms)
         angle = Vec.angle(bdir, main_dir) * 180.0 / Math::PI
         angle = 180.0 - angle if angle > 90.0
         kind = (angle - 90.0).abs <= 1.0 ? 'tee' : 'lateral'
-        name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}"
+        sgn = Hdpe.style?(mo) ? up_sign(f) : 1
+        name = "PP Branch #{kind} #{angle.round(1)} | #{spec_key(main)} x #{spec.size} | #{lod_key(ctx)}" \
+               "#{style_key(mo)}#{style_key(ctx[:opts])}#{sgn.negative? ? ' | dn' : ''}"
         main_code = t['main_service'] || ctx[:common]['service']
         mat = H.pipe_material(ctx[:model], main_code, main.family, ctx[:settings]['color_scheme'], t['main_color'])
         item = kind == 'tee' && branch_ref_tee(t, ctx)
         inst = item && ref_or_nil(ctx, item) { place_ref(ctx, item, Mesh.frame(at, main_dir, bdir), mat, plain: true) }
         item = nil unless inst
-        inst ||= place_part(ctx, name, f) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
+        inst ||= place_part(ctx, name, f) do
+          Hdpe.flip(sgn) { Parts.branch([[loc[0], c, mo], [loc[1], c, mo], [loc[2], c, ctx[:opts]]]) }
+        end
         finish_piece(ctx, inst, "Branch #{kind} #{main.size} x #{spec.size}", mat,
                      'type' => 'tee', 'kind' => kind, 'role' => 'branch', 'branch_angle' => angle.round(1),
                      'size' => main.size, 'branch_size' => spec.size, 'rating' => main.rating,
                      'service' => main_code, 'catalog_name' => main.catalog_name, 'material' => main.material,
                      'od' => main.od,
                      'geom' => JSON.generate('center' => at, 'arms' => arms, 'c' => c)).tap do |e|
+          H.set_attrs(e, joint_attrs(mo))
           H.set_attrs(e, ref_attrs(item)) if item
         end
       rescue StandardError => e
@@ -683,8 +817,10 @@ module ArtK
         info = FittingsData.valve(type)
         metallic = spec.density > 5000
         f = Mesh.frame(at, dir, Vec.cross(up, dir))
-        fam = ValveModels.family(ctx[:opts], metallic)
-        len = FittingsData.face_to_face(type, spec.od, fam)
+        o = ctx[:opts]
+        stubs = Hdpe.style?(o) && o.style != :compression
+        fam = stubs ? :flanged : ValveModels.family(o, metallic)
+        len = stubs ? Parts.valve_length(type, o) : FittingsData.face_to_face(type, spec.od, fam)
         entry = Library.find(type, spec.size)
         if entry
           # A real model registered by the user: exact size at 1:1,
@@ -701,10 +837,27 @@ module ArtK
           return inst if inst
         end
 
-        name = "PP Valve #{type} #{fam} v2 | #{spec_key(spec)} | #{lod_key(ctx)}"
-        inst = place_part(ctx, name, f) { Parts.valve(type, ctx[:opts], metallic: metallic) }
-        finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat],
-                     valve_attrs(type, info, fam, spec, len, at, dir))
+        name = "PP Valve #{type} #{fam} v2 | #{spec_key(spec)} | #{lod_key(ctx)}#{style_key(o)}"
+        inst = place_part(ctx, name, f) { Parts.valve(type, o, metallic: metallic) }
+        attrs = valve_attrs(type, info, fam, spec, len, at, dir)
+        attrs.merge!(hdpe_valve_attrs(type, o)) if Hdpe.style?(o)
+        finish_piece(ctx, inst, "#{info[:name]} #{spec.size}", ctx[:mat], attrs)
+      end
+
+      # HDPE: fusion lines bolt flanged valves on with PE stub ends + steel
+      # backing rings (counted in the BOM); compression lines use PP valves.
+      def hdpe_valve_attrs(type, o)
+        if o.style == :compression
+          return { 'end_type' => 'Compression (PP)', 'valve_rating' => 'PN16' }
+        end
+
+        dn = Hdpe.dn(o.od)
+        out = { 'end_type' => "Flanged DN#{dn} – PE stub ends + backing rings", 'valve_rating' => 'Class 150',
+                'stub_ends' => 2, 'stub_dn' => dn, 'joint_desc' => Hdpe.name(o.style, 1) }
+        if type == 'flange'
+          out['valve_name'] = "Gasket + bolt set DN#{dn} (flanged joint, PE stub ends)"
+        end
+        out
       end
 
       VALVE_ENDS = {

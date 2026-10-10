@@ -91,6 +91,12 @@
     <div class="info">PVC, HDPE แข็ง / HDPE ม้วน (ดัดโค้ง), เหล็กดำ, สแตนเลส, GI, PP-R, ทองแดง</div>
     <label>ขนาด (Size)<select id="size"></select></label>
     <label>ชั้น/Schedule<select id="rating"></select></label>
+    <label id="hdperow" hidden>ข้อต่อ HDPE<select id="hdpe_joint">
+      <option value="auto">อัตโนมัติตามขนาด</option>
+      <option value="comp">สวมอัด PP (Compression)</option>
+      <option value="ef">หลอมไฟฟ้า (Electrofusion)</option>
+      <option value="butt">ชนหลอม (Butt fusion)</option></select></label>
+    <div class="info" id="hdpeinfo" hidden></div>
     <div class="info" id="specinfo"></div>
     <div class="note warn" id="estwarn" hidden>ความหนาผนังท่อ PVC เป็นค่าประมาณจากสูตรแรงดัน – ตรวจสอบกับแค็ตตาล็อกผู้ผลิตก่อนใช้งานจริง
       (PVC wall thickness is estimated)</div>
@@ -222,6 +228,7 @@ const PP = (() => {
     $('lod').value = S.lod;
     ['insulation_mm', 'slope_pct', 'waste_pct', 'support_group_mm'].forEach((k) => { $(k).value = S[k]; });
     ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
+    $('hdpe_joint').value = S.hdpe_joint || 'auto';
     $('segments').value = String(S.segments);
     ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
     $('use_color').checked = !!S.pipe_color;
@@ -242,6 +249,16 @@ const PP = (() => {
       (c.flexible ? ` · ดัดโค้งรัศมีไม่น้อยกว่า ${Math.round(z.od * ((c.bend_factor || {})[S.rating] || 25))} mm` +
         ` (${(c.bend_factor || {})[S.rating] || 25}×OD) · ม้วนละ ${z.od > 63 ? 50 : 100} m` : '');
     $('estwarn').hidden = !c.estimated;
+    const pe = S.catalog.startsWith('HDPE');
+    $('hdperow').hidden = !pe;
+    $('hdpeinfo').hidden = !pe;
+    if (pe) {
+      const auto = z.od <= 63.5 ? 'สวมอัด PP' : z.od <= 110.5 ? 'หลอมไฟฟ้า' : 'ชนหลอม';
+      $('hdpeinfo').textContent = (S.hdpe_joint || 'auto') === 'auto'
+        ? `อัตโนมัติ: ≤ 63 สวมอัด · 75–110 หลอมไฟฟ้า · ≥ 125 ชนหลอม → ขนาดนี้ใช้ ${auto} · ` +
+          'วาล์วหน้าแปลนต่อด้วย Stub end + แหวนเหล็ก'
+        : 'วาล์วหน้าแปลนต่อด้วย Stub end + แหวนเหล็ก (สวมอัดใช้วาล์ว PP)';
+    }
     const crit = [];
     if (s.vmax) crit.push(`v ≤ ${s.vmax} m/s`);
     if (s.hf_max) crit.push(`hf ≤ ${s.hf_max} m/100m`);

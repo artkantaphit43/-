@@ -103,6 +103,14 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 
 Shared supports from versions before 1.10 have no `at` and are left as they are.
 
-**Settings:** `support_group_mm` (default 600, 0 = off).
+**Settings:** `support_group_mm` (default 600, 0 = off); `hdpe_joint` (since 1.14 –
+`auto` | `butt` | `ef` | `comp`, default `auto` = by size, so older HDPE runs rebuild with the
+fittings of their size; their part definitions are new names, the old ones stay until rebuilt).
+
+**HDPE pieces (1.14, new keys only):** `joint_desc` (Electrofusion / Compression (PP) / Butt
+fusion spigot / … – shown in the BOM), `fitting_desc` on elbows, couplers and stub ends;
+`type = coupling` (EF / compression coupler at a stick joint, in the BOM), `type = bead` (a
+butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends` (count) and
+`stub_dn`. Tee and join records may carry `main_joint` – the main run's `hdpe_joint`.
 
 **Model:** `fmt` – the format the file was last upgraded to.

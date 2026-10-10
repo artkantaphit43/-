@@ -4,6 +4,7 @@ require_relative 'vec'
 require_relative 'mesh'
 require_relative 'fittings_data'
 require_relative 'valve_models'
+require_relative 'hdpe'
 
 module ArtK
   module PlantPipe
@@ -18,8 +19,10 @@ module ArtK
     #   valve  – centre at origin, flow along +X, stem/operator towards +Z
     #
     # Joint styles follow the catalogue: :butt_weld (steel, stainless),
-    # :fusion (HDPE butt fusion), :socket (PVC/PP-R solvent/fusion sockets,
-    # copper solder cups) and :threaded (galvanised malleable iron, banded).
+    # :socket (PVC/PP-R solvent/fusion sockets, copper solder cups) and
+    # :threaded (galvanised malleable iron, banded). HDPE lines use :fusion,
+    # :electrofusion or :compression (see Hdpe – chosen by the 'hdpe_joint'
+    # setting and the size).
     # LOD :detailed adds bolt holes, bolts, spokes, beads and hub lips;
     # :light keeps only the silhouette for very large plant models.
     module Parts
@@ -42,11 +45,12 @@ module ArtK
 
       module_function
 
-      def opts(spec, lod: :detailed, steps: 16)
+      def opts(spec, lod: :detailed, steps: 16, joint: nil)
         style = (spec.respond_to?(:style) && spec.style) || :butt_weld
         # Small-bore steel (< 2") is socket-welded with forged fittings in
         # practice (ASME B16.11), not butt-welded.
         style = :socket_weld if style == :butt_weld && spec.od < 60.0
+        style = Hdpe.style(spec.od.to_f, joint) if spec.respond_to?(:family) && spec.family == 'HDPE'
         Opts.new(od: spec.od.to_f, id: spec.id.to_f, wall: spec.wall.to_f, style: style,
                  lod: lod.to_sym, steps: steps)
       end
@@ -80,6 +84,7 @@ module ArtK
         when :socket then o.ro + 0.75 * hub_thickness(o)
         when :socket_weld then o.ro + 0.85 * hub_thickness(o)
         when :threaded then o.ro * 1.12
+        when :electrofusion, :compression then Hdpe.body_radius(o)
         else o.ro
         end
       end
@@ -97,6 +102,8 @@ module ArtK
       # End feature at point p, opening in direction d (pointing away from
       # the fitting body, towards the pipe).
       def joint_end(part, p, d, o)
+        return Hdpe.joint_end(part, p, d, o) if Hdpe.style?(o)
+
         case o.style
         when :socket_weld
           s = insertion(o) + 2.0
@@ -144,6 +151,7 @@ module ArtK
       # Elbow of +angle+ (rad) and centreline radius +r+.
       def elbow(angle, r, o)
         return forged_elbow(angle, r, o) if o.style == :socket_weld
+        return Hdpe.elbow(angle, r * Math.tan(angle / 2.0), o, r) if Hdpe.style?(o)
 
         part = Mesh::Part.new
         arc_steps = [(angle / (Math::PI / 2) * (o.steps / 2)).ceil, 2].max
@@ -214,6 +222,8 @@ module ArtK
       # Weld-neck flange (steel) or stub/adaptor flange (plastics):
       # mating face at x = 0 facing −X, hub towards +X.
       def flange(o, holes: true)
+        return Hdpe.stub_flange(o) if Hdpe.style?(o)
+
         fl = F.flange(o.od)
         part = Mesh::Part.new
         ax = [1.0, 0.0, 0.0]
@@ -262,14 +272,37 @@ module ArtK
       # The construction family (flanged cast / forged socket-weld / brass
       # threaded / plastic true-union) follows the pipe – see ValveModels.
       def valve(type, o, metallic: true)
+        if Hdpe.style?(o) && o.style != :compression
+          return Hdpe.flange_pair(o) if type == 'flange'
+
+          return Hdpe.flanged_valve(type, o, hdpe_valve_opts(o))
+        end
         ValveModels.build(type, o, ValveModels.family(o, metallic))
       end
 
       def valve_length(type, o, metallic: true)
+        if Hdpe.style?(o) && o.style != :compression
+          return Hdpe.valve_length(type, o, hdpe_valve_opts(o)) unless type == 'flange'
+
+          return 2.0 * Hdpe.stub_reach(o) + 3.0
+        end
         FittingsData.face_to_face(type, o.od, ValveModels.family(o, metallic))
       end
 
+      # HDPE fusion lines take flanged valves of the stub ends' DN (cast,
+      # Class 150 drilling); compression lines keep PP valves.
+      def hdpe_valve_opts(o)
+        Opts.new(od: Hdpe::DN_OD.fetch(Hdpe.dn(o.od)), id: o.id, wall: o.wall, style: :butt_weld,
+                 lod: o.lod, steps: o.steps)
+      end
+
+      def coupler(o)
+        Hdpe.coupler(o)
+      end
+
       def flange_pair(o)
+        return Hdpe.flange_pair(o) if Hdpe.style?(o)
+
         part = Mesh::Part.new
         gasket = 3.0
         part.merge(flange(o), M.frame([gasket / 2.0, 0, 0], [1, 0, 0], [0, 1, 0]))

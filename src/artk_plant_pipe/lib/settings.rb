@@ -30,7 +30,8 @@ module ArtK
         'support_type'  => 'clevis',
         'support_group_mm' => 600.0, # neighbouring pipes within this clear gap share a support (0 = off)
         'waste_pct'     => 5.0,
-        'valve_type'    => 'gate'
+        'valve_type'    => 'gate',
+        'hdpe_joint'    => 'auto'     # auto (by size) | butt | ef | comp – HDPE fitting system
       }.freeze
 
       module_function
@@ -60,6 +61,7 @@ module ArtK
         s['waste_pct'] = clamp(s['waste_pct'].to_f, 0.0, 50.0)
         s['support_group_mm'] = clamp(s['support_group_mm'].to_f, 0.0, 1500.0)
         s['valve_type'] = 'gate' unless FittingsData::VALVES.key?(s['valve_type'])
+        s['hdpe_joint'] = 'auto' unless %w[auto butt ef comp].include?(s['hdpe_joint'].to_s)
         s.select { |k, _| DEFAULTS.key?(k) }
       end
 
