@@ -57,7 +57,7 @@ const CONFIG = {
 const CMD_SUBMIT = /^(ส่ง|ส่งรายงาน|เสร็จ|จบ|submit)$/i;
 const CMD_CANCEL = /^(ยกเลิก|cancel)$/i;
 const CMD_STATUS = /^(สถานะ|เช็ค|เช็ก|status)$/i;
-const CMD_HELP = /^(ฟอร์ม|วิธีใช้|help|\?)$/i;
+const CMD_HELP = /^(ฟอร์ม|วิธีใช้|help|\?|เริ่ม|เริ่มรายงาน|รายงาน|📋 เริ่มรายงาน)$/i;
 const CMD_NAME = /^(ชื่อ|เลือกชื่อ)$/i;
 const CMD_ADD_PROJECT = /^(➕\s*)?เพิ่มโครงการ/;
 const CMD_LIST_PROJECTS = /^(โครงการ|รายการโครงการ|โครงการทั้งหมด)$/;
@@ -95,10 +95,13 @@ function doGet() {
 
 function handleEvent_(event) {
   if (event.type === 'join' || event.type === 'follow') {
-    reply_(event.replyToken, helpText_());
+    reply_(event.replyToken, quickReply_('สวัสดีครับ 👋 บอทรายงานประจำวัน\nกด "เริ่มรายงาน" แล้วกดตอบตามปุ่มได้เลย',
+      [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }]));
     return;
   }
-  if (event.type !== 'message' || !isAllowed_(event.source)) return;
+  if (!isAllowed_(event.source)) return;
+  if (event.type === 'postback') return handlePostback_(event);
+  if (event.type !== 'message') return;
 
   const msg = event.message;
   if (msg.type === 'text') {
@@ -119,7 +122,10 @@ function handleEvent_(event) {
 function handleText_(event, text) {
   const source = event.source;
   const token = event.replyToken;
-  if (CMD_HELP.test(text)) return reply_(token, helpText_(), 'คัดลอกแบบฟอร์มด้านล่าง เติมตัวเลข แล้วส่งกลับมา 👇', templateText_());
+  if (CMD_HELP.test(text)) {
+    const s = withSession_(source, advance_);
+    return reply_(token, withPrefix_(question_(s, s.awaiting), `📋 รายงานวันที่ ${thaiDateShort_(s.date)}\nกดตอบจากปุ่มด้านล่างได้เลย`));
+  }
   if (CMD_NAME.test(text)) return reply_(token, reporterPicker_('เลือกชื่อผู้เขียนรายงาน 👇'));
   if (CMD_ADD_PROJECT.test(text)) return reply_(token, ...addProjectFromText_(text));
   if (CMD_LIST_PROJECTS.test(text)) return reply_(token, projectPicker_(projectListText_()));
@@ -141,13 +147,13 @@ function handleText_(event, text) {
 
   if (CMD_STATUS.test(text)) {
     const session = loadSession_(source);
-    return reply_(token, session ? summaryText_(session) : 'ยังไม่มีรายงานที่ค้างอยู่');
+    return reply_(token, session ? summaryFlex_(session) : 'ยังไม่มีรายงานที่ค้างอยู่');
   }
 
   if (CMD_SUBMIT.test(text)) {
     const session = loadSession_(source);
     if (!session || (!session.today.items.length && !session.photos.length)) {
-      return reply_(token, 'ยังไม่มีข้อมูลรายงาน พิมพ์ "ฟอร์ม" เพื่อดูวิธีกรอก');
+      return reply_(token, quickReply_('ยังไม่มีงานในรายงาน', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }]));
     }
     if (!session.reporter) {
       return reply_(token, reporterPicker_('ยังไม่ได้เลือกผู้เขียนรายงาน เลือกชื่อแล้วพิมพ์ "ส่ง" อีกครั้ง 👇'));
@@ -162,15 +168,31 @@ function handleText_(event, text) {
       `ผู้เขียนรายงาน: ${session.reporter}\n\n📄 PDF:\n${result.pdfUrl}`);
   }
 
-  const session = withSession_(source, s => applyText_(s, text));
-  const summary = '📝 บันทึกแล้ว\n' + summaryText_(session);
-  if (!session.reporter) return reply_(token, summary, reporterPicker_('เลือกชื่อผู้เขียนรายงาน 👇'));
-  if (!session.project.code) return reply_(token, summary, projectPicker_());
-  if (!session.project.name) {
-    return reply_(token, summary,
-      projectPicker_(`⚠️ ยังไม่มีข้อมูล ${session.project.code} ในระบบ กด "➕ เพิ่มโครงการ" ได้เลย 👇`));
+  let added = 0;
+  let newGroup = '';
+  const session = withSession_(source, s => {
+    const section = s.section;
+    const before = s[section].items.length;
+    const group = s[section].group;
+    applyText_(s, expandShortAnswer_(s, text));
+    if (s.section === section) {
+      added = s[section].items.length - before;
+      if (s[section].group !== group) newGroup = s[section].group;
+    }
+    advance_(s);
+  });
+
+  if (!session.project.name && session.project.code && session.awaiting !== 'project') {
+    return reply_(token, projectPicker_(`⚠️ ยังไม่มีข้อมูล ${session.project.code} ในระบบ กด "➕ เพิ่มโครงการ" ได้เลย 👇`));
   }
-  reply_(token, summary + '\n\nส่งรูปต่อได้เลย หรือพิมพ์ "ส่ง" เพื่อออกรายงาน');
+  const sec = session[session.section];
+  if (added) {
+    const it = sec.items[sec.items.length - 1];
+    return reply_(token, withPrefix_(workPrompt_(session, sec, true),
+      `📝 ${it.group ? it.group + ' • ' : ''}${it.title}${it.progress ? ' ' + it.progress : ''}`));
+  }
+  if (newGroup) return reply_(token, withPrefix_(workPrompt_(session, sec, true), `📁 ${newGroup}\nพิมพ์งานของโครงการนี้ได้เลย`));
+  reply_(token, withPrefix_(question_(session, session.awaiting), '✅ บันทึกแล้ว'));
 }
 
 // ===== แปลงข้อความเป็นข้อมูลรายงาน =====
@@ -194,6 +216,7 @@ const FIELD_HANDLERS = [
   { aliases: ['อุบัติเหตุ'], set: (s, v) => { s.accident = v; } },
   { aliases: ['หมายเหตุ'], set: (s, v) => { s.notes = v; } },
   { aliases: ['ปัญหา', 'ปัญหาอุปสรรค'], set: (s, v, sec) => { lastItem_(sec).problem = v; } },
+  { aliases: ['เครื่องจักร'], set: (s, v, sec) => { sec.machinesDone = true; } },
   { aliases: ['ความคืบหน้า', 'คืบหน้า'], set: (s, v, sec) => { lastItem_(sec).progress = formatPercent_(v); } },
 ];
 
@@ -217,9 +240,15 @@ function applyText_(session, text) {
       return;
     }
 
+    // งานที่ยังไม่มีหัวข้อ PJ ให้อยู่ใต้โครงการหลักของรายงาน (ฟอร์มมีหัว PJ เสมอ)
+    const addWork = title => {
+      if (!sec.group && session.project.code) sec.group = session.project.code;
+      addItem_(sec, title);
+    };
+
     // "1. ประชุมแผนงาน 100%" = งานใหม่
     const numbered = line.match(/^\d+\s*[.)]\s*(.*)$/);
-    if (numbered) return addItem_(sec, numbered[1]);
+    if (numbered) return addWork(numbered[1]);
 
     const kv = line.match(/^([^:：]+)[:：]\s*(.*)$/);
     if (kv) {
@@ -239,7 +268,7 @@ function applyText_(session, text) {
         return;
       }
     }
-    addItem_(sec, line);
+    addWork(line);
   });
 }
 
@@ -882,81 +911,241 @@ function withSession_(source, mutate) {
   }
 }
 
-function summaryText_(s) {
-  const lines = [`📋 ${s.project.code || 'ยังไม่ระบุโครงการ'} • ${thaiDateShort_(s.date)}`,
-    `ผู้เขียนรายงาน: ${s.reporter || '❗ยังไม่เลือก'}`];
-  lines.push(`เวลา: ${s.start || CONFIG.DEFAULT_START} - ${s.end || CONFIG.DEFAULT_END}`);
-  if (s.today.manpower) lines.push(`กำลังพล: ${s.today.manpower} คน`);
-  const machines = CONFIG.MACHINES.filter(m => s.today.machines[m.key])
-    .map(m => `${m.label} ${s.today.machines[m.key].qty || s.today.machines[m.key].text}`);
-  if (machines.length) lines.push(`เครื่องจักร: ${machines.join(', ')}`);
-  if (s.weather) lines.push(`อากาศ: ${s.weather}${s.temp ? ' / ' + s.temp + '°C' : ''}`);
-  if (s.accident) lines.push(`อุบัติเหตุ: ${s.accident}`);
-  groupItems_(s.today.items).forEach(g => {
-    if (g.group) lines.push(g.group);
-    g.items.forEach((it, i) => lines.push(`${i + 1}. ${it.title} ${it.progress}`.trim()));
+// ===== ถามทีละข้อด้วยปุ่ม (Quick Reply) และการ์ดสรุป (Flex Message) =====
+
+const TIME_PRESETS = ['08.00-17.00', '08.00-18.00', '08.00-19.00', '08.00-20.00', '08.00-21.00',
+  '09.00-17.00', '09.00-18.00'];
+const RAIN_PRESETS = ['08.00-10.00', '10.00-12.00', '13.00-15.00', '15.00-17.00', 'ทั้งวัน'];
+const BRAND = '#0A9A9A';
+
+const numbers_ = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+const isPlan_ = s => s.section === 'plan';
+
+/** ขั้นตอนการกรอก: done = กรอกแล้วหรือยัง, ask = คำถามพร้อมปุ่ม */
+const STEPS = {
+  reporter: { done: s => !!s.reporter, ask: () => reporterPicker_('👤 ใครเป็นผู้เขียนรายงาน?') },
+  project: { done: s => !!s.project.code, ask: () => projectPicker_('📁 วันนี้ทำโครงการไหน?') },
+  time: {
+    done: s => !!(s.start || s.end),
+    ask: () => quickReply_('⏰ เวลาทำงาน?\n(หรือพิมพ์เอง เช่น 8-21)',
+      TIME_PRESETS.map(t => ({ label: t, text: 'เวลา: ' + t }))),
+  },
+  manpower: {
+    done: (s, sec) => !!sec.manpower,
+    ask: s => quickReply_(`👷 คนงาน${isPlan_(s) ? 'พรุ่งนี้' : ''}กี่คน?\n(เกิน 12 คน พิมพ์ตัวเลขได้เลย)`,
+      numbers_(1, 12).map(n => ({ label: `${n} คน`, text: `คน: ${n}` }))),
+  },
+  weather: {
+    done: s => !!s.weather,
+    ask: () => quickReply_('🌤️ สภาพอากาศวันนี้?', CONFIG.WEATHER_OPTIONS.map(w => ({ label: w, text: 'อากาศ: ' + w }))),
+  },
+  rain: {
+    done: s => !/ฝนตก/.test(s.weather || '') || !!s.rainTime,
+    ask: () => quickReply_('🌧️ ฝนตกช่วงไหน?\n(หรือพิมพ์เอง เช่น 13.30-14.00)',
+      RAIN_PRESETS.map(t => ({ label: t, text: 'ฝนตกช่วง: ' + t }))),
+  },
+  temp: {
+    done: s => !!s.temp,
+    ask: () => quickReply_('🌡️ อุณหภูมิเฉลี่ยกี่องศา?', numbers_(28, 39).map(n => ({ label: `${n}°C`, text: `อุณหภูมิ: ${n}` }))),
+  },
+  machines: { done: (s, sec) => !!sec.machinesDone, ask: (s, sec) => machinePicker_(s, sec) },
+  impact: {
+    done: s => !!s.impact,
+    ask: () => quickReply_('⛈️ สภาพอากาศมีผลกระทบต่อการทำงานไหม?', [
+      { label: 'ไม่มีผลกระทบ', text: 'ผลกระทบ: ไม่มี' }, { label: 'มีผลกระทบ', text: 'ผลกระทบ: มี' }]),
+  },
+  accident: {
+    done: s => !!s.accident,
+    ask: () => quickReply_('🦺 วันนี้มีอุบัติเหตุไหม?', [
+      { label: 'ไม่มีอุบัติเหตุ', text: 'อุบัติเหตุ: ไม่มี' }, { label: 'มีอุบัติเหตุ', text: 'อุบัติเหตุ: มี' }]),
+  },
+  notes: { done: () => true, ask: () => quickReply_('🗒️ พิมพ์หมายเหตุได้เลย', [{ label: 'ไม่มี', text: 'หมายเหตุ: -' }]) },
+  work: { done: () => false, ask: (s, sec) => workPrompt_(s, sec, false) },
+};
+
+const FLOW = {
+  today: ['reporter', 'project', 'time', 'manpower', 'weather', 'rain', 'temp', 'machines', 'impact', 'accident', 'work'],
+  plan: ['manpower', 'machines', 'work'],
+};
+
+/** ขั้นถัดไปที่ยังไม่ได้กรอก (เรียกใน withSession_ เพื่อจำว่ากำลังรอคำตอบข้อไหน) */
+function advance_(s) {
+  s.awaiting = FLOW[s.section].find(k => !STEPS[k].done(s, s[s.section]));
+  return s.awaiting;
+}
+
+function question_(s, step) {
+  const qty = step.match(/^qty:(\w+)$/);
+  if (qty) return quantityPicker_(qty[1]);
+  return STEPS[step].ask(s, s[s.section]);
+}
+
+function withPrefix_(message, prefix) {
+  message.text = prefix + '\n\n' + message.text;
+  return message;
+}
+
+/** พิมพ์แค่ตัวเลข/เวลา ตอบคำถามที่ค้างอยู่ได้เลย เช่น ถามคนงานแล้วพิมพ์ "15" */
+function expandShortAnswer_(s, text) {
+  const t = text.trim();
+  const step = s.awaiting || '';
+  if (step === 'manpower' && /^\d+\s*(คน)?$/.test(t)) return 'คน: ' + t;
+  if (step === 'temp' && /^\d+(\.\d+)?\s*(°C|องศา)?$/.test(t)) return 'อุณหภูมิ: ' + t;
+  if (step === 'time' && /^\d.*(-|ถึง)/.test(t)) return 'เวลา: ' + t;
+  if (step === 'rain' && /^\d/.test(t)) return 'ฝนตกช่วง: ' + t;
+  if (step === 'notes' && !/[:：]/.test(t)) return 'หมายเหตุ: ' + t;
+  if (step === 'qty:other' && !/[:：]/.test(t)) return 'อื่นๆ: ' + t;
+  const qty = step.match(/^qty:(\w+)$/);
+  const machine = qty && CONFIG.MACHINES.find(m => m.key === qty[1]);
+  if (machine && /^\d+/.test(t)) return `${machine.aliases[0]}: ${t}`;
+  return text;
+}
+
+function machineText_(sec) {
+  return CONFIG.MACHINES.filter(m => sec.machines[m.key])
+    .map(m => `${m.label} ${sec.machines[m.key].qty || sec.machines[m.key].text}`).join(', ');
+}
+
+function machinePicker_(s, sec) {
+  const chosen = machineText_(sec);
+  const text = chosen ? `🚗 ตอนนี้มี: ${chosen}\nมีรถ/เครื่องจักรอื่นอีกไหม?`
+    : `🚗 ${isPlan_(s) ? 'พรุ่งนี้' : 'วันนี้'}ใช้รถ/เครื่องจักรอะไรบ้าง?`;
+  const options = [{ label: chosen ? '✅ ครบแล้ว' : '❌ ไม่มี', text: 'เครื่องจักร: ' + (chosen ? 'ครบ' : 'ไม่มี') }];
+  CONFIG.MACHINES.forEach(m => {
+    const v = sec.machines[m.key];
+    options.push({ label: v ? `${m.label} (${v.qty || v.text})` : m.label, data: 'ask=qty:' + m.key });
   });
-  lines.push(`📷 รูป ${s.photos.length} รูป`);
-  if (s.plan.items.length || s.plan.manpower) lines.push(`🗓️ แผนพรุ่งนี้ ${s.plan.items.length} งาน`);
-  if (s.section === 'plan') lines.push('(ตอนนี้กำลังกรอก "แผนพรุ่งนี้" พิมพ์ "วันนี้" เพื่อกลับ)');
-  return lines.join('\n');
+  return quickReply_(text, options);
 }
 
-/** แบบฟอร์มให้คัดลอกไปเติม ช่องที่ไม่ใช้ปล่อยว่างได้ */
-function templateText_() {
-  return [
-    'โครงการ: PJ ',
-    'เวลา: 08.00-17.00',
-    'คน: ',
-    'อากาศ: ปกติ',
-    'ฝนตกช่วง: ',
-    'อุณหภูมิ: ',
-    'รถเครน: ',
-    'รถเฮียบ: ',
-    'รถปูน: ',
-    'รถยนต์: ',
-    'อื่นๆ: ',
-    'ผลกระทบ: ไม่มี',
-    'อุบัติเหตุ: ไม่มี',
-    'หมายเหตุ: ',
-  ].join('\n');
+function quantityPicker_(key) {
+  const m = CONFIG.MACHINES.find(x => x.key === key);
+  if (key === 'other') {
+    return quickReply_('✏️ พิมพ์ชื่อเครื่องจักรและจำนวน\nเช่น  รถแบคโฮ 1', [{ label: '↩️ ย้อนกลับ', data: 'ask=machines' }]);
+  }
+  const hint = m.sized ? '\n(ระบุขนาดได้ เช่น พิมพ์ "1 ขนาด 25")' : '';
+  return quickReply_(`${m.label}กี่คัน?${hint}`, numbers_(1, 8).map(n => ({ label: `${n} คัน`, text: `${m.aliases[0]}: ${n}` }))
+    .concat([{ label: '🗑️ ไม่มี', text: `${m.aliases[0]}: -` }]));
 }
 
-function helpText_() {
-  return [
-    '📋 วิธีส่งรายงานประจำวัน',
-    '',
-    '① ข้อมูลทั่วไป',
-    'โครงการ: PJ 942',
-    'เวลา: 08.00-21.00  (หรือ "เลิกงาน: 3 ทุ่ม")',
-    'คน: 4',
-    'อากาศ: ปกติ  (ฝนตก/แดดจัด/ปกติ)',
-    'อุณหภูมิ: 32',
-    'รถยนต์: 3',
-    'ผลกระทบ: ไม่มี',
-    'อุบัติเหตุ: ไม่มี',
-    '',
-    '② งานวันนี้ (พิมพ์งาน แล้วส่งรูปของงานนั้นตาม)',
-    'PJ 942',
-    '1. ประชุมแผนงาน 100%',
-    '→ ส่งรูป',
-    'PJ 69014',
-    '1. ติดตามงานชุดปรับคืนน้ำเสีย 5%',
-    '→ ส่งรูป',
-    '',
-    '③ แผนพรุ่งนี้ (ถ้ามี)',
-    'แผนพรุ่งนี้',
-    'คน: 11',
-    'รถยนต์: 5',
-    'PJ 942',
-    '1. ต่อท่อ HDPE',
-    '',
-    '④ พิมพ์ "ส่ง" เพื่อรับไฟล์ PDF',
-    '',
-    'คำสั่งอื่น: "ชื่อ" เลือกผู้เขียนรายงาน, "สถานะ" ดูข้อมูลที่กรอก, "ยกเลิก" เริ่มใหม่',
-    'โครงการ: "เพิ่มโครงการ", "รายการโครงการ", "ลบโครงการ: PJ xxx"',
-    'ลายเซ็น: พิมพ์ "ลายเซ็น" เลือกชื่อ แล้วส่งรูปลายเซ็น (ทำครั้งเดียว)',
-  ].join('\n');
+/** ขั้นกรอกงาน: ปุ่มถ่ายรูป, เลือก PJ, ดูสรุป, แผนพรุ่งนี้, ส่ง */
+function workPrompt_(s, sec, short) {
+  const plan = isPlan_(s);
+  let text;
+  if (short) text = plan ? 'พิมพ์งานข้อถัดไปได้เลย' : 'ส่งรูปของงานนี้ หรือพิมพ์งานข้อถัดไป';
+  else if (plan) text = '🗓️ พิมพ์งานพรุ่งนี้ทีละข้อ\nเช่น  1. ขุดดินวางท่อ';
+  else text = '📝 พิมพ์งานทีละข้อ แล้วส่งรูปของงานนั้นตาม\nเช่น  1. ขุดดินวางท่อ 60%\n\nทำหลายโครงการ: กดปุ่ม PJ ก่อนพิมพ์งานของโครงการนั้น';
+
+  const options = plan ? [] : [{ label: '📷 ถ่ายรูป', camera: true }, { label: '🖼️ เลือกรูป', cameraRoll: true }];
+  const codes = [s.project.code].concat(Object.keys(getProjects_())).filter((c, i, a) => c && a.indexOf(c) === i);
+  codes.slice(0, plan ? 5 : 3).forEach(code => options.push({ label: code, text: code }));
+  options.push({ label: '📋 ดูสรุป', data: 'summary' });
+  options.push(plan ? { label: '↩️ งานวันนี้', text: 'วันนี้' } : { label: '🗓️ แผนพรุ่งนี้', text: 'แผนพรุ่งนี้' });
+  options.push({ label: '✅ ส่งรายงาน', text: 'ส่ง' });
+  return quickReply_(text, options);
+}
+
+function editMenu_() {
+  return quickReply_('✏️ ต้องการแก้ข้อไหน?', [
+    { label: '👤 ผู้เขียนรายงาน', data: 'ask=reporter' },
+    { label: '📁 โครงการ', data: 'ask=project' },
+    { label: '⏰ เวลา', data: 'ask=time' },
+    { label: '👷 คนงาน', data: 'ask=manpower' },
+    { label: '🌤️ อากาศ', data: 'ask=weather' },
+    { label: '🌡️ อุณหภูมิ', data: 'ask=temp' },
+    { label: '🚗 เครื่องจักร', data: 'ask=machines' },
+    { label: '⛈️ ผลกระทบ', data: 'ask=impact' },
+    { label: '🦺 อุบัติเหตุ', data: 'ask=accident' },
+    { label: '🗒️ หมายเหตุ', data: 'ask=notes' },
+    { label: '🗓️ แผนพรุ่งนี้', text: 'แผนพรุ่งนี้' },
+    { label: '🗑️ เริ่มใหม่', text: 'ยกเลิก' },
+  ]);
+}
+
+/** การ์ดสรุปรายงาน พร้อมปุ่มแก้ไข / ส่งรายงาน */
+function summaryFlex_(s) {
+  const row = (label, value) => ({
+    type: 'box', layout: 'baseline', spacing: 'sm',
+    contents: [
+      { type: 'text', text: label, size: 'sm', color: '#8C8C8C', flex: 3 },
+      { type: 'text', text: String(value || '-'), size: 'sm', color: '#222222', flex: 6, wrap: true },
+    ],
+  });
+  const heading = text => ({ type: 'text', text: text, weight: 'bold', size: 'sm', color: BRAND, margin: 'lg' });
+  const workLines = (items, withProgress) => {
+    const lines = [];
+    groupItems_(items).forEach(g => {
+      if (g.group) lines.push({ type: 'text', text: g.group, size: 'sm', weight: 'bold', margin: 'sm' });
+      g.items.forEach((it, i) => lines.push({
+        type: 'text', size: 'sm', wrap: true,
+        text: `${i + 1}. ${it.title}${withProgress && it.progress ? '  ' + it.progress : ''}`,
+      }));
+    });
+    return lines.length ? lines : [{ type: 'text', text: 'ยังไม่มี', size: 'sm', color: '#8C8C8C' }];
+  };
+  const time = `${s.start || CONFIG.DEFAULT_START} - ${s.end || CONFIG.DEFAULT_END}`;
+  const weather = [s.weather, s.rainTime && `ฝน ${s.rainTime}`, s.temp && `${s.temp}°C`].filter(Boolean).join(' • ');
+
+  const body = [
+    row('ผู้รายงาน', s.reporter),
+    row('เวลา', time),
+    row('คนงาน', s.today.manpower && `${s.today.manpower} คน`),
+    row('อากาศ', weather),
+    row('เครื่องจักร', machineText_(s.today) || (s.today.machinesDone ? 'ไม่มี' : '')),
+    row('ผลกระทบ', s.impact),
+    row('อุบัติเหตุ', s.accident),
+    heading(`งานวันนี้  •  📷 ${s.photos.length} รูป`),
+  ].concat(workLines(s.today.items, true));
+  if (s.plan.items.length || s.plan.manpower) {
+    body.push(heading('แผนพรุ่งนี้'));
+    if (s.plan.manpower || machineText_(s.plan)) {
+      body.push({ type: 'text', size: 'sm', wrap: true, color: '#555555',
+        text: [s.plan.manpower && `คนงาน ${s.plan.manpower} คน`, machineText_(s.plan)].filter(Boolean).join(' • ') });
+    }
+    body.push(...workLines(s.plan.items, false));
+  }
+
+  return {
+    type: 'flex',
+    altText: 'สรุปรายงานประจำวัน',
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', backgroundColor: BRAND, paddingAll: '16px',
+        contents: [
+          { type: 'text', text: 'รายงานประจำวัน', color: '#FFFFFF', weight: 'bold', size: 'lg' },
+          { type: 'text', text: `${s.project.code || 'ยังไม่เลือกโครงการ'}  •  ${thaiDateShort_(s.date)}`,
+            color: '#E0F5F5', size: 'sm' },
+        ],
+      },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: body },
+      footer: {
+        type: 'box', layout: 'horizontal', spacing: 'sm',
+        contents: [
+          { type: 'button', style: 'secondary', height: 'sm', action: { type: 'postback', label: '✏️ แก้ไข', data: 'edit' } },
+          { type: 'button', style: 'primary', color: BRAND, height: 'sm', action: { type: 'message', label: '✅ ส่งรายงาน', text: 'ส่ง' } },
+        ],
+      },
+    },
+  };
+}
+
+/** ปุ่มที่กดแล้วไม่ต้องแสดงข้อความในแชต (เปิดคำถาม, ดูสรุป, เมนูแก้ไข) */
+function handlePostback_(event) {
+  const data = event.postback.data;
+  const token = event.replyToken;
+  if (data === 'summary') {
+    const session = loadSession_(event.source);
+    return reply_(token, session ? summaryFlex_(session) : 'ยังไม่มีรายงานที่ค้างอยู่');
+  }
+  if (data === 'edit') return reply_(token, editMenu_());
+  const ask = data.match(/^ask=(.+)$/);
+  if (!ask) return;
+  const session = withSession_(event.source, s => {
+    if (!ask[1].startsWith('qty:') && ask[1] !== 'machines' && ask[1] !== 'manpower') s.section = 'today';
+    s.awaiting = ask[1];
+  });
+  reply_(token, question_(session, ask[1]));
 }
 
 // ===== LINE API =====
@@ -1007,12 +1196,18 @@ function quickReply_(text, options) {
     type: 'text',
     text: text,
     quickReply: {
-      items: options.slice(0, 13).map(o => ({
-        type: 'action',
-        action: { type: 'message', label: o.label.slice(0, 20), text: o.text },
-      })),
+      items: options.slice(0, 13).map(o => ({ type: 'action', action: quickReplyAction_(o) })),
     },
   };
+}
+
+/** { label, text } = ส่งข้อความ, { label, data } = postback, { camera / cameraRoll } = เปิดกล้อง/อัลบั้ม */
+function quickReplyAction_(o) {
+  const label = o.label.slice(0, 20);
+  if (o.camera) return { type: 'camera', label: label };
+  if (o.cameraRoll) return { type: 'cameraRoll', label: label };
+  if (o.data) return { type: 'postback', label: label, data: o.data };
+  return { type: 'message', label: label, text: o.text };
 }
 
 function reporterPicker_(text) {
