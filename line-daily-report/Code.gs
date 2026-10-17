@@ -672,8 +672,8 @@ function fillSignatures_(sheet, row, s) {
   [[2, s.reporter], [4, s.supervisor || s.reporter]].forEach(([col, name]) => {
     sheet.getRange(row(TPL.signDateRow), col).setNumberFormat('@').setValue(date);
     const fileId = PropertiesService.getScriptProperties().getProperty('SIG_' + name);
-    const blob = fileId && imageBlob_(fileId, 400);
-    if (!blob) {
+    const img = fileId && insertDriveImage_(sheet, fileId, 400, col, signRow - 1);
+    if (!img) {
       sheet.getRange(signRow, col).setNumberFormat('@').setValue(name.split(' ')[0]);
       return;
     }
@@ -681,7 +681,6 @@ function fillSignatures_(sheet, row, s) {
     const colW = sheet.getColumnWidth(col);
     const rowH = sheet.getRowHeight(signRow);
     const prevH = sheet.getRowHeight(signRow - 1);
-    const img = sheet.insertImage(blob, col, signRow - 1);
     const scale = Math.min((colW - 10) / img.getWidth(), (rowH + prevH - 4) / img.getHeight());
     const w = Math.round(img.getWidth() * scale);
     const h = Math.round(img.getHeight() * scale);
@@ -768,8 +767,8 @@ function placePhotos_(sheet, s, firstRow, lastRow) {
   const projects = groupPhotos_(s.photos);
   const images = {};
   projects.forEach(p => p.jobs.forEach(j => j.ids.forEach(id => {
-    const blob = imageBlob_(id, 1000);
-    if (blob) images[id] = sheet.insertImage(blob, 1, firstRow);
+    const img = insertDriveImage_(sheet, id, 1000, 1, firstRow);
+    if (img) images[id] = img;
   })));
   projects.forEach(p => p.jobs.forEach(j => { j.ids = j.ids.filter(id => images[id]); }));
   projects.forEach(p => { p.jobs = p.jobs.filter(j => j.ids.length); });
@@ -804,26 +803,51 @@ function placePhotos_(sheet, s, firstRow, lastRow) {
   layout.photos.forEach(p => move(images[p.id], p.x, p.y, p.w, p.h));
 }
 
-/** รูปจาก Drive ขนาดย่อ (Google Sheets รับรูปไม่เกิน ~1 ล้านพิกเซล) ถ้าไม่มีภาพย่อใช้ไฟล์จริง */
-function imageBlob_(fileId, size) {
+const SHEET_IMAGE_TYPE = /^image\/(png|jpe?g|gif)$/i;
+
+/**
+ * รูปจาก Drive ที่ Google Sheets รับได้: ภาพย่อก่อน (Sheets รับรูปไม่เกิน ~1 ล้านพิกเซล) แล้วค่อยไฟล์จริง
+ * ข้ามไฟล์ที่ไม่ใช่ PNG/JPEG/GIF (เช่น WebP หรือหน้า error)
+ */
+function imageCandidates_(fileId, size) {
+  const blobs = [];
+  const auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
   try {
-    const res = UrlFetchApp.fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink`, {
-      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-      muteHttpExceptions: true,
+    const meta = UrlFetchApp.fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink`, {
+      headers: auth, muteHttpExceptions: true,
     });
-    const link = JSON.parse(res.getContentText()).thumbnailLink;
-    if (link) return UrlFetchApp.fetch(link.replace(/=s\d+$/, '=s' + size)).getBlob();
+    const link = JSON.parse(meta.getContentText()).thumbnailLink;
+    if (link) {
+      const res = UrlFetchApp.fetch(link.replace(/=s\d+$/, '=s' + size), {
+        headers: Object.assign({ Accept: 'image/jpeg,image/png' }, auth), muteHttpExceptions: true,
+      });
+      const blob = res.getBlob();
+      if (res.getResponseCode() === 200 && SHEET_IMAGE_TYPE.test(blob.getContentType())) blobs.push(blob.setName(fileId + '.jpg'));
+    }
   } catch (err) {
     console.warn('ย่อรูปไม่สำเร็จ ' + fileId + ': ' + err.message);
   }
   try {
     const blob = DriveApp.getFileById(fileId).getBlob();
-    return blob.getBytes().length < 2e6 ? blob : null;
+    if (SHEET_IMAGE_TYPE.test(blob.getContentType()) && blob.getBytes().length < 2e6) blobs.push(blob);
   } catch (err) {
     console.warn('เปิดรูปไม่ได้ ' + fileId + ': ' + err.message);
-    return null;
   }
+  return blobs;
 }
+
+/** วางรูปจาก Drive ลงชีต ลองทีละแบบ ถ้าใส่ไม่ได้ทั้งหมดให้ข้ามรูปนั้น (รายงานยังออกได้) */
+function insertDriveImage_(sheet, fileId, size, col, row) {
+  for (const blob of imageCandidates_(fileId, size)) {
+    try {
+      return sheet.insertImage(blob, col, row);
+    } catch (err) {
+      console.warn(`ใส่รูป ${fileId} ไม่ได้ (${blob.getContentType()}): ${err.message}`);
+    }
+  }
+  return null;
+}
+
 
 // ===== แม่แบบและการส่งออก PDF =====
 
