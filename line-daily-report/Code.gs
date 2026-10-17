@@ -575,8 +575,15 @@ function fillCell_(cell, content) {
 
   lines.forEach((line, i) => {
     const item = line && typeof line === 'object' ? line : { text: line };
-    const p = i === 0 ? cell.getChild(0).asParagraph() : cell.appendParagraph('');
-    p.setText(String(item.text === undefined || item.text === null ? '' : item.text));
+    const text = item.text === undefined || item.text === null ? '' : String(item.text);
+    // Google Docs ไม่ยอมให้ใส่ข้อความว่าง: ย่อหน้าแรกของช่องว่างอยู่แล้ว ส่วนบรรทัดถัดไปใช้ช่องว่างแทน
+    let p;
+    if (i === 0) {
+      p = cell.getChild(0).asParagraph();
+      if (text) p.setText(text);
+    } else {
+      p = cell.appendParagraph(text || ' ');
+    }
     p.setSpacingBefore(0).setSpacingAfter(0).setLineSpacing(1)
       .setAlignment(item.align || spec.align || DocumentApp.HorizontalAlignment.LEFT)
       .setAttributes(fontAttrs_(item.size || spec.size || 9, item.bold || spec.bold, item.color || spec.color));
