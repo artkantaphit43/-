@@ -132,7 +132,10 @@ function handleText_(event, text) {
     return reply_(token, withPrefix_(question_(s, s.awaiting), `📋 รายงานวันที่ ${thaiDateShort_(s.date)}\nกดตอบจากปุ่มด้านล่างได้เลย`));
   }
   if (CMD_NAME.test(text)) return reply_(token, reporterPicker_('เลือกชื่อผู้เขียนรายงาน 👇'));
-  if (CMD_ADD_PROJECT.test(text)) return reply_(token, ...addProjectFromText_(text));
+  if (CMD_ADD_PROJECT.test(text)) {
+    withSession_(source, s => { s.awaiting = 'newproject-code'; });
+    return reply_(token, '📁 พิมพ์รหัสโครงการที่จะเพิ่มหรือแก้ไข\nเช่น  PJ 950');
+  }
   if (CMD_LIST_PROJECTS.test(text)) return reply_(token, projectPicker_(projectListText_()));
   const del = text.match(CMD_DELETE_PROJECT);
   if (del) return reply_(token, deleteProject_(del[1]));
@@ -143,6 +146,14 @@ function handleText_(event, text) {
     const owner = matchName_(sig[1]);
     PropertiesService.getScriptProperties().setProperty('SIGWAIT_' + source.userId, owner);
     return reply_(token, `✍️ ส่งรูปลายเซ็นของ ${owner} มาได้เลย 1 รูป\n(เซ็นบนกระดาษขาวด้วยปากกาสีเข้ม ถ่ายให้ชิดลายเซ็น)`);
+  }
+
+  const pending = loadSession_(source);
+  if (pending && pending.awaiting === 'newproject' && pending.newProject && !CMD_CANCEL.test(text)) {
+    return handleNewProjectAnswer_(token, source, text);
+  }
+  if (pending && pending.awaiting === 'newproject-code' && /\d/.test(text)) {
+    return reply_(token, startNewProject_(source, normalizeCode_(text), 'none'));
   }
 
   if (CMD_CANCEL.test(text)) {
@@ -190,15 +201,15 @@ function handleText_(event, text) {
     if (previous === 'start' && !added) s.awaiting = 'end'; // แก้เวลาเริ่มแล้วถามเวลาเลิกต่อ
   });
 
-  if (!session.project.name && session.project.code && session.awaiting !== 'project') {
-    return reply_(token, projectPicker_(`⚠️ ยังไม่มีข้อมูล ${session.project.code} ในระบบ กด "➕ เพิ่มโครงการ" ได้เลย 👇`));
-  }
+  const isNew = code => code && !/,/.test(code) && !getProjects_()[code];
+  if (isNew(session.project.code)) return reply_(token, startNewProject_(source, session.project.code, 'flow'));
   const sec = session[session.section];
   if (added) {
     const it = sec.items[sec.items.length - 1];
     return reply_(token, workPrompt_(session, sec,
       `📝 บันทึก ${it.group ? it.group + ' • ' : ''}${it.title}${it.progress ? ' ' + it.progress : ''}`));
   }
+  if (newGroup && isNew(newGroup)) return reply_(token, startNewProject_(source, newGroup, 'work'));
   if (newGroup) return reply_(token, workPrompt_(session, sec, `📁 โครงการ ${newGroup}`, true));
   reply_(token, withPrefix_(question_(session, session.awaiting), '✅ บันทึกแล้ว'));
 }
@@ -296,8 +307,9 @@ function lastItem_(sec) {
 }
 
 function normalizeCode_(value) {
-  const m = value.match(/PJ\s*(\d+)/i);
-  return m ? 'PJ ' + m[1] : value.trim();
+  const v = String(value).trim();
+  const m = v.match(/^(?:PJ\s*)?(\d+)$/i) || v.match(/PJ\s*(\d+)/i);
+  return m ? 'PJ ' + m[1] : v;
 }
 
 function setProject_(session, value) {
@@ -306,74 +318,118 @@ function setProject_(session, value) {
   session.project = Object.assign({ code: code, name: '', location: '', jobType: '' }, preset, { code: code });
 }
 
-// ===== จัดการโครงการจากในไลน์ (เก็บใน Script Properties) =====
+// ===== ฐานข้อมูลโครงการ (แท็บ "ฐานข้อมูลโครงการ" ในชีตบันทึก แก้ในชีตได้โดยตรง) =====
 
-function getSavedProjects_() {
+const PROJECT_SHEET = 'ฐานข้อมูลโครงการ';
+const PROJECT_FIELDS = [
+  { key: 'name', label: 'ชื่อโครงการ (Project Name)', example: 'งานติดตั้งระบบท่อน้ำภายนอกอาคารด้วยท่อ HDPE' },
+  { key: 'location', label: 'สถานที่ปฏิบัติงาน (Location)', example: 'SAHAMITFOODS (PLANT 2) LIMITED' },
+  { key: 'jobType', label: 'ลักษณะโครงการ (Job Type)', example: 'Underground piping and Piping installation.' },
+];
+
+function projectSheet_() {
+  const ss = getSheet_().getParent();
+  let sheet = ss.getSheetByName(PROJECT_SHEET);
+  if (sheet) return sheet;
+
+  sheet = ss.insertSheet(PROJECT_SHEET);
+  sheet.appendRow(['รหัส PJ'].concat(PROJECT_FIELDS.map(f => f.label)));
+  sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#E0F5F5');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidth(1, 100);
+  sheet.setColumnWidths(2, 3, 320);
+  // ย้ายโครงการเดิม (จากโค้ดและที่เคยเพิ่มผ่านไลน์) มาไว้ในตาราง
   const raw = PropertiesService.getScriptProperties().getProperty('PROJECTS');
-  return raw ? JSON.parse(raw) : {};
+  const seed = Object.assign({}, CONFIG.PROJECTS, raw ? JSON.parse(raw) : {});
+  Object.keys(seed).forEach(code => sheet.appendRow([code].concat(PROJECT_FIELDS.map(f => seed[code][f.key] || ''))));
+  return sheet;
 }
 
+/** { 'PJ 942': { name, location, jobType } } อ่านครั้งเดียวต่อการทำงานหนึ่งรอบ */
 function getProjects_() {
-  return Object.assign({}, CONFIG.PROJECTS, getSavedProjects_());
+  if (getProjects_.cache) return getProjects_.cache;
+  const projects = {};
+  projectSheet_().getDataRange().getDisplayValues().slice(1).forEach(row => {
+    const code = normalizeCode_(row[0] || '');
+    if (!code) return;
+    projects[code] = {};
+    PROJECT_FIELDS.forEach((f, i) => { projects[code][f.key] = row[i + 1]; });
+  });
+  getProjects_.cache = projects;
+  return projects;
 }
 
-/** "เพิ่มโครงการ" อย่างเดียว = ส่งแบบฟอร์มให้กรอก, มีข้อมูลต่อท้าย = บันทึกโครงการ */
-function addProjectFromText_(text) {
-  const project = {};
-  let code = '';
-  text.split(/\r?\n/).slice(1).forEach(line => {
-    const kv = line.trim().match(/^([^:：]+)[:：]\s*(.*)$/);
-    if (!kv || !kv[2].trim()) return;
-    const key = kv[1].trim().toLowerCase();
-    const value = kv[2].trim();
-    if (['รหัส', 'รหัสโครงการ', 'pj', 'code'].includes(key)) code = normalizeCode_(value);
-    else if (['ชื่อ', 'ชื่อโครงการ'].includes(key)) project.name = value;
-    else if (['สถานที่', 'สถานที่ปฏิบัติงาน'].includes(key)) project.location = value;
-    else if (['ลักษณะงาน', 'ลักษณะโครงการ'].includes(key)) project.jobType = value;
-  });
-
-  if (!code) {
-    return [
-      'คัดลอกข้อความด้านล่าง เติมข้อมูล แล้วส่งกลับมา 👇',
-      'เพิ่มโครงการ\nรหัส: PJ \nชื่อโครงการ: \nสถานที่: \nลักษณะงาน: ',
-    ];
-  }
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const saved = getSavedProjects_();
-    const existed = !!getProjects_()[code];
-    saved[code] = Object.assign({ name: '', location: '', jobType: '' }, saved[code], project);
-    PropertiesService.getScriptProperties().setProperty('PROJECTS', JSON.stringify(saved));
-    const p = saved[code];
-    return [`✅ ${existed ? 'แก้ไข' : 'เพิ่ม'}โครงการ ${code} แล้ว\n` +
-      `ชื่อ: ${p.name || '-'}\nสถานที่: ${p.location || '-'}\nลักษณะงาน: ${p.jobType || '-'}\n\n` +
-      `ใช้งาน: พิมพ์ "โครงการ: ${code}"`];
-  } finally {
-    lock.releaseLock();
-  }
+function saveProject_(code, data) {
+  const sheet = projectSheet_();
+  const codes = sheet.getRange(1, 1, sheet.getLastRow(), 1).getDisplayValues().map(r => normalizeCode_(r[0]));
+  const values = [[code].concat(PROJECT_FIELDS.map(f => data[f.key] || ''))];
+  const row = codes.indexOf(code, 1);
+  if (row > 0) sheet.getRange(row + 1, 1, 1, 4).setValues(values);
+  else sheet.appendRow(values[0]);
+  getProjects_.cache = null;
 }
 
 function deleteProject_(value) {
   const code = normalizeCode_(value);
-  const saved = getSavedProjects_();
-  if (!saved[code]) {
-    return CONFIG.PROJECTS[code]
-      ? `${code} ถูกตั้งไว้ในโค้ด (CONFIG.PROJECTS) ลบจากไลน์ไม่ได้`
-      : `ไม่พบโครงการ ${code}`;
-  }
-  delete saved[code];
-  PropertiesService.getScriptProperties().setProperty('PROJECTS', JSON.stringify(saved));
+  const sheet = projectSheet_();
+  const codes = sheet.getRange(1, 1, sheet.getLastRow(), 1).getDisplayValues().map(r => normalizeCode_(r[0]));
+  const row = codes.indexOf(code, 1);
+  if (row < 1) return `ไม่พบโครงการ ${code}`;
+  sheet.deleteRow(row + 1);
+  getProjects_.cache = null;
   return `🗑️ ลบโครงการ ${code} แล้ว`;
+}
+
+function projectSheetUrl_() {
+  const sheet = projectSheet_();
+  return `${sheet.getParent().getUrl()}#gid=${sheet.getSheetId()}`;
 }
 
 function projectListText_() {
   const projects = getProjects_();
   const codes = Object.keys(projects);
-  if (!codes.length) return 'ยังไม่มีโครงการ กด "➕ เพิ่มโครงการ" ได้เลย 👇';
-  return '📁 โครงการทั้งหมด\n' + codes.map(c => `• ${c} — ${projects[c].name || '-'}`).join('\n') +
-    '\n\nเลือกโครงการ หรือเพิ่มใหม่ 👇';
+  const list = codes.length ? codes.map(c => `• ${c} — ${projects[c].name || '-'}`).join('\n') : 'ยังไม่มีโครงการ';
+  return `📁 ฐานข้อมูลโครงการ\n${list}\n\nแก้ไขในตาราง:\n${projectSheetUrl_()}`;
+}
+
+/** โครงการที่ยังไม่มีในฐานข้อมูล: ถามชื่อ/สถานที่/ลักษณะงานทีละข้อ ครั้งเดียว — resume = ทำอะไรต่อหลังบันทึก */
+function startNewProject_(source, code, resume) {
+  withSession_(source, s => {
+    s.newProject = { code: code, data: {}, step: 0, resume: resume };
+    s.awaiting = 'newproject';
+  });
+  const known = getProjects_()[code];
+  const intro = known ? `✏️ แก้ข้อมูล ${code}` : `📁 ${code} ยังไม่มีในฐานข้อมูล\nกรอกครั้งเดียว ครั้งต่อไประบบเติมให้อัตโนมัติ`;
+  return withPrefix_(newProjectQuestion_(code, 0), intro);
+}
+
+function newProjectQuestion_(code, step) {
+  const f = PROJECT_FIELDS[step];
+  return quickReply_(`${['①', '②', '③'][step]} ${f.label} ของ ${code}?\nเช่น  ${f.example}`,
+    [{ label: '⏭️ ข้าม', text: '-' }]);
+}
+
+function handleNewProjectAnswer_(token, source, text) {
+  let finished = null;
+  const session = withSession_(source, s => {
+    const np = s.newProject;
+    np.data[PROJECT_FIELDS[np.step].key] = /^(-|ข้าม)$/.test(text.trim()) ? '' : text.trim();
+    np.step++;
+    if (np.step < PROJECT_FIELDS.length) return;
+    saveProject_(np.code, np.data);
+    if (s.project.code === np.code || !s.project.code) setProject_(s, np.code);
+    finished = np;
+    s.newProject = null;
+    advance_(s);
+  });
+  if (!finished) return reply_(token, newProjectQuestion_(session.newProject.code, session.newProject.step));
+
+  const saved = `✅ บันทึก ${finished.code} ลงฐานข้อมูลแล้ว`;
+  if (finished.resume === 'work') {
+    return reply_(token, workPrompt_(session, session[session.section], `${saved}\n\n📁 โครงการ ${finished.code}`, true));
+  }
+  if (finished.resume === 'none') return reply_(token, saved);
+  return reply_(token, withPrefix_(question_(session, session.awaiting), saved));
 }
 
 function matchName_(value) {
@@ -1010,6 +1066,7 @@ function expandShortAnswer_(s, text) {
   if (step === 'start' && /^\d/.test(t)) return 'เริ่มงาน: ' + t;
   if (step === 'end' && /^\d|ทุ่ม/.test(t)) return 'เลิกงาน: ' + t;
   if (step === 'group' && /^(pj\s*)?\d[\d,\s]*$/i.test(t)) return 'PJ ' + t.replace(/^pj\s*/i, '');
+  if (step === 'project' && /^(pj\s*)?\d+$/i.test(t)) return 'โครงการ: ' + normalizeCode_(t);
   if (step === 'rain' && /^\d/.test(t)) return 'ฝนตกช่วง: ' + t;
   if (step === 'notes' && !/[:：]/.test(t)) return 'หมายเหตุ: ' + t;
   if (step === 'qty:other' && !/[:：]/.test(t)) return 'อื่นๆ: ' + t;
@@ -1188,6 +1245,10 @@ function handlePostback_(event) {
     return reply_(token, session ? summaryFlex_(session) : 'ยังไม่มีรายงานที่ค้างอยู่');
   }
   if (data === 'edit') return reply_(token, editMenu_());
+  if (data === 'nextproject-main') {
+    withSession_(event.source, s => { s.awaiting = 'project'; });
+    return reply_(token, '📁 พิมพ์รหัสโครงการ\nเช่น  PJ 950');
+  }
   if (data === 'nextproject') {
     withSession_(event.source, s => { s.awaiting = 'group'; });
     return reply_(token, '📁 พิมพ์รหัสโครงการถัดไป\nเช่น  PJ 69014');
@@ -1279,8 +1340,8 @@ function reporterPicker_(text) {
 function projectPicker_(text) {
   const options = Object.keys(getProjects_()).slice(-12)
     .map(code => ({ label: code, text: 'โครงการ: ' + code }));
-  options.push({ label: '➕ เพิ่มโครงการ', text: 'เพิ่มโครงการ' });
-  return quickReply_(text || 'เลือกโครงการ 👇 (หรือพิมพ์ "โครงการ: PJ xxx")', options);
+  options.push({ label: '➕ โครงการใหม่', data: 'nextproject-main', display: '➕ โครงการใหม่' });
+  return quickReply_(text || 'เลือกโครงการ 👇 (หรือพิมพ์รหัส เช่น PJ 950)', options);
 }
 
 // ===== Google Drive / Sheets =====
