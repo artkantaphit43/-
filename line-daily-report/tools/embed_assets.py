@@ -1,4 +1,4 @@
-"""ฝังแม่แบบ Excel, รูปเลขวงกลม (1-20) และ Rich Menu ลงท้าย Code.gs
+"""ฝังแม่แบบ Excel, รูปเลขวงกลม (1-20), โลโก้บริษัท (tools/logos/*.png) และ Rich Menu ลงท้าย Code.gs
 
 ใช้: python3 embed_assets.py <template.xlsx> <Code.gs>
 (Rich Menu อ่านจาก richmenu.jpg / richmenu.json ในโฟลเดอร์เดียวกับ template.xlsx — สร้างด้วย build_richmenu.py)
@@ -36,6 +36,11 @@ tools = os.path.dirname(os.path.abspath(TEMPLATE))
 menu_jpg = base64.b64encode(open(os.path.join(tools, 'richmenu.jpg'), 'rb').read()).decode()
 menu_spec = json.dumps(json.load(open(os.path.join(tools, 'richmenu.json'), encoding='utf-8')), ensure_ascii=False)
 code += f"const TEMPLATE_XLSX_B64 = '{xlsx}';\n\nconst CIRCLE_PNG_B64 = [\n{circles},\n];\n"
+logos = {}
+for name in sorted(os.listdir(os.path.join(tools, 'logos'))):
+    if name.endswith('.png'):
+        logos[name[:-4]] = base64.b64encode(open(os.path.join(tools, 'logos', name), 'rb').read()).decode()
+code += "\nconst COMPANY_LOGO_B64 = {\n" + ''.join(f"  {k}: '{v}',\n" for k, v in logos.items()) + "};\n"
 code += f"\nconst RICHMENU_SPEC = {menu_spec};\n\nconst RICHMENU_JPG_B64 = '{menu_jpg}';\n"
 open(CODE, 'w', encoding='utf-8').write(code)
 print('embedded', len(xlsx), 'chars of template')

@@ -2,21 +2,17 @@
 
 ใช้: python3 build_template.py <ต้นฉบับ.xlsx> <ไฟล์ผลลัพธ์.xlsx>
 
-- เลื่อนฟอร์มลง 1 แถว เพื่อเว้นแถวบนสุดไว้วางโลโก้ (Google Sheets ใส่รูปในหัวกระดาษไม่ได้)
+- เลื่อนฟอร์มลง 1 แถว เพื่อเว้นแถวบนสุดไว้วางโลโก้บริษัท (Google Sheets ใส่รูปในหัวกระดาษไม่ได้)
 - เปลี่ยน checkbox ของ Excel (Form Control) เป็นตัวอักษร ☐ เพราะ Google Sheets ไม่รองรับ
 - ลบข้อมูลตัวอย่าง ให้เหลือแต่ฟอร์มเปล่า
 - เปลี่ยนฟอนต์ Angsana New เป็น Sarabun (Google Fonts) ขนาดที่ดูเท่ากัน
 """
 import copy
-import io
 import sys
-import zipfile
 
 import openpyxl
-from openpyxl.drawing.image import Image
 from openpyxl.styles import Alignment, Border, Font, Side
 from openpyxl.worksheet.page import PageMargins
-from PIL import Image as PILImage
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 LAST_ROW, LAST_COL = 64, 7
@@ -151,18 +147,7 @@ for rng in extra_merges:
     a, b = rng.split(':')
     ws.merge_cells(f'{T(a)}:{T(b)}')
 
-# โลโก้จากหัวกระดาษของไฟล์ต้นฉบับ
-with zipfile.ZipFile(SRC) as z:
-    logo_name = next(n for n in z.namelist() if n.startswith('xl/media/') and n.endswith('.jpeg'))
-    logo = PILImage.open(io.BytesIO(z.read(logo_name))).convert('RGB')
-logo.thumbnail((360, 120))
-buf = io.BytesIO()
-logo.save(buf, 'PNG', optimize=True)
-buf.seek(0)
-img = Image(buf)
-img.width, img.height = 150, int(150 * logo.height / logo.width)
-img.anchor = 'F1'
-ws.add_image(img)
+# แถว 1 เว้นไว้วางโลโก้บริษัท (บอทใส่ตามบริษัทที่เลือกตอนออกรายงาน)
 
 ws.print_area = f'A1:G{LAST_ROW + 1}'
 ws.page_setup.paperSize = ws.PAPERSIZE_A4
