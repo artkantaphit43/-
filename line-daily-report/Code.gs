@@ -114,8 +114,13 @@ function handleEvent_(event) {
       props.deleteProperty('SIGWAIT_' + event.source.userId);
       return reply_(event.replyToken, `✅ บันทึกลายเซ็นของ ${sigOwner} แล้ว\nรายงานครั้งต่อไปจะใส่ลายเซ็นให้อัตโนมัติ`);
     }
-    // ไม่ตอบกลับทุกรูป เพื่อไม่ให้แชตรก (ส่งทีละหลายรูปได้)
-    withSession_(event.source, session => addPhoto_(session, msg.id));
+    const session = withSession_(event.source, s => addPhoto_(s, msg.id));
+    // ส่งหลายรูปพร้อมกัน ตอบครั้งเดียวตอนรูปสุดท้าย แชตจะได้ไม่รก
+    if (msg.imageSet && msg.imageSet.index !== msg.imageSet.total) return;
+    const last = session.photos[session.photos.length - 1];
+    const count = session.photos.filter(p => p.project === last.project && p.title === last.title).length;
+    const sec = session[session.section];
+    reply_(event.replyToken, workPrompt_(session, sec, `📷 ได้รับรูปแล้ว${last.title ? ' — ' + last.title : ''} (${count} รูป)`));
   }
 }
 
@@ -171,6 +176,7 @@ function handleText_(event, text) {
   let added = 0;
   let newGroup = '';
   const session = withSession_(source, s => {
+    const previous = s.awaiting;
     const section = s.section;
     const before = s[section].items.length;
     const group = s[section].group;
@@ -179,7 +185,9 @@ function handleText_(event, text) {
       added = s[section].items.length - before;
       if (s[section].group !== group) newGroup = s[section].group;
     }
+    if (added || newGroup) s[s.section].workDone = false;
     advance_(s);
+    if (previous === 'start' && !added) s.awaiting = 'end'; // แก้เวลาเริ่มแล้วถามเวลาเลิกต่อ
   });
 
   if (!session.project.name && session.project.code && session.awaiting !== 'project') {
@@ -188,10 +196,10 @@ function handleText_(event, text) {
   const sec = session[session.section];
   if (added) {
     const it = sec.items[sec.items.length - 1];
-    return reply_(token, withPrefix_(workPrompt_(session, sec, true),
-      `📝 ${it.group ? it.group + ' • ' : ''}${it.title}${it.progress ? ' ' + it.progress : ''}`));
+    return reply_(token, workPrompt_(session, sec,
+      `📝 บันทึก ${it.group ? it.group + ' • ' : ''}${it.title}${it.progress ? ' ' + it.progress : ''}`));
   }
-  if (newGroup) return reply_(token, withPrefix_(workPrompt_(session, sec, true), `📁 ${newGroup}\nพิมพ์งานของโครงการนี้ได้เลย`));
+  if (newGroup) return reply_(token, workPrompt_(session, sec, `📁 โครงการ ${newGroup}`, true));
   reply_(token, withPrefix_(question_(session, session.awaiting), '✅ บันทึกแล้ว'));
 }
 
@@ -913,8 +921,9 @@ function withSession_(source, mutate) {
 
 // ===== ถามทีละข้อด้วยปุ่ม (Quick Reply) และการ์ดสรุป (Flex Message) =====
 
-const TIME_PRESETS = ['08.00-17.00', '08.00-18.00', '08.00-19.00', '08.00-20.00', '08.00-21.00',
-  '09.00-17.00', '09.00-18.00'];
+const START_PRESETS = ['07.00', '07.30', '08.00', '08.30', '09.00', '09.30', '10.00'];
+const END_PRESETS = ['16.00', '16.30', '17.00', '17.30', '18.00', '18.30', '19.00', '19.30', '20.00', '20.30',
+  '21.00', '21.30', '22.00'];
 const RAIN_PRESETS = ['08.00-10.00', '10.00-12.00', '13.00-15.00', '15.00-17.00', 'ทั้งวัน'];
 const BRAND = '#0A9A9A';
 
@@ -925,10 +934,15 @@ const isPlan_ = s => s.section === 'plan';
 const STEPS = {
   reporter: { done: s => !!s.reporter, ask: () => reporterPicker_('👤 ใครเป็นผู้เขียนรายงาน?') },
   project: { done: s => !!s.project.code, ask: () => projectPicker_('📁 วันนี้ทำโครงการไหน?') },
-  time: {
-    done: s => !!(s.start || s.end),
-    ask: () => quickReply_('⏰ เวลาทำงาน?\n(หรือพิมพ์เอง เช่น 8-21)',
-      TIME_PRESETS.map(t => ({ label: t, text: 'เวลา: ' + t }))),
+  start: {
+    done: s => !!s.start,
+    ask: () => quickReply_('⏰ เริ่มงานกี่โมง?\n(เวลาอื่นพิมพ์เองได้ เช่น 07.15)',
+      START_PRESETS.map(t => ({ label: t, text: 'เริ่มงาน: ' + t }))),
+  },
+  end: {
+    done: s => !!s.end,
+    ask: () => quickReply_('⏰ เลิกงานกี่โมง?\n(เวลาอื่นพิมพ์เองได้ เช่น 20.45)',
+      END_PRESETS.map(t => ({ label: t, text: 'เลิกงาน: ' + t }))),
   },
   manpower: {
     done: (s, sec) => !!sec.manpower,
@@ -960,12 +974,14 @@ const STEPS = {
       { label: 'ไม่มีอุบัติเหตุ', text: 'อุบัติเหตุ: ไม่มี' }, { label: 'มีอุบัติเหตุ', text: 'อุบัติเหตุ: มี' }]),
   },
   notes: { done: () => true, ask: () => quickReply_('🗒️ พิมพ์หมายเหตุได้เลย', [{ label: 'ไม่มี', text: 'หมายเหตุ: -' }]) },
-  work: { done: () => false, ask: (s, sec) => workPrompt_(s, sec, false) },
+  work: { done: (s, sec) => !!sec.workDone, ask: (s, sec) => workPrompt_(s, sec) },
+  wrap: { done: () => false, ask: s => wrapPrompt_(s) },
 };
 
 const FLOW = {
-  today: ['reporter', 'project', 'time', 'manpower', 'weather', 'rain', 'temp', 'machines', 'impact', 'accident', 'work'],
-  plan: ['manpower', 'machines', 'work'],
+  today: ['reporter', 'project', 'start', 'end', 'manpower', 'weather', 'rain', 'temp', 'machines', 'impact', 'accident',
+    'work', 'wrap'],
+  plan: ['manpower', 'machines', 'work', 'wrap'],
 };
 
 /** ขั้นถัดไปที่ยังไม่ได้กรอก (เรียกใน withSession_ เพื่อจำว่ากำลังรอคำตอบข้อไหน) */
@@ -991,7 +1007,9 @@ function expandShortAnswer_(s, text) {
   const step = s.awaiting || '';
   if (step === 'manpower' && /^\d+\s*(คน)?$/.test(t)) return 'คน: ' + t;
   if (step === 'temp' && /^\d+(\.\d+)?\s*(°C|องศา)?$/.test(t)) return 'อุณหภูมิ: ' + t;
-  if (step === 'time' && /^\d.*(-|ถึง)/.test(t)) return 'เวลา: ' + t;
+  if (step === 'start' && /^\d/.test(t)) return 'เริ่มงาน: ' + t;
+  if (step === 'end' && /^\d|ทุ่ม/.test(t)) return 'เลิกงาน: ' + t;
+  if (step === 'group' && /^(pj\s*)?\d[\d,\s]*$/i.test(t)) return 'PJ ' + t.replace(/^pj\s*/i, '');
   if (step === 'rain' && /^\d/.test(t)) return 'ฝนตกช่วง: ' + t;
   if (step === 'notes' && !/[:：]/.test(t)) return 'หมายเหตุ: ' + t;
   if (step === 'qty:other' && !/[:：]/.test(t)) return 'อื่นๆ: ' + t;
@@ -1028,28 +1046,59 @@ function quantityPicker_(key) {
     .concat([{ label: '🗑️ ไม่มี', text: `${m.aliases[0]}: -` }]));
 }
 
-/** ขั้นกรอกงาน: ปุ่มถ่ายรูป, เลือก PJ, ดูสรุป, แผนพรุ่งนี้, ส่ง */
-function workPrompt_(s, sec, short) {
-  const plan = isPlan_(s);
-  let text;
-  if (short) text = plan ? 'พิมพ์งานข้อถัดไปได้เลย' : 'ส่งรูปของงานนี้ หรือพิมพ์งานข้อถัดไป';
-  else if (plan) text = '🗓️ พิมพ์งานพรุ่งนี้ทีละข้อ\nเช่น  1. ขุดดินวางท่อ';
-  else text = '📝 พิมพ์งานทีละข้อ แล้วส่งรูปของงานนั้นตาม\nเช่น  1. ขุดดินวางท่อ 60%\n\nทำหลายโครงการ: กดปุ่ม PJ ก่อนพิมพ์งานของโครงการนั้น';
+/** เลขข้อถัดไปของโครงการที่กำลังกรอก */
+function nextNumber_(sec) {
+  return sec.items.filter(it => it.group === sec.group).length + 1;
+}
 
+function workButtons_(s) {
+  const plan = isPlan_(s);
   const options = plan ? [] : [{ label: '📷 ถ่ายรูป', camera: true }, { label: '🖼️ เลือกรูป', cameraRoll: true }];
-  const codes = [s.project.code].concat(Object.keys(getProjects_())).filter((c, i, a) => c && a.indexOf(c) === i);
-  codes.slice(0, plan ? 5 : 3).forEach(code => options.push({ label: code, text: code }));
-  options.push({ label: '📋 ดูสรุป', data: 'summary' });
-  options.push(plan ? { label: '↩️ งานวันนี้', text: 'วันนี้' } : { label: '🗓️ แผนพรุ่งนี้', text: 'แผนพรุ่งนี้' });
-  options.push({ label: '✅ ส่งรายงาน', text: 'ส่ง' });
-  return quickReply_(text, options);
+  options.push({ label: '➕ งานโครงการอื่น', data: 'nextproject', display: '➕ งานโครงการอื่น' });
+  const end = plan ? '🏁 จบแผนพรุ่งนี้' : '🏁 จบงานวันนี้';
+  options.push({ label: end, data: 'endwork', display: end });
+  return options;
+}
+
+/**
+ * ขั้นกรอกงาน — lead: ข้อความนำ (งานที่เพิ่งบันทึก / รูปที่ได้รับ / โครงการใหม่)
+ * บอกเลขข้อถัดไปพร้อมตัวอย่าง ให้พิมพ์ตามได้ทันที
+ */
+function workPrompt_(s, sec, lead, firstOfProject) {
+  const plan = isPlan_(s);
+  const n = nextNumber_(sec);
+  const example = `${n}. วางท่อ HDPE${plan ? '' : ' 50%'}`;
+  let text;
+  if (!lead) {
+    text = plan ? `🗓️ พิมพ์งานพรุ่งนี้ทีละข้อ\nเช่น  ${example}`
+      : `📝 พิมพ์งานทีละข้อ แล้วส่งรูปของงานนั้นตาม\nเช่น  ${example}`;
+  } else {
+    text = `${lead}\n\n${plan || firstOfProject ? '' : '📷 ส่งรูปเพิ่มได้ หรือ'}พิมพ์งานข้อ ${n}\nเช่น  ${example}`;
+  }
+  return quickReply_(text, workButtons_(s));
+}
+
+function wrapPrompt_(s) {
+  if (isPlan_(s)) {
+    return quickReply_('🏁 บันทึกแผนพรุ่งนี้แล้ว', [
+      { label: '📋 ดูสรุปก่อนส่ง', data: 'summary' },
+      { label: '✅ ส่งรายงาน', text: 'ส่ง' },
+      { label: '✏️ แก้ไข', data: 'edit' },
+    ]);
+  }
+  return quickReply_('🏁 จบงานวันนี้แล้ว\nมีแผนงานพรุ่งนี้ไหม?', [
+    { label: '🗓️ กรอกแผนพรุ่งนี้', text: 'แผนพรุ่งนี้' },
+    { label: '📋 ดูสรุปก่อนส่ง', data: 'summary' },
+    { label: '✅ ส่งรายงานเลย', text: 'ส่ง' },
+    { label: '↩️ เพิ่มงานวันนี้', data: 'morework', display: '↩️ เพิ่มงานวันนี้' },
+  ]);
 }
 
 function editMenu_() {
   return quickReply_('✏️ ต้องการแก้ข้อไหน?', [
     { label: '👤 ผู้เขียนรายงาน', data: 'ask=reporter' },
     { label: '📁 โครงการ', data: 'ask=project' },
-    { label: '⏰ เวลา', data: 'ask=time' },
+    { label: '⏰ เวลา', data: 'ask=start' },
     { label: '👷 คนงาน', data: 'ask=manpower' },
     { label: '🌤️ อากาศ', data: 'ask=weather' },
     { label: '🌡️ อุณหภูมิ', data: 'ask=temp' },
@@ -1139,6 +1188,18 @@ function handlePostback_(event) {
     return reply_(token, session ? summaryFlex_(session) : 'ยังไม่มีรายงานที่ค้างอยู่');
   }
   if (data === 'edit') return reply_(token, editMenu_());
+  if (data === 'nextproject') {
+    withSession_(event.source, s => { s.awaiting = 'group'; });
+    return reply_(token, '📁 พิมพ์รหัสโครงการถัดไป\nเช่น  PJ 69014');
+  }
+  if (data === 'endwork' || data === 'morework') {
+    const session = withSession_(event.source, s => {
+      if (data === 'morework') s.section = 'today';
+      s[s.section].workDone = data === 'endwork';
+      advance_(s);
+    });
+    return reply_(token, question_(session, session.awaiting));
+  }
   const ask = data.match(/^ask=(.+)$/);
   if (!ask) return;
   const session = withSession_(event.source, s => {
@@ -1206,7 +1267,7 @@ function quickReplyAction_(o) {
   const label = o.label.slice(0, 20);
   if (o.camera) return { type: 'camera', label: label };
   if (o.cameraRoll) return { type: 'cameraRoll', label: label };
-  if (o.data) return { type: 'postback', label: label, data: o.data };
+  if (o.data) return { type: 'postback', label: label, data: o.data, displayText: o.display };
   return { type: 'message', label: label, text: o.text };
 }
 
