@@ -104,7 +104,7 @@ function doGet() {
 function handleEvent_(event) {
   if (event.type === 'join' || event.type === 'follow') {
     reply_(event.replyToken, quickReply_('สวัสดีครับ 👋 บอทรายงานประจำวัน\nกด "เริ่มรายงาน" แล้วกดตอบตามปุ่มได้เลย',
-      [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }]));
+      [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }], true));
     return;
   }
   if (!isAllowed_(event.source)) return;
@@ -178,7 +178,7 @@ function handleText_(event, text) {
   if (CMD_SUBMIT.test(text)) {
     const session = loadSession_(source);
     if (!session || (!session.today.items.length && !session.photos.length)) {
-      return reply_(token, quickReply_('ยังไม่มีงานในรายงาน', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }]));
+      return reply_(token, quickReply_('ยังไม่มีงานในรายงาน', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }], true));
     }
     if (!session.reporter) {
       return reply_(token, reporterPicker_('ยังไม่ได้เลือกผู้เขียนรายงาน เลือกชื่อแล้วพิมพ์ "ส่ง" อีกครั้ง 👇'));
@@ -1005,7 +1005,9 @@ function loadSession_(source) {
 }
 
 function deleteSession_(source) {
-  PropertiesService.getScriptProperties().deleteProperty(sessionKey_(source));
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty(sessionKey_(source));
+  clearHistory_(props, sessionKey_(source));
 }
 
 function newSession_(source) {
@@ -1025,6 +1027,64 @@ function newSession_(source) {
   return session;
 }
 
+// ประวัติสำหรับปุ่ม "ย้อนกลับ": เก็บสถานะย้อนหลัง HISTORY_SIZE ขั้น ช่องละ 1 Script Property (วนใช้ช่องเดิม)
+const HISTORY_SIZE = 15;
+
+function historyMeta_(props, key) {
+  return JSON.parse(props.getProperty('HN_' + key) || '{"count":0,"size":0}');
+}
+
+function pushHistory_(source, raw) {
+  const props = PropertiesService.getScriptProperties();
+  const key = sessionKey_(source);
+  const meta = historyMeta_(props, key);
+  props.setProperty(`H_${key}_${meta.count % HISTORY_SIZE}`, raw);
+  meta.count++;
+  meta.size = Math.min(meta.size + 1, HISTORY_SIZE);
+  props.setProperty('HN_' + key, JSON.stringify(meta));
+}
+
+function clearHistory_(props, key) {
+  props.deleteProperty('HN_' + key);
+  for (let i = 0; i < HISTORY_SIZE; i++) props.deleteProperty(`H_${key}_${i}`);
+}
+
+/** ย้อนกลับ 1 ขั้น: คืนค่า session ก่อนหน้า (null = ย้อนจนว่างแล้ว, undefined = ย้อนไม่ได้) */
+function undo_(source) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const key = sessionKey_(source);
+    const meta = historyMeta_(props, key);
+    if (!meta.size) return undefined;
+    meta.count--;
+    meta.size--;
+    const raw = props.getProperty(`H_${key}_${meta.count % HISTORY_SIZE}`);
+    props.setProperty('HN_' + key, JSON.stringify(meta));
+    if (!raw) {
+      props.deleteProperty(key);
+      return null;
+    }
+    props.setProperty(key, raw);
+    return JSON.parse(raw);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** ถามคำถามที่ค้างอยู่อีกครั้ง (หลังย้อนกลับ) */
+function askAgain_(s) {
+  const step = s.awaiting;
+  if (step === 'newproject' && s.newProject) return newProjectQuestion_(s.newProject.code, s.newProject.step);
+  if (step === 'group') return quickReply_('📁 พิมพ์รหัสโครงการถัดไป\nเช่น  PJ 69014', []);
+  if (step === 'newproject-code') return quickReply_('📁 พิมพ์รหัสโครงการที่จะเพิ่มหรือแก้ไข\nเช่น  PJ 950', []);
+  if (step === 'edit') return editMenu_();
+  if (step && (STEPS[step] || /^qty:/.test(step))) return question_(s, step);
+  advance_(s);
+  return question_(s, s.awaiting);
+}
+
 /** จำชื่อผู้รายงาน/โครงการล่าสุดไว้ ครั้งหน้าไม่ต้องเลือกใหม่ */
 function saveUserDefaults_(source, session) {
   PropertiesService.getScriptProperties().setProperty('U_' + source.userId, JSON.stringify({
@@ -1039,9 +1099,14 @@ function withSession_(source, mutate) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    const session = loadSession_(source) || newSession_(source);
+    const props = PropertiesService.getScriptProperties();
+    const before = props.getProperty(sessionKey_(source));
+    const session = before ? JSON.parse(before) : newSession_(source);
     mutate(session);
-    PropertiesService.getScriptProperties().setProperty(sessionKey_(source), JSON.stringify(session));
+    const after = JSON.stringify(session);
+    props.setProperty(sessionKey_(source), after);
+    // จำสถานะก่อนหน้าไว้ให้ปุ่ม "ย้อนกลับ" (รวมถึงคำถามที่แสดงอยู่ จะได้ย้อนกลับไปหน้าก่อนได้ทีละขั้น)
+    if (before !== after) pushHistory_(source, before || '');
     return session;
   } finally {
     lock.releaseLock();
@@ -1075,13 +1140,13 @@ const STEPS = {
   project: { done: s => !!s.project.code, ask: () => projectPicker_('📁 วันนี้ทำโครงการไหน?') },
   start: {
     done: s => !!s.start,
-    ask: () => quickReply_('⏰ เริ่มงานกี่โมง?\n(เวลาอื่นพิมพ์เองได้ เช่น 07.15)',
-      START_PRESETS.map(t => ({ label: t, text: 'เริ่มงาน: ' + t }))),
+    ask: () => quickReply_('⏰ เริ่มงานกี่โมง?',
+      START_PRESETS.map(t => ({ label: t, text: 'เริ่มงาน: ' + t })).concat([{ label: '🕐 เลือกเวลาอื่น', picker: 'start' }])),
   },
   end: {
     done: s => !!s.end,
-    ask: () => quickReply_('⏰ เลิกงานกี่โมง?\n(เวลาอื่นพิมพ์เองได้ เช่น 20.45)',
-      END_PRESETS.map(t => ({ label: t, text: 'เลิกงาน: ' + t }))),
+    ask: () => quickReply_('⏰ เลิกงานกี่โมง?',
+      END_PRESETS.map(t => ({ label: t, text: 'เลิกงาน: ' + t })).concat([{ label: '🕐 เลือกเวลาอื่น', picker: 'end' }])),
   },
   manpower: {
     done: (s, sec) => !!sec.manpower,
@@ -1111,6 +1176,13 @@ const STEPS = {
     done: s => !!s.accident,
     ask: () => quickReply_('🦺 วันนี้มีอุบัติเหตุไหม?', [
       { label: 'ไม่มีอุบัติเหตุ', text: 'อุบัติเหตุ: ไม่มี' }, { label: 'มีอุบัติเหตุ', text: 'อุบัติเหตุ: มี' }]),
+  },
+  jobproblem: {
+    done: () => true,
+    ask: s => quickReply_(`⚠️ งาน "${(openJob_(s) || {}).title || ''}" มีปัญหา/อุปสรรคไหม?`, [
+      { label: '✅ ไม่มี', text: 'ปัญหา: ไม่มี' },
+      { label: '⚠️ มี', data: 'ask=problem', display: '⚠️ มีปัญหา/อุปสรรค' },
+    ]),
   },
   problem: { done: () => true, ask: () => quickReply_('✏️ พิมพ์ปัญหา/อุปสรรคของงานนี้ได้เลย', []) },
   notes: { done: () => true, ask: () => quickReply_('🗒️ พิมพ์หมายเหตุได้เลย', [{ label: 'ไม่มี', text: 'หมายเหตุ: -' }]) },
@@ -1223,7 +1295,10 @@ function workPrompt_(s, sec, lead, firstOfProject) {
   const n = nextNumber_(sec);
   const example = `${n}. วางท่อ HDPE${plan ? '' : ' 50%'}`;
   let text;
-  if (!lead) {
+  const open = openJob_(s);
+  if (!lead && open) {
+    text = `📝 ${open.title}\n\n📷 ส่งรูปของงานนี้ได้เลย\nครบแล้วกด "➡️ งานนี้เสร็จ"`;
+  } else if (!lead) {
     text = plan ? `🗓️ พิมพ์งานพรุ่งนี้ทีละข้อ\nเช่น  ${example}`
       : `📝 พิมพ์งานทีละข้อ แล้วส่งรูปของงานนั้นตาม\nเช่น  ${example}`;
   } else if (openJob_(s) && !firstOfProject) {
@@ -1347,23 +1422,32 @@ function handlePostback_(event) {
     const session = loadSession_(event.source);
     return reply_(token, session ? summaryFlex_(session) : 'ยังไม่มีรายงานที่ค้างอยู่');
   }
-  if (data === 'edit') return reply_(token, editMenu_());
+  if (data === 'edit') {
+    withSession_(event.source, s => { s.awaiting = 'edit'; });
+    return reply_(token, editMenu_());
+  }
+  if (data === 'undo') {
+    const restored = undo_(event.source);
+    if (restored === undefined) return reply_(token, quickReply_('ย้อนกลับต่อไม่ได้แล้ว', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }], true));
+    if (restored === null) return reply_(token, quickReply_('↩️ ย้อนกลับแล้ว (ยังไม่มีข้อมูลรายงาน)', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }], true));
+    return reply_(token, withPrefix_(askAgain_(restored), '↩️ ย้อนกลับแล้ว'));
+  }
+  const picked = data.match(/^time=(start|end)$/);
+  if (picked && event.postback.params && event.postback.params.time) {
+    const label = picked[1] === 'start' ? 'เริ่มงาน' : 'เลิกงาน';
+    return handleText_(event, `${label}: ${event.postback.params.time}`);
+  }
   if (data === 'jobdone') {
-    const session = loadSession_(event.source);
-    const job = session && openJob_(session);
-    if (!job) return reply_(token, question_(session || newSession_(event.source), 'work'));
-    return reply_(token, quickReply_(`⚠️ งาน "${job.title}" มีปัญหา/อุปสรรคไหม?`, [
-      { label: '✅ ไม่มี', text: 'ปัญหา: ไม่มี' },
-      { label: '⚠️ มี', data: 'ask=problem', display: '⚠️ มีปัญหา/อุปสรรค' },
-    ]));
+    const session = withSession_(event.source, s => { s.awaiting = openJob_(s) ? 'jobproblem' : 'work'; });
+    return reply_(token, question_(session, session.awaiting));
   }
   if (data === 'nextproject-main') {
     withSession_(event.source, s => { s.awaiting = 'project'; });
-    return reply_(token, '📁 พิมพ์รหัสโครงการ\nเช่น  PJ 950');
+    return reply_(token, quickReply_('📁 พิมพ์รหัสโครงการ\nเช่น  PJ 950', []));
   }
   if (data === 'nextproject') {
     withSession_(event.source, s => { s.awaiting = 'group'; });
-    return reply_(token, '📁 พิมพ์รหัสโครงการถัดไป\nเช่น  PJ 69014');
+    return reply_(token, quickReply_('📁 พิมพ์รหัสโครงการถัดไป\nเช่น  PJ 69014', []));
   }
   if (data === 'endwork' || data === 'morework') {
     const session = withSession_(event.source, s => {
@@ -1407,14 +1491,9 @@ function lineApi_(path, payload) {
   });
 }
 
-function toMessage_(m) {
-  return typeof m === 'string' ? { type: 'text', text: m } : m;
-}
-
 function reply_(replyToken, ...messages) {
   return lineApi_('message/reply', { replyToken: replyToken, messages: messages.map(toMessage_) });
 }
-
 /** การสร้าง PDF อาจนานจน reply token หมดอายุ ถ้าตอบไม่สำเร็จให้ส่งแบบ push แทน */
 function replyOrPush_(replyToken, source, text) {
   const res = reply_(replyToken, text);
@@ -1425,24 +1504,72 @@ function replyOrPush_(replyToken, source, text) {
   });
 }
 
-function quickReply_(text, options) {
-  if (!options.length) return { type: 'text', text: text };
-  return {
-    type: 'text',
-    text: text,
-    quickReply: {
-      items: options.slice(0, 13).map(o => ({ type: 'action', action: quickReplyAction_(o) })),
-    },
-  };
+const BUTTON_GREEN = '#06C755';
+
+/** ข้อความที่มีตัวเลือก (จาก quickReply_) แสดงเป็นการ์ดพร้อมปุ่มสีเขียวขนาดใหญ่ */
+function toMessage_(m) {
+  if (typeof m === 'string') return { type: 'text', text: m };
+  if (m.type === 'text' && m.options) return buttonsFlex_(m.text, m.options, m.noBack);
+  return m;
 }
 
-/** { label, text } = ส่งข้อความ, { label, data } = postback, { camera / cameraRoll } = เปิดกล้อง/อัลบั้ม */
-function quickReplyAction_(o) {
-  const label = o.label.slice(0, 20);
-  if (o.camera) return { type: 'camera', label: label };
-  if (o.cameraRoll) return { type: 'cameraRoll', label: label };
-  if (o.data) return { type: 'postback', label: label, data: o.data, displayText: o.display };
+/**
+ * คำถามพร้อมตัวเลือก — options: { label, text } ส่งข้อความ, { label, data } postback,
+ * { camera / cameraRoll } เปิดกล้อง/อัลบั้ม, { picker: 'start'|'end' } วงล้อเลือกเวลา
+ * ทุกคำถามมีปุ่ม "↩️ ย้อนกลับ" ต่อท้าย (ยกเว้น noBack)
+ */
+function quickReply_(text, options, noBack) {
+  return { type: 'text', text: text, options: options, noBack: !!noBack };
+}
+
+function flexAction_(o) {
+  const label = o.label.slice(0, 40);
+  if (o.camera) return { type: 'uri', label: label, uri: 'https://line.me/R/nv/camera/' };
+  if (o.cameraRoll) return { type: 'uri', label: label, uri: 'https://line.me/R/nv/cameraRoll/multi' };
+  if (o.picker) return { type: 'datetimepicker', label: label, data: 'time=' + o.picker, mode: 'time' };
+  if (o.data) return { type: 'postback', label: label, data: o.data, displayText: o.display || o.label };
   return { type: 'message', label: label, text: o.text };
+}
+
+function buttonsFlex_(text, options, noBack) {
+  const WIDE = 14; // ปุ่มข้อความยาวกว่านี้ได้แถวเต็ม ปุ่มสั้นจัดเป็นตาราง
+  const longest = options.filter(o => o.label.length <= WIDE).reduce((n, o) => Math.max(n, o.label.length), 0);
+  const cols = longest <= 7 ? 3 : 2;
+  const button = (o, style) => ({
+    type: 'button', style: style || 'primary', height: 'md', flex: 1,
+    color: style === 'secondary' ? undefined : BUTTON_GREEN, action: flexAction_(o),
+  });
+  const rows = [];
+  let cells = [];
+  const flush = () => {
+    if (!cells.length) return;
+    while (cells.length < cols) cells.push({ type: 'box', layout: 'vertical', contents: [], flex: 1 });
+    rows.push({ type: 'box', layout: 'horizontal', spacing: 'sm', contents: cells });
+    cells = [];
+  };
+  options.forEach(o => {
+    if (o.label.length > WIDE) {
+      flush();
+      rows.push(button(o));
+      return;
+    }
+    cells.push(button(o));
+    if (cells.length === cols) flush();
+  });
+  flush();
+  if (!noBack) rows.push(button({ label: '↩️ ย้อนกลับ', data: 'undo' }, 'secondary'));
+  return {
+    type: 'flex',
+    altText: text.slice(0, 400),
+    contents: {
+      type: 'bubble',
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [{ type: 'text', text: text, wrap: true, size: 'md', margin: 'none' },
+          { type: 'separator', margin: 'lg' }].concat(rows.length ? [{ type: 'box', layout: 'vertical', spacing: 'sm', margin: 'lg', contents: rows }] : []),
+      },
+    },
+  };
 }
 
 function reporterPicker_(text) {
