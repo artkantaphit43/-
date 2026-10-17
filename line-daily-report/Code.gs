@@ -1030,15 +1030,15 @@ function newSession_(source) {
   const defaults = raw ? JSON.parse(raw) : {};
   const session = {
     date: today_(),
-    reporter: defaults.reporter || '',
-    supervisor: defaults.supervisor || '',
+    reporter: '',
+    supervisor: '',
+    last: defaults, // คำตอบล่าสุด ใช้เรียงปุ่มให้กดง่าย แต่ยังถามทุกครั้ง
     project: { code: '', name: '', location: '', jobType: '' },
     section: 'today',
     today: { manpower: '', machines: {}, items: [], group: '' },
     plan: { manpower: '', machines: {}, items: [], group: '' },
     photos: [],
   };
-  if (defaults.projectCode) setProject_(session, defaults.projectCode);
   return session;
 }
 
@@ -1146,13 +1146,13 @@ const STEPS = {
     ask: () => quickReply_('🏢 หัวกระดาษรายงานเป็นของบริษัทไหน?',
       CONFIG.COMPANIES.map(c => ({ label: c.label, text: 'หัวกระดาษ: ' + c.label }))),
   },
-  reporter: { done: s => !!s.reporter, ask: () => reporterPicker_('👤 ใครเป็นผู้เขียนรายงาน?') },
+  reporter: { done: s => !!s.reporter, ask: s => reporterPicker_('👤 ใครเป็นผู้เขียนรายงาน?', (s.last || {}).reporter) },
   supervisor: {
     done: s => !!s.supervisor,
-    ask: () => quickReply_('🦺 ใครเป็นผู้ควบคุมงาน?\n(ชื่ออื่นพิมพ์เองได้)',
-      CONFIG.REPORTERS.map(n => ({ label: n, text: 'ผู้ควบคุมงาน: ' + n }))),
+    ask: s => quickReply_('🦺 ใครเป็นผู้ควบคุมงาน?\n(ชื่ออื่นพิมพ์เองได้)',
+      lastFirst_(CONFIG.REPORTERS, (s.last || {}).supervisor).map(n => ({ label: n, text: 'ผู้ควบคุมงาน: ' + n }))),
   },
-  project: { done: s => !!s.project.code, ask: () => projectPicker_('📁 วันนี้ทำโครงการไหน?') },
+  project: { done: s => !!s.project.code, ask: s => projectPicker_('📁 วันนี้ทำโครงการไหน?', (s.last || {}).projectCode) },
   start: {
     done: s => !!s.start,
     ask: () => quickReply_('⏰ เริ่มงานกี่โมง?',
@@ -1556,13 +1556,18 @@ function quickReplyAction_(o) {
   return { type: 'message', label: label, text: o.text };
 }
 
-function reporterPicker_(text) {
-  return quickReply_(text, CONFIG.REPORTERS.map(n => ({ label: n, text: 'ผู้รายงาน: ' + n })));
+/** เอาค่าที่ใช้ล่าสุดขึ้นก่อน */
+function lastFirst_(list, last) {
+  return last && list.indexOf(last) > 0 ? [last].concat(list.filter(x => x !== last)) : list;
+}
+
+function reporterPicker_(text, last) {
+  return quickReply_(text, lastFirst_(CONFIG.REPORTERS, last).map(n => ({ label: n, text: 'ผู้รายงาน: ' + n })));
 }
 
 /** ปุ่มเลือกโครงการ (12 โครงการล่าสุด) + ปุ่มเพิ่มโครงการ */
-function projectPicker_(text) {
-  const options = Object.keys(getProjects_()).slice(-12)
+function projectPicker_(text, last) {
+  const options = lastFirst_(Object.keys(getProjects_()).slice(-11), last)
     .map(code => ({ label: code, text: 'โครงการ: ' + code }));
   options.push({ label: '➕ โครงการใหม่', data: 'nextproject-main', display: '➕ โครงการใหม่' });
   return quickReply_(text || 'เลือกโครงการ 👇 (หรือพิมพ์รหัส เช่น PJ 950)', options);
