@@ -53,8 +53,9 @@ const CONFIG = {
   // บรรทัดที่เป็นรหัสโครงการ ใช้แบ่งกลุ่มงาน เช่น "PJ 942" หรือ "PJ 943, 944"
   GROUP_PATTERN: /^PJ\s*\d[\d,\s]*$/i,
 
-  PHOTOS_PER_ROW: 2,
-  PHOTO_WIDTH: 245,
+  PHOTOS_PER_ROW: 3,
+  PHOTO_WIDTH: 160,
+  SIGNATURE_WIDTH: 110,
   FONT: 'Sarabun',
   ROOT_FOLDER_NAME: 'LINE Daily Report',
 };
@@ -67,6 +68,7 @@ const CMD_NAME = /^(ชื่อ|เลือกชื่อ)$/i;
 const CMD_ADD_PROJECT = /^(➕\s*)?เพิ่มโครงการ/;
 const CMD_LIST_PROJECTS = /^(โครงการ|รายการโครงการ|โครงการทั้งหมด)$/;
 const CMD_DELETE_PROJECT = /^ลบโครงการ[:：\s]+(.+)$/;
+const CMD_SIGNATURE = /^ลายเซ็น(?:[:：\s]+(.+))?$/;
 const CMD_PLAN = /^(แผน|แผนงาน|แผนพรุ่งนี้|พรุ่งนี้|work ?plan)$/i;
 const CMD_TODAY = /^(วันนี้|งานวันนี้)$/i;
 
@@ -77,7 +79,6 @@ const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.',
 
 const CHECKED = '☑';
 const UNCHECKED = '☐';
-const GRAY = '#D9D9D9';
 const RED = '#C00000';
 
 // ===== Webhook =====
@@ -110,6 +111,13 @@ function handleEvent_(event) {
   if (msg.type === 'text') {
     handleText_(event, msg.text.trim());
   } else if (msg.type === 'image') {
+    const props = PropertiesService.getScriptProperties();
+    const sigOwner = props.getProperty('SIGWAIT_' + event.source.userId);
+    if (sigOwner) {
+      saveSignature_(sigOwner, msg.id);
+      props.deleteProperty('SIGWAIT_' + event.source.userId);
+      return reply_(event.replyToken, `✅ บันทึกลายเซ็นของ ${sigOwner} แล้ว\nรายงานครั้งต่อไปจะใส่ลายเซ็นให้อัตโนมัติ`);
+    }
     // ไม่ตอบกลับทุกรูป เพื่อไม่ให้แชตรก (ส่งทีละหลายรูปได้)
     withSession_(event.source, session => addPhoto_(session, msg.id));
   }
@@ -124,6 +132,14 @@ function handleText_(event, text) {
   if (CMD_LIST_PROJECTS.test(text)) return reply_(token, projectPicker_(projectListText_()));
   const del = text.match(CMD_DELETE_PROJECT);
   if (del) return reply_(token, deleteProject_(del[1]));
+  const sig = text.match(CMD_SIGNATURE);
+  if (sig) {
+    if (!sig[1]) return reply_(token, quickReply_('ตั้งลายเซ็นของใคร? 👇',
+      CONFIG.REPORTERS.map(n => ({ label: n, text: 'ลายเซ็น: ' + n }))));
+    const owner = matchName_(sig[1]);
+    PropertiesService.getScriptProperties().setProperty('SIGWAIT_' + source.userId, owner);
+    return reply_(token, `✍️ ส่งรูปลายเซ็นของ ${owner} มาได้เลย 1 รูป\n(เซ็นบนกระดาษขาวด้วยปากกาสีเข้ม ถ่ายให้ชิดลายเซ็น)`);
+  }
 
   if (CMD_CANCEL.test(text)) {
     deleteSession_(source);
@@ -405,9 +421,9 @@ function appendHeaderSection_(body, s) {
   const center = DocumentApp.HorizontalAlignment.CENTER;
   addTable_(body, [[{ text: CONFIG.REPORT_TITLE, bold: true, align: center, size: 13 }]], [PAGE_WIDTH]);
   const label = text => ({ text: text, bold: true });
+  addTable_(body, [[{ text: 'รายละเอียดโครงการ (Project Detail)', bold: true, align: center },
+    label('วันที่ (Date)'), { text: dateDash_(s.date), align: center }]], [271, 130, 122]);
   addTable_(body, [
-    [{ text: 'รายละเอียดโครงการ (Project Detail)', bold: true, align: center, bg: GRAY }, '',
-      label('วันที่ (Date)'), { text: dateDash_(s.date), align: center }],
     [label('ชื่อโครงการ (Project Name)'), { text: s.project.name || s.project.code || '-', bold: true, align: center },
       label('ผู้เขียนรายงาน (Prepared by)'), { text: s.reporter, align: center }],
     [label('สถานที่ปฏิบัติงาน (Location)'), { text: s.project.location || '-', bold: true, align: center },
@@ -423,19 +439,20 @@ function appendConditionSection_(body, s) {
     .map(opt => `${s.weather && s.weather.indexOf(opt) >= 0 ? CHECKED : UNCHECKED} ${opt}`).join('      ');
   const hasImpact = /^มี/.test(s.impact || '');
   addTable_(body, [
-    [{ text: 'กำลังพล (Manpower)', bold: true, align: center, bg: GRAY },
-      { text: 'เครื่องจักร (Machinery) — ชนิด / จำนวน (คัน)', bold: true, align: center, bg: GRAY }],
-    [{ text: `${s.today.manpower || '-'} คน`, align: center }, machineLines_(s.today.machines)],
-    [{ text: 'สภาพอากาศ (Weather Condition)', bold: true, align: center, bg: GRAY },
-      { text: 'หมายเหตุ', bold: true, align: center, bg: GRAY }],
-    [[weather,
+    [{ text: 'กำลังพล (Manpower)', bold: true, align: center },
+      { text: 'เครื่องจักร (Machinery) — ชนิด / จำนวน (คัน)', bold: true, align: center }],
+    [[{ text: `${s.today.manpower || '-'} คน`, align: center },
+      { text: 'สภาพอากาศ (Weather Condition)', bold: true, align: center },
+      weather,
       `ช่วงเวลาที่ฝนตก :  ${s.rainTime || '-'}  น.`,
       `อุณหภูมิเฉลี่ย :  ${s.temp || '-'}  องศาเซลเซียส`],
-    { text: s.notes || '-', align: center }],
-    [{ text: 'ผลกระทบของสภาพอากาศต่อการปฏิบัติงาน (Schedule impact)', bold: true, align: center, bg: GRAY }, ''],
+    machineLines_(s.today.machines)],
+    [{ text: 'ผลกระทบของสภาพอากาศต่อการปฏิบัติงาน (Schedule impact)', bold: true, align: center },
+      { text: 'หมายเหตุ', bold: true, align: center }],
     [[`${hasImpact ? CHECKED : UNCHECKED} มีผลกระทบต่อการทำงาน` +
       (hasImpact ? ' : ' + s.impact.replace(/^มี(ผลกระทบ)?\s*/, '') : ''),
-    `${hasImpact ? UNCHECKED : CHECKED} ไม่มีผลกระทบต่อการทำงาน`], ''],
+    `${hasImpact ? UNCHECKED : CHECKED} ไม่มีผลกระทบต่อการทำงาน`],
+    { text: s.notes || '-', align: center }],
   ], [261, 262]);
 }
 
@@ -449,30 +466,45 @@ function machineLines_(machines) {
   });
 }
 
+/** กรอบภาพถ่าย: จัดกลุ่มรูปตามงาน (1) (2) (3) แถวละ PHOTOS_PER_ROW รูป ถ้าไม่มีรูปจะเว้นที่ว่างไว้ */
 function appendPhotoSection_(body, s) {
   const center = DocumentApp.HorizontalAlignment.CENTER;
-  addTable_(body, [[[
-    { text: 'ภาพถ่ายหน้างาน', bold: true, align: center },
-    { text: s.project.code || '', bold: true, align: center, size: 14 },
-  ]]], [PAGE_WIDTH]);
+  const frame = addTable_(body, [
+    [[{ text: 'ภาพถ่ายหน้างาน', bold: true, align: center },
+      { text: s.project.code || '', bold: true, align: center, size: 14 }]],
+    [s.photos.length ? '' : ['', '', '', '', '', '', '']],
+  ], [PAGE_WIDTH]);
   if (!s.photos.length) return;
 
   const perRow = CONFIG.PHOTOS_PER_ROW;
-  const rows = [];
-  for (let i = 0; i < s.photos.length; i += perRow) rows.push(new Array(perRow).fill(''));
-  const table = addTable_(body, rows, new Array(perRow).fill(PAGE_WIDTH / perRow));
+  const groups = [];
+  s.photos.forEach(photo => {
+    const last = groups[groups.length - 1];
+    if (last && last.caption === photo.caption) last.ids.push(photo.id);
+    else groups.push({ caption: photo.caption, ids: [photo.id] });
+  });
 
-  s.photos.forEach((photo, i) => {
-    const cell = table.getCell(Math.floor(i / perRow), i % perRow);
-    const para = cell.getChild(0).asParagraph().setAlignment(center);
-    scaleImage_(para.appendInlineImage(DriveApp.getFileById(photo.id).getBlob()), CONFIG.PHOTO_WIDTH);
-    cell.appendParagraph(`(${i + 1}) ${photo.caption}`).setAlignment(center).setAttributes(fontAttrs_(8));
+  const rows = [];
+  const slots = []; // [rowIndex, colIndex, fileId]
+  groups.forEach((g, n) => {
+    rows.push([{ text: `(${n + 1}) ${g.caption}`, bold: true }].concat(new Array(perRow - 1).fill('')));
+    g.ids.forEach((id, i) => {
+      if (i % perRow === 0) rows.push(new Array(perRow).fill(''));
+      slots.push([rows.length - 1, i % perRow, id]);
+    });
+  });
+
+  const cell = frame.getCell(1, 0);
+  const grid = addTable_(cell, rows, new Array(perRow).fill((PAGE_WIDTH - 10) / perRow), { border: 0 });
+  slots.forEach(([r, c, id]) => {
+    const para = grid.getCell(r, c).getChild(0).asParagraph().setAlignment(center);
+    scaleImage_(para.appendInlineImage(DriveApp.getFileById(id).getBlob()), CONFIG.PHOTO_WIDTH);
   });
 }
 
 function appendSummarySection_(body, s) {
   const center = DocumentApp.HorizontalAlignment.CENTER;
-  addTable_(body, [[{ text: 'สรุปผลการปฏิบัติงาน (Work Summary)', bold: true, align: center, bg: GRAY }]],
+  addTable_(body, [[{ text: 'สรุปผลการปฏิบัติงาน (Work Summary)', bold: true, align: center }]],
     [PAGE_WIDTH]);
   const rows = [[
     { text: 'รายละเอียดงาน (Detail)', bold: true, align: center },
@@ -492,13 +524,11 @@ function appendSafetySection_(body, s) {
   const center = DocumentApp.HorizontalAlignment.CENTER;
   const acc = (s.accident || '').trim();
   const hasAccident = acc && !/^(ไม่มี|-|no|none)/i.test(acc);
-  addTable_(body, [
-    [{ text: 'รายงานด้านความปลอดภัย', bold: true, align: center, bg: GRAY },
-      `${hasAccident ? UNCHECKED : CHECKED} ไม่มีอุบัติเหตุเกิดขึ้นในโครงการ`,
-      `${hasAccident ? CHECKED : UNCHECKED} มีอุบัติเหตุเกิดขึ้นในโครงการ`],
-    [{ text: 'ระบุอุบัติเหตุที่เกิดขึ้น (ถ้ามี) :', bold: true },
-      { text: hasAccident ? acc.replace(/^มี(อุบัติเหตุ)?\s*/, '') || acc : '-', align: center }, ''],
-  ], [200, 162, 161]);
+  addTable_(body, [[{ text: 'รายงานด้านความปลอดภัย', bold: true, align: center },
+    `${hasAccident ? UNCHECKED : CHECKED} ไม่มีอุบัติเหตุเกิดขึ้นในโครงการ`,
+    `${hasAccident ? CHECKED : UNCHECKED} มีอุบัติเหตุเกิดขึ้นในโครงการ`]], [200, 162, 161]);
+  addTable_(body, [[{ text: 'ระบุอุบัติเหตุที่เกิดขึ้น (ถ้ามี) :', bold: true },
+    { text: hasAccident ? acc.replace(/^มี(อุบัติเหตุ)?\s*/, '') || acc : '-', align: center }]], [200, 323]);
 }
 
 function appendPlanSection_(body, s) {
@@ -515,24 +545,50 @@ function appendPlanSection_(body, s) {
   addTable_(body, [
     [{ text: 'กำลังพล (Manpower)', bold: true, align: center, color: RED },
       { text: 'เครื่องจักร (Machinery) — ชนิด / จำนวน (คัน)', bold: true, align: center, color: RED }],
-    [{ text: `${plan.manpower || '-'} คน`, align: center, color: RED }, { lines: machineLines_(plan.machines), color: RED }],
-    [{ text: 'รายละเอียดงาน (Detail)', bold: true, align: center, color: RED }, ''],
-    [{ lines: details.length ? details : ['-'], color: RED }, ''],
+    [{
+      lines: [{ text: `${plan.manpower || '-'} คน`, align: center },
+        { text: 'รายละเอียดงาน (Detail)', bold: true, align: center }].concat(details.length ? details : ['-']),
+      color: RED,
+    }, { lines: machineLines_(plan.machines), color: RED }],
   ], [261, 262]);
 }
 
+/** ช่องลงชื่อ: ถ้ามีรูปลายเซ็น (ตั้งผ่านไลน์ด้วยคำสั่ง "ลายเซ็น") จะใส่ให้ ไม่มีก็เว้นที่ให้เซ็นมือ */
 function appendSignatureSection_(body, s) {
   const center = DocumentApp.HorizontalAlignment.CENTER;
   const date = thaiDateShort_(s.date);
-  const sign = (title, name, signedDate) => ({
-    lines: ['', `${title}  ${name || '........................'}`, `วันที่/Date:  ${signedDate || '........................'}`],
+  const signers = [
+    { title: 'ลงชื่อผู้บันทึก', name: s.reporter, date: date },
+    { title: 'ลงชื่อผู้ควบคุมงาน', name: s.supervisor || s.reporter, date: date },
+    { title: 'ลงชื่อลูกค้า', name: '', date: '' },
+  ];
+  const table = addTable_(body, [signers.map(g => ({
+    lines: [
+      { text: g.title, bold: true },
+      '',
+      '..................................................',
+      `( ${g.name || '..................................................'} )`,
+      `วันที่/Date:  ${g.date || '........................'}`,
+    ],
     align: center,
+  }))], [174, 175, 174], { border: 0 });
+
+  signers.forEach((g, i) => {
+    const fileId = g.name && PropertiesService.getScriptProperties().getProperty('SIG_' + g.name);
+    if (!fileId) return;
+    const para = table.getCell(0, i).getChild(1).asParagraph();
+    const img = para.appendInlineImage(DriveApp.getFileById(fileId).getBlob());
+    scaleImage_(img, CONFIG.SIGNATURE_WIDTH);
+    if (img.getHeight() > 45) scaleImage_(img, Math.round(img.getWidth() * 45 / img.getHeight()));
   });
-  addTable_(body, [[
-    sign('ลงชื่อผู้บันทึก', s.reporter, date),
-    sign('ลงชื่อผู้ควบคุมงาน', s.supervisor || s.reporter, date),
-    sign('ลงชื่อลูกค้า', '', ''),
-  ]], [174, 175, 174], { border: 0 });
+}
+
+function saveSignature_(name, messageId) {
+  const res = UrlFetchApp.fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+    headers: { Authorization: 'Bearer ' + token_() },
+  });
+  const file = getSubFolder_(getRootFolder_(), 'ลายเซ็น').createFile(res.getBlob().setName(name + '.jpg'));
+  PropertiesService.getScriptProperties().setProperty('SIG_' + name, file.getId());
 }
 
 function groupItems_(items) {
@@ -727,6 +783,7 @@ function helpText_() {
     '',
     'คำสั่งอื่น: "ชื่อ" เลือกผู้เขียนรายงาน, "สถานะ" ดูข้อมูลที่กรอก, "ยกเลิก" เริ่มใหม่',
     'โครงการ: "เพิ่มโครงการ", "รายการโครงการ", "ลบโครงการ: PJ xxx"',
+    'ลายเซ็น: พิมพ์ "ลายเซ็น" เลือกชื่อ แล้วส่งรูปลายเซ็น (ทำครั้งเดียว)',
   ].join('\n');
 }
 
