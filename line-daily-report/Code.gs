@@ -396,14 +396,20 @@ function buildReport_(session) {
 
   appendHeaderSection_(body, session);
   appendConditionSection_(body, session);
-  appendPhotoSection_(body, session);
+  const photoFrame = appendPhotoSection_(body, session);
   appendSummarySection_(body, session);
   appendSafetySection_(body, session);
   appendPlanSection_(body, session);
   appendSignatureSection_(body, session);
   tightenGaps_(body);
 
+  const photoFrameIndex = body.getChildIndex(photoFrame);
   doc.saveAndClose();
+  try {
+    fitPhotoFrame_(doc.getId(), photoFrameIndex);
+  } catch (err) {
+    console.warn('ยืดกรอบรูปไม่สำเร็จ: ' + err.message);
+  }
   const docFile = DriveApp.getFileById(doc.getId());
   docFile.moveTo(folder);
   const pdfFile = folder.createFile(docFile.getAs(MimeType.PDF)).setName(fileName + '.pdf');
@@ -472,9 +478,9 @@ function appendPhotoSection_(body, s) {
   const frame = addTable_(body, [
     [[{ text: 'ภาพถ่ายหน้างาน', bold: true, align: center },
       { text: s.project.code || '', bold: true, align: center, size: 14 }]],
-    [s.photos.length ? '' : ['', '', '', '', '', '', '']],
+    [''],
   ], [PAGE_WIDTH]);
-  if (!s.photos.length) return;
+  if (!s.photos.length) return frame;
 
   const perRow = CONFIG.PHOTOS_PER_ROW;
   const groups = [];
@@ -500,6 +506,7 @@ function appendPhotoSection_(body, s) {
     const para = grid.getCell(r, c).getChild(0).asParagraph().setAlignment(center);
     scaleImage_(para.appendInlineImage(DriveApp.getFileById(id).getBlob()), CONFIG.PHOTO_WIDTH);
   });
+  return frame;
 }
 
 function appendSummarySection_(body, s) {
@@ -649,6 +656,33 @@ function fillCell_(cell, content) {
 function scaleImage_(img, width) {
   const ratio = width / img.getWidth();
   img.setWidth(width).setHeight(Math.round(img.getHeight() * ratio));
+}
+
+/**
+ * ยืดกรอบภาพถ่ายให้เต็มหน้าสุดท้ายพอดี: ค่อย ๆ เพิ่มความสูงขั้นต่ำของกรอบ (binary search)
+ * โดยดูจากจำนวนหน้า PDF ว่ายังไม่ล้นไปหน้าใหม่ ถ้ารูปเยอะเกินหน้า กรอบก็ขยายตามรูปเอง
+ */
+function fitPhotoFrame_(docId, frameIndex) {
+  const setFrameHeight = height => {
+    const doc = DocumentApp.openById(docId);
+    doc.getBody().getChild(frameIndex).asTable().getRow(1).setMinimumHeight(height);
+    doc.saveAndClose();
+    return countPdfPages_(docId);
+  };
+  const basePages = countPdfPages_(docId);
+  let fits = 0;
+  let overflows = 760;
+  while (overflows - fits > 8) {
+    const mid = Math.floor((fits + overflows) / 2);
+    if (setFrameHeight(mid) > basePages) overflows = mid;
+    else fits = mid;
+  }
+  setFrameHeight(Math.max(0, fits - 4));
+}
+
+function countPdfPages_(docId) {
+  const pdf = DriveApp.getFileById(docId).getAs(MimeType.PDF).getDataAsString();
+  return (pdf.match(/\/Type\s*\/Page(?!s)/g) || []).length;
 }
 
 /** ย่อบรรทัดว่างที่คั่นระหว่างตาราง ให้ตารางต่อกันเป็นฟอร์มเดียว */
