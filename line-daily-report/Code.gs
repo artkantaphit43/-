@@ -371,8 +371,11 @@ function addPhoto_(session, messageId) {
   const blob = res.getBlob().setName(`${session.date}_${messageId}.jpg`);
   const file = getSubFolder_(getRootFolder_(), 'รูปภาพ', session.date).createFile(blob);
   const item = session.today.items[session.today.items.length - 1];
-  const caption = item ? [item.group, item.title].filter(Boolean).join(' : ') : (session.today.group || '');
-  session.photos.push({ id: file.getId(), caption: caption });
+  session.photos.push({
+    id: file.getId(),
+    project: item ? item.group : (session.today.group || ''),
+    title: item ? item.title : '',
+  });
 }
 
 // ===== สร้างรายงาน (Google Doc -> PDF) =====
@@ -467,32 +470,42 @@ function machineLines_(machines) {
   });
 }
 
-/** กรอบภาพถ่ายสูงคงที่ PHOTO_FRAME_HEIGHT: จัดกลุ่มรูปตามงาน (1) (2) (3) แถวละ PHOTOS_PER_ROW รูป */
+/**
+ * กรอบภาพถ่ายสูงคงที่ PHOTO_FRAME_HEIGHT: แยกตามโครงการ (PJ) แล้วจัดกลุ่มรูปตามงาน (1) (2) (3)
+ * แถวละ PHOTOS_PER_ROW รูป — วันที่ทำหลายโครงการก็แสดงครบทุก PJ
+ */
 function appendPhotoSection_(body, s) {
   const center = DocumentApp.HorizontalAlignment.CENTER;
   const frame = addTable_(body, [
-    [[{ text: 'ภาพถ่ายหน้างาน', bold: true, align: center },
-      { text: s.project.code || '', bold: true, align: center, size: 14 }]],
+    [{ text: 'ภาพถ่ายหน้างาน', bold: true, align: center }],
     [''],
   ], [PAGE_WIDTH]);
   frame.getRow(1).setMinimumHeight(CONFIG.PHOTO_FRAME_HEIGHT);
   if (!s.photos.length) return;
 
-  const perRow = CONFIG.PHOTOS_PER_ROW;
-  const groups = [];
+  // projects: [{ code, jobs: [{ title, ids }] }] ตามลำดับที่ส่งรูปมา
+  const projects = [];
   s.photos.forEach(photo => {
-    const last = groups[groups.length - 1];
-    if (last && last.caption === photo.caption) last.ids.push(photo.id);
-    else groups.push({ caption: photo.caption, ids: [photo.id] });
+    const code = photo.project || '';
+    let project = projects.find(p => p.code === code);
+    if (!project) projects.push(project = { code: code, jobs: [] });
+    let job = project.jobs.find(j => j.title === photo.title);
+    if (!job) project.jobs.push(job = { title: photo.title, ids: [] });
+    job.ids.push(photo.id);
   });
 
+  const perRow = CONFIG.PHOTOS_PER_ROW;
+  const blank = () => new Array(perRow).fill('');
   const rows = [];
   const slots = []; // [rowIndex, colIndex, fileId]
-  groups.forEach((g, n) => {
-    rows.push([{ text: `(${n + 1}) ${g.caption}`, bold: true }].concat(new Array(perRow - 1).fill('')));
-    g.ids.forEach((id, i) => {
-      if (i % perRow === 0) rows.push(new Array(perRow).fill(''));
-      slots.push([rows.length - 1, i % perRow, id]);
+  projects.forEach(project => {
+    if (project.code) rows.push([{ text: project.code, bold: true, size: 12 }].concat(blank().slice(1)));
+    project.jobs.forEach((job, n) => {
+      if (job.title) rows.push([{ text: `(${n + 1}) ${job.title}`, bold: true }].concat(blank().slice(1)));
+      job.ids.forEach((id, i) => {
+        if (i % perRow === 0) rows.push(blank());
+        slots.push([rows.length - 1, i % perRow, id]);
+      });
     });
   });
 
