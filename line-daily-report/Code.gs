@@ -701,28 +701,28 @@ function fillPlan_(sheet, at, row, s, lines) {
   fillWorkRows_(sheet, lines, row(TPL.planRows[0]), row(TPL.planRows[1]), 0);
 }
 
-/** ช่องลงชื่อ: มีรูปลายเซ็น (ตั้งด้วยคำสั่ง "ลายเซ็น") ใช้รูป ไม่มีก็พิมพ์ชื่อ */
+/**
+ * ช่องลงชื่อ: พิมพ์ชื่อเต็มบนเส้นประ เหลือที่ว่างด้านบนให้เซ็นด้วยปากกา
+ * ถ้าตั้งรูปลายเซ็นไว้ (คำสั่ง "ลายเซ็น") จะวางรูปไว้ในที่ว่างเหนือชื่อ
+ */
 function fillSignatures_(sheet, row, s) {
   const signRow = row(TPL.signRow);
   const date = thaiDateShort_(s.date);
   [[2, s.reporter], [4, s.supervisor || s.reporter]].forEach(([col, name]) => {
     sheet.getRange(row(TPL.signDateRow), col).setNumberFormat('@').setValue(date);
+    sheet.getRange(signRow, col).setNumberFormat('@').setValue(name).setVerticalAlignment('bottom');
     const fileId = PropertiesService.getScriptProperties().getProperty('SIG_' + name);
-    const img = fileId && insertDriveImage_(sheet, fileId, 400, col, signRow - 1);
-    if (!img) {
-      sheet.getRange(signRow, col).setNumberFormat('@').setValue(name.split(' ')[0]);
-      return;
-    }
-    // วางลายเซ็นให้ฐานอยู่บนเส้นประของช่อง ความสูงไม่เกิน 2 แถว
+    const img = fileId && insertDriveImage_(sheet, fileId, 400, col, signRow - 2);
+    if (!img) return;
+    // วางลายเซ็นในช่องว่าง 2 แถวเหนือชื่อ
     const colW = sheet.getColumnWidth(col);
-    const rowH = sheet.getRowHeight(signRow);
-    const prevH = sheet.getRowHeight(signRow - 1);
-    const scale = Math.min((colW - 10) / img.getWidth(), (rowH + prevH - 4) / img.getHeight());
+    const spaceH = sheet.getRowHeight(signRow - 2) + sheet.getRowHeight(signRow - 1);
+    const scale = Math.min((colW - 10) / img.getWidth(), (spaceH - 4) / img.getHeight());
     const w = Math.round(img.getWidth() * scale);
     const h = Math.round(img.getHeight() * scale);
     img.setWidth(w).setHeight(h)
       .setAnchorCellXOffset(Math.round((colW - w) / 2))
-      .setAnchorCellYOffset(Math.max(0, prevH + rowH - h - 2));
+      .setAnchorCellYOffset(Math.max(0, spaceH - h - 2));
   });
 }
 
