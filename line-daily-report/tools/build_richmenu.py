@@ -27,6 +27,7 @@ TOP = [
     {'emoji': '🛠️', 'title': 'Punch List', 'sub': 'รายการงานแก้ไข', 'color': SLATE, 'text': 'punch list'},
 ]
 BOTTOM = [
+    {'emoji': '↩️', 'title': 'ย้อนกลับ', 'text': 'ย้อนกลับ'},
     {'emoji': '📊', 'title': 'ดูสรุป', 'text': 'สถานะ'},
     {'emoji': '📤', 'title': 'ส่งรายงาน', 'text': 'ส่ง'},
     {'emoji': '📁', 'title': 'โครงการ', 'text': 'โครงการ'},
@@ -62,17 +63,16 @@ for i, b in enumerate(TOP):
 
 bot_y0 = PAD + top_h + GAP
 bot_h = H - PAD - bot_y0
-bot_w = (W - 2 * PAD - 2 * GAP) // 3
+n = len(BOTTOM)
+bot_w = (W - 2 * PAD - (n - 1) * GAP) // n
 for i, b in enumerate(BOTTOM):
     x0 = PAD + i * (bot_w + GAP)
     box = (x0, bot_y0, x0 + bot_w, bot_y0 + bot_h)
     d.rounded_rectangle(box, RADIUS, fill='white', outline='#CFE3E3', width=6)
+    cx = x0 + bot_w // 2
     e = emoji_img(b['emoji'], 150)
-    total = e.width + 40 + d.textlength(b['title'], font=ImageFont.truetype(SARABUN, 120))
-    sx = x0 + (bot_w - total) // 2
-    img.paste(e, (int(sx), bot_y0 + (bot_h - e.height) // 2), e)
-    d.text((sx + e.width + 40, bot_y0 + bot_h // 2), b['title'], font=ImageFont.truetype(SARABUN, 120),
-           fill=TEAL, anchor='lm')
+    img.paste(e, (cx - e.width // 2, bot_y0 + bot_h // 2 - 180), e)
+    d.text((cx, bot_y0 + bot_h // 2 + 90), b['title'], font=ImageFont.truetype(SARABUN, 105), fill=TEAL, anchor='mm')
     areas.append((box, b['text']))
 
 img = img.resize(FINAL, Image.LANCZOS)

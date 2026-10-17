@@ -32,7 +32,19 @@
    "bounds": {
     "x": 30,
     "y": 508,
-    "width": 382,
+    "width": 281,
+    "height": 304
+   },
+   "action": {
+    "type": "message",
+    "text": "ย้อนกลับ"
+   }
+  },
+  {
+   "bounds": {
+    "x": 333,
+    "y": 508,
+    "width": 281,
     "height": 304
    },
    "action": {
@@ -42,9 +54,9 @@
   },
   {
    "bounds": {
-    "x": 434,
+    "x": 636,
     "y": 508,
-    "width": 382,
+    "width": 281,
     "height": 304
    },
    "action": {
@@ -54,9 +66,9 @@
   },
   {
    "bounds": {
-    "x": 838,
+    "x": 939,
     "y": 508,
-    "width": 382,
+    "width": 281,
     "height": 304
    },
    "action": {
