@@ -127,7 +127,7 @@ function handleEvent_(event) {
 function handleText_(event, text) {
   const source = event.source;
   const token = event.replyToken;
-  if (CMD_HELP.test(text)) return reply_(token, helpText_());
+  if (CMD_HELP.test(text)) return reply_(token, helpText_(), 'คัดลอกแบบฟอร์มด้านล่าง เติมตัวเลข แล้วส่งกลับมา 👇', templateText_());
   if (CMD_NAME.test(text)) return reply_(token, reporterPicker_('เลือกชื่อผู้เขียนรายงาน 👇'));
   if (CMD_ADD_PROJECT.test(text)) return reply_(token, ...addProjectFromText_(text));
   if (CMD_LIST_PROJECTS.test(text)) return reply_(token, projectPicker_(projectListText_()));
@@ -191,6 +191,7 @@ const FIELD_HANDLERS = [
   { aliases: ['ชื่อโครงการ'], set: (s, v) => { s.project.name = v; } },
   { aliases: ['สถานที่', 'สถานที่ปฏิบัติงาน', 'location'], set: (s, v) => { s.project.location = v; } },
   { aliases: ['ลักษณะงาน', 'ลักษณะโครงการ'], set: (s, v) => { s.project.jobType = v; } },
+  { aliases: ['เวลา', 'เวลาทำงาน'], set: (s, v) => setWorkTime_(s, v) },
   { aliases: ['เริ่มงาน', 'เวลาเริ่ม', 'เวลาเริ่มงาน'], set: (s, v) => { s.start = formatTime_(v); } },
   { aliases: ['เลิกงาน', 'จบงาน', 'เวลาจบ', 'เวลาจบงาน'], set: (s, v) => { s.end = formatTime_(v); } },
   { aliases: ['คน', 'คนงาน', 'กำลังพล'], set: (s, v, sec) => { sec.manpower = v.replace(/คน/g, '').trim(); } },
@@ -232,11 +233,17 @@ function applyText_(session, text) {
     if (kv) {
       const key = kv[1].trim().toLowerCase();
       const value = kv[2].trim();
+      // ช่องที่เว้นว่างในแบบฟอร์ม เช่น "รถเครน: " หรือ "โครงการ: PJ" ให้ข้ามไป
+      const blank = !value || /^(-|pj|0)$/i.test(value);
       const field = FIELD_HANDLERS.find(f => f.aliases.some(a => a.toLowerCase() === key));
-      if (field) return field.set(session, value, sec);
+      if (field) {
+        if (!blank || value === '0') field.set(session, value, sec);
+        return;
+      }
       const machine = CONFIG.MACHINES.find(m => m.aliases.some(a => a.toLowerCase() === key));
       if (machine) {
-        sec.machines[machine.key] = parseMachine_(value);
+        if (blank) delete sec.machines[machine.key];
+        else sec.machines[machine.key] = parseMachine_(value);
         return;
       }
     }
@@ -353,10 +360,21 @@ function parseMachine_(value) {
   return { qty: qty ? qty[0] : '', size: size ? size[1] : '', text: value };
 }
 
+/** "8", "08:30", "21.00 น.", "3 ทุ่ม", "ทุ่มครึ่ง" -> "08.00 น." */
 function formatTime_(v) {
-  const m = v.match(/^(\d{1,2})(?:[.:](\d{2}))?\s*(น\.?)?$/);
+  const t = v.trim().replace(/\s*น\.?$/, '');
+  const thum = t.match(/^(\d{1,2})?\s*ทุ่ม(ครึ่ง)?$/);
+  if (thum) return `${18 + Number(thum[1] || 1)}.${thum[2] ? '30' : '00'} น.`;
+  const m = t.match(/^(\d{1,2})(?:[.:](\d{2}))?$/);
   if (!m) return v;
   return `${('0' + m[1]).slice(-2)}.${m[2] || '00'} น.`;
+}
+
+/** "08.00-21.00" หรือ "8 ถึง 3 ทุ่ม" -> ตั้งเวลาเริ่มและเวลาจบ */
+function setWorkTime_(s, v) {
+  const parts = v.split(/\s*(?:-|–|ถึง)\s*/);
+  if (parts[0]) s.start = formatTime_(parts[0]);
+  if (parts[1]) s.end = formatTime_(parts[1]);
 }
 
 function formatPercent_(v) {
@@ -442,15 +460,16 @@ function appendConditionSection_(body, s) {
   const weather = CONFIG.WEATHER_OPTIONS
     .map(opt => `${s.weather && s.weather.indexOf(opt) >= 0 ? CHECKED : UNCHECKED} ${opt}`).join('      ');
   const hasImpact = /^มี/.test(s.impact || '');
-  addTable_(body, [
+  const table = addTable_(body, [
     [{ text: 'กำลังพล (Manpower)', bold: true, align: center },
-      { text: 'เครื่องจักร (Machinery) — ชนิด / จำนวน (คัน)', bold: true, align: center }],
+      { text: 'เครื่องจักร (Machinery)', bold: true, align: center }],
     [[{ text: `${s.today.manpower || '-'} คน`, align: center },
+      '',
       { text: 'สภาพอากาศ (Weather Condition)', bold: true, align: center },
       weather,
       `ช่วงเวลาที่ฝนตก :  ${s.rainTime || '-'}  น.`,
       `อุณหภูมิเฉลี่ย :  ${s.temp || '-'}  องศาเซลเซียส`],
-    machineLines_(s.today.machines)],
+    ''],
     [{ text: 'ผลกระทบของสภาพอากาศต่อการปฏิบัติงาน (Schedule impact)', bold: true, align: center },
       { text: 'หมายเหตุ', bold: true, align: center }],
     [[`${hasImpact ? CHECKED : UNCHECKED} มีผลกระทบต่อการทำงาน` +
@@ -458,16 +477,37 @@ function appendConditionSection_(body, s) {
     `${hasImpact ? UNCHECKED : CHECKED} ไม่มีผลกระทบต่อการทำงาน`],
     { text: s.notes || '-', align: center }],
   ], [261, 262]);
+  addMachineTable_(table.getCell(1, 1), s.today.machines);
 }
 
-function machineLines_(machines) {
-  return CONFIG.MACHINES.map(m => {
+/** ตารางเครื่องจักรแบบฟอร์มเดิม: ☐ ชนิด | จำนวน (คัน) ใส่ไว้ในช่องของตารางหลัก */
+function addMachineTable_(cell, machines, color) {
+  const center = DocumentApp.HorizontalAlignment.CENTER;
+  const rows = [[{ text: 'ชนิด', bold: true, align: center, color: color },
+    { text: 'จำนวน (คัน)', bold: true, align: center, color: color }]];
+  CONFIG.MACHINES.forEach(m => {
     const v = machines[m.key];
     const box = v ? CHECKED : UNCHECKED;
-    if (m.key === 'other') return `${box} อื่นๆ โปรดระบุ ${v ? ': ' + v.text : ''}`;
-    const size = m.sized ? ` ขนาด ${v && v.size ? v.size : '......'} ตัน` : '';
-    return `${box} ${m.label}${size}  —  ${v && v.qty ? v.qty : '-'}`;
+    let label;
+    if (m.key === 'other') label = `${box}  อื่นๆ โปรดระบุ${v ? ' : ' + v.text.replace(/\d+\s*(คัน)?\s*$/, '').trim() : ''}`;
+    else label = `${box}  ${m.label}${m.sized ? ` ขนาด ${v && v.size ? v.size : '..........'} ตัน` : ''}`;
+    rows.push([{ text: label, color: color }, { text: v && v.qty ? v.qty : '-', align: center, color: color }]);
   });
+  addTable_(cell, rows, [178, 76]);
+  dropLeadingBlank_(cell);
+}
+
+/** ช่องตารางมีย่อหน้าว่างนำหน้าตารางซ้อนเสมอ ลบออกเพื่อให้ตารางชิดขอบบน */
+function dropLeadingBlank_(cell) {
+  const first = cell.getChild(0);
+  if (cell.getNumChildren() > 1 && first.getType() === DocumentApp.ElementType.PARAGRAPH &&
+    first.asParagraph().getText() === '') {
+    try {
+      first.removeFromParent();
+    } catch (err) {
+      first.asParagraph().setAttributes(fontAttrs_(1));
+    }
+  }
 }
 
 /**
@@ -557,15 +597,16 @@ function appendPlanSection_(body, s) {
     if (g.group) details.push(g.group);
     g.items.forEach((it, i) => details.push(`${i + 1}.${it.title}`));
   });
-  addTable_(body, [
+  const table = addTable_(body, [
     [{ text: 'กำลังพล (Manpower)', bold: true, align: center, color: RED },
-      { text: 'เครื่องจักร (Machinery) — ชนิด / จำนวน (คัน)', bold: true, align: center, color: RED }],
+      { text: 'เครื่องจักร (Machinery)', bold: true, align: center, color: RED }],
     [{
-      lines: [{ text: `${plan.manpower || '-'} คน`, align: center },
+      lines: [{ text: `${plan.manpower || '-'} คน`, align: center }, '',
         { text: 'รายละเอียดงาน (Detail)', bold: true, align: center }].concat(details.length ? details : ['-']),
       color: RED,
-    }, { lines: machineLines_(plan.machines), color: RED }],
+    }, ''],
   ], [261, 262]);
+  addMachineTable_(table.getCell(1, 1), plan.machines, RED);
 }
 
 /** ช่องลงชื่อ: ถ้ามีรูปลายเซ็น (ตั้งผ่านไลน์ด้วยคำสั่ง "ลายเซ็น") จะใส่ให้ ไม่มีก็เว้นที่ให้เซ็นมือ */
@@ -753,7 +794,11 @@ function withSession_(source, mutate) {
 function summaryText_(s) {
   const lines = [`📋 ${s.project.code || 'ยังไม่ระบุโครงการ'} • ${thaiDateShort_(s.date)}`,
     `ผู้เขียนรายงาน: ${s.reporter || '❗ยังไม่เลือก'}`];
+  lines.push(`เวลา: ${s.start || CONFIG.DEFAULT_START} - ${s.end || CONFIG.DEFAULT_END}`);
   if (s.today.manpower) lines.push(`กำลังพล: ${s.today.manpower} คน`);
+  const machines = CONFIG.MACHINES.filter(m => s.today.machines[m.key])
+    .map(m => `${m.label} ${s.today.machines[m.key].qty || s.today.machines[m.key].text}`);
+  if (machines.length) lines.push(`เครื่องจักร: ${machines.join(', ')}`);
   if (s.weather) lines.push(`อากาศ: ${s.weather}${s.temp ? ' / ' + s.temp + '°C' : ''}`);
   if (s.accident) lines.push(`อุบัติเหตุ: ${s.accident}`);
   groupItems_(s.today.items).forEach(g => {
@@ -766,12 +811,33 @@ function summaryText_(s) {
   return lines.join('\n');
 }
 
+/** แบบฟอร์มให้คัดลอกไปเติม ช่องที่ไม่ใช้ปล่อยว่างได้ */
+function templateText_() {
+  return [
+    'โครงการ: PJ ',
+    'เวลา: 08.00-17.00',
+    'คน: ',
+    'อากาศ: ปกติ',
+    'ฝนตกช่วง: ',
+    'อุณหภูมิ: ',
+    'รถเครน: ',
+    'รถเฮียบ: ',
+    'รถปูน: ',
+    'รถยนต์: ',
+    'อื่นๆ: ',
+    'ผลกระทบ: ไม่มี',
+    'อุบัติเหตุ: ไม่มี',
+    'หมายเหตุ: ',
+  ].join('\n');
+}
+
 function helpText_() {
   return [
     '📋 วิธีส่งรายงานประจำวัน',
     '',
     '① ข้อมูลทั่วไป',
     'โครงการ: PJ 942',
+    'เวลา: 08.00-21.00  (หรือ "เลิกงาน: 3 ทุ่ม")',
     'คน: 4',
     'อากาศ: ปกติ  (ฝนตก/แดดจัด/ปกติ)',
     'อุณหภูมิ: 32',
