@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.2**
-(`dist/artk_plant_pipe-1.15.2.rbz`). Tests: `rake test` (225 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.3**
+(`dist/artk_plant_pipe-1.15.3.rbz`). Tests: `rake test` (225 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -104,6 +104,7 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   render บันทึก `drawn` (ท่อ+ข้อต่อที่วาด) · ตอน render ครั้งถัดไป ชิ้นที่หายไป = ผู้ใช้ลบ → `RunEdit.prune` ตัด cl ใต้ท่อที่ลบ,
   ข้อต่อที่ลบ → ทุกแขนหยุดที่ปลายท่อ (ปลายเปิด), ทิ้ง supports/tees/joins/วาล์วที่ไม่อยู่บนแนว · RunEditor.sync (AutoSync, เปิดเครื่องมือ)
   render run ที่มีชิ้นถูกลบก่อน (transparent → Undo พร้อมการลบ) · AutoSync เช็ก run ที่เข้าไปแก้ข้างในเมื่อออกมา · elbow geom มี `vertex`
+- **v1.15.3**: ปุ่ม "ยืด/หด/ย้ายท่อ" และ "ตรวจท่อ" ในหน้าต่างเครื่องมือ (เดิมมีแค่แถบเครื่องมือ/เมนู – ผู้ใช้หาไม่เจอ)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

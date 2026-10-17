@@ -129,6 +129,8 @@ module ArtK
           when 'draw' then Commands.draw_pipe
           when 'valve' then Commands.insert_valve
           when 'convert' then Commands.convert_selection
+          when 'stretch' then Commands.stretch_tool
+          when 'check' then Commands.check_pipes
           when 'rebuild' then Commands.rebuild_selection
           when 'flow' then Commands.set_design_flow
           when 'hydraulic' then Commands.hydraulic_report
