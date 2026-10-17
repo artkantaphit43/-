@@ -71,6 +71,7 @@ const CMD_LIST_PROJECTS = /^(โครงการ|รายการโคร�
 const CMD_DELETE_PROJECT = /^ลบโครงการ[:：\s]+(.+)$/;
 const CMD_SIGNATURE = /^ลายเซ็น(?:[:：\s]+(.+))?$/;
 const CMD_PUNCH = /^punch\s*list$/i;
+const CMD_NEW = /^(🆕\s*)?เริ่มใหม่$/;
 const CMD_UNDO = /^(↩️\s*)?(ย้อนกลับ|undo)$/i;
 const CMD_PLAN = /^(แผน|แผนงาน|แผนพรุ่งนี้|พรุ่งนี้|work ?plan)$/i;
 const CMD_TODAY = /^(วันนี้|งานวันนี้)$/i;
@@ -136,9 +137,21 @@ function handleEvent_(event) {
 function handleText_(event, text) {
   const source = event.source;
   const token = event.replyToken;
+  if (CMD_NEW.test(text)) {
+    deleteSession_(source);
+    return startReport_(token, source);
+  }
   if (CMD_HELP.test(text)) {
-    const s = withSession_(source, advance_);
-    return reply_(token, withPrefix_(question_(s, s.awaiting), `📋 รายงานวันที่ ${thaiDateShort_(s.date)}\nกดตอบจากปุ่มด้านล่างได้เลย`));
+    const pending = loadSession_(source);
+    if (pending && (pending.company || pending.today.items.length || pending.photos.length)) {
+      return reply_(token, quickReply_(`📋 มีรายงานที่ทำค้างไว้\n${[pending.project.code, thaiDateShort_(pending.date),
+        `${pending.today.items.length} งาน`, `📷 ${pending.photos.length} รูป`].filter(Boolean).join(' • ')}\n\nทำต่อ หรือเริ่มใหม่?`, [
+        { label: '▶️ ทำต่อ', data: 'continue', display: '▶️ ทำต่อ' },
+        { label: '🆕 เริ่มใหม่', text: 'เริ่มใหม่' },
+        { label: '📋 ดูสรุป', data: 'summary' },
+      ], true));
+    }
+    return startReport_(token, source);
   }
   if (CMD_NAME.test(text)) return reply_(token, reporterPicker_('เลือกชื่อผู้เขียนรายงาน 👇'));
   if (CMD_PUNCH.test(text)) return reply_(token, '🛠️ Punch List กำลังพัฒนา เร็ว ๆ นี้');
@@ -1416,6 +1429,11 @@ function summaryFlex_(s) {
   };
 }
 
+function startReport_(token, source) {
+  const s = withSession_(source, advance_);
+  return reply_(token, withPrefix_(question_(s, s.awaiting), `📋 รายงานวันที่ ${thaiDateShort_(s.date)}\nกดตอบจากปุ่มด้านล่างได้เลย`));
+}
+
 function handleUndo_(token, source) {
   const restored = undo_(source);
   if (restored === undefined) return reply_(token, quickReply_('ย้อนกลับต่อไม่ได้แล้ว', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }], true));
@@ -1436,6 +1454,7 @@ function handlePostback_(event) {
     return reply_(token, editMenu_());
   }
   if (data === 'undo') return handleUndo_(token, event.source);
+  if (data === 'continue') return startReport_(token, event.source);
   const picked = data.match(/^time=(start|end)$/);
   if (picked && event.postback.params && event.postback.params.time) {
     const label = picked[1] === 'start' ? 'เริ่มงาน' : 'เลิกงาน';
