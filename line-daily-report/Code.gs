@@ -532,7 +532,7 @@ function buildReport_(session) {
   const folder = getSubFolder_(getRootFolder_(), 'รายงาน', session.date);
   const fileName = `FM_Daily_Report_${(session.project.code || 'PJ').replace(/\s/g, '')}_` +
     `${session.date.replace(/-/g, '')}_${session.reporter.split(' ')[0]}`;
-  const file = DriveApp.getFileById(getTemplateId_()).makeCopy(fileName, folder);
+  const file = DriveApp.getFileById(getTemplateId_(session.company)).makeCopy(fileName, folder);
   const ss = SpreadsheetApp.openById(file.getId());
   const sheet = ss.getSheets()[0];
 
@@ -552,7 +552,6 @@ function buildReport_(session) {
   fillSignatures_(sheet, row, session);
   // แถวสุดท้ายของกรอบรูปอาจถูกยืมไป จึงนับจากแถวถัดไปที่ไม่ถูกลบ
   placePhotos_(sheet, session, row(TPL.photoRows[0]), row(TPL.photoRows[1] + 1) - 1);
-  placeLogo_(sheet, session.company);
   SpreadsheetApp.flush();
 
   const pdfFile = folder.createFile(exportPdf_(ss.getId(), sheet.getSheetId(), row(TPL.lastRow)))
@@ -714,7 +713,7 @@ function fillSignatures_(sheet, row, s) {
 
 // ===== ภาพถ่ายหน้างาน =====
 
-/** โลโก้บริษัทที่เลือก ชิดขวาบนเหนือกรอบฟอร์ม (แถว 1) */
+/** โลโก้บริษัท ชิดขวาบนเหนือกรอบฟอร์ม (แถว 1) — ใส่ไว้ในแม่แบบของแต่ละบริษัทตอนสร้าง */
 function placeLogo_(sheet, companyKey) {
   const b64 = COMPANY_LOGO_B64[companyKey];
   if (!b64) return;
@@ -893,10 +892,15 @@ function insertDriveImage_(sheet, fileId, size, col, row) {
 
 // ===== แม่แบบและการส่งออก PDF =====
 
-/** แม่แบบ Google Sheets ใน Drive (สร้างจาก TEMPLATE_XLSX_B64 ครั้งแรกที่ใช้งาน) */
-function getTemplateId_() {
+/**
+ * แม่แบบ Google Sheets ของแต่ละบริษัทใน Drive (ฟอร์มเดียวกัน ต่างกันที่โลโก้)
+ * สร้างจาก TEMPLATE_XLSX_B64 ครั้งแรกที่ใช้งาน แก้แม่แบบของบริษัทใดบริษัทหนึ่งใน Sheets ได้โดยไม่กระทบบริษัทอื่น
+ */
+function getTemplateId_(companyKey) {
+  const company = CONFIG.COMPANIES.find(c => c.key === companyKey) || CONFIG.COMPANIES[0];
   const props = PropertiesService.getScriptProperties();
-  const id = props.getProperty('TEMPLATE_ID');
+  const key = 'TEMPLATE_ID_' + company.key;
+  const id = props.getProperty(key);
   if (id) {
     try {
       if (!DriveApp.getFileById(id).isTrashed()) return id;
@@ -904,17 +908,17 @@ function getTemplateId_() {
       // ไฟล์ถูกลบ -> สร้างใหม่
     }
   }
-  const newId = importTemplate_();
-  props.setProperty('TEMPLATE_ID', newId);
+  const newId = importTemplate_(company);
+  props.setProperty(key, newId);
   return newId;
 }
 
-/** อัปโหลดไฟล์ Excel แม่แบบ แล้วให้ Google แปลงเป็น Google Sheets */
-function importTemplate_() {
+/** อัปโหลดไฟล์ Excel แม่แบบ ให้ Google แปลงเป็น Google Sheets แล้วใส่โลโก้ของบริษัท */
+function importTemplate_(company) {
   const xlsx = Utilities.base64Decode(TEMPLATE_XLSX_B64);
   const boundary = 'dailyreport' + Date.now();
   const meta = {
-    name: 'แม่แบบ FM_Daily Report (ห้ามลบ)',
+    name: `แม่แบบ FM_Daily Report - ${company.label} (ห้ามลบ)`,
     mimeType: 'application/vnd.google-apps.spreadsheet',
     parents: [getRootFolder_().getId()],
   };
@@ -934,6 +938,7 @@ function importTemplate_() {
   const sheet = SpreadsheetApp.openById(id).getSheets()[0];
   sheet.getRange(1, 1, TPL.lastRow, TPL.lastCol).setFontFamily('Sarabun');
   sheet.setHiddenGridlines(true);
+  placeLogo_(sheet, company.key);
   return id;
 }
 
@@ -1527,11 +1532,12 @@ function setup() {
   UrlFetchApp.fetch('https://api.line.me/v2/bot/info', {
     headers: { Authorization: 'Bearer ' + token_() },
   });
-  const templateId = getTemplateId_();
   setupRichMenu();
   console.log('โฟลเดอร์: ' + folder.getUrl());
   console.log('ชีตบันทึก: ' + sheet.getParent().getUrl());
-  console.log('แม่แบบฟอร์ม: https://docs.google.com/spreadsheets/d/' + templateId);
+  CONFIG.COMPANIES.forEach(c => {
+    console.log(`แม่แบบ ${c.label}: https://docs.google.com/spreadsheets/d/${getTemplateId_(c.key)}`);
+  });
   console.log('พร้อมใช้งาน ✅ ต่อไปให้ Deploy เป็น Web app');
 }
 
@@ -1563,10 +1569,23 @@ function setupRichMenu() {
   console.log('ติดตั้งเมนูเรียบร้อย ✅ (ปิดแชตแล้วเปิดใหม่เพื่อดูเมนู)');
 }
 
-/** สร้างแม่แบบใหม่จากโค้ด (ใช้หลังอัปเดตโค้ดที่มีแม่แบบเวอร์ชันใหม่) */
+/** สร้างแม่แบบใหม่ทั้ง 3 บริษัทจากโค้ด (ใช้หลังอัปเดตโค้ดที่มีแม่แบบเวอร์ชันใหม่) แม่แบบเก่าย้ายลงถังขยะ */
 function rebuildTemplate() {
-  PropertiesService.getScriptProperties().deleteProperty('TEMPLATE_ID');
-  console.log('แม่แบบใหม่: https://docs.google.com/spreadsheets/d/' + getTemplateId_());
+  const props = PropertiesService.getScriptProperties();
+  ['TEMPLATE_ID'].concat(CONFIG.COMPANIES.map(c => 'TEMPLATE_ID_' + c.key)).forEach(key => {
+    const old = props.getProperty(key);
+    if (old) {
+      try {
+        DriveApp.getFileById(old).setTrashed(true);
+      } catch (err) {
+        // ไฟล์ถูกลบไปแล้ว
+      }
+      props.deleteProperty(key);
+    }
+  });
+  CONFIG.COMPANIES.forEach(c => {
+    console.log(`แม่แบบ ${c.label}: https://docs.google.com/spreadsheets/d/${getTemplateId_(c.key)}`);
+  });
 }
 
 /** ทดสอบสร้างรายงานตัวอย่าง (มีรูปตัวอย่าง) โดยไม่ต้องผ่านไลน์ — กด Run ในหน้า Editor */
