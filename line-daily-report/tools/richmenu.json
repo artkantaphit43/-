@@ -1,0 +1,68 @@
+{
+ "size": {
+  "width": 1250,
+  "height": 843
+ },
+ "areas": [
+  {
+   "bounds": {
+    "x": 30,
+    "y": 30,
+    "width": 584,
+    "height": 456
+   },
+   "action": {
+    "type": "message",
+    "text": "เริ่ม"
+   }
+  },
+  {
+   "bounds": {
+    "x": 636,
+    "y": 30,
+    "width": 584,
+    "height": 456
+   },
+   "action": {
+    "type": "message",
+    "text": "punch list"
+   }
+  },
+  {
+   "bounds": {
+    "x": 30,
+    "y": 508,
+    "width": 382,
+    "height": 304
+   },
+   "action": {
+    "type": "message",
+    "text": "สถานะ"
+   }
+  },
+  {
+   "bounds": {
+    "x": 434,
+    "y": 508,
+    "width": 382,
+    "height": 304
+   },
+   "action": {
+    "type": "message",
+    "text": "ส่ง"
+   }
+  },
+  {
+   "bounds": {
+    "x": 838,
+    "y": 508,
+    "width": 382,
+    "height": 304
+   },
+   "action": {
+    "type": "message",
+    "text": "โครงการ"
+   }
+  }
+ ]
+}
