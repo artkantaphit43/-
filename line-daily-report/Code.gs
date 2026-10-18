@@ -212,11 +212,7 @@ function handleText_(event, text) {
     const slot = archiveReport_(source, session, result);
     saveUserDefaults_(source, session);
     deleteSession_(source);
-    return replyOrPush_(token, source, quickReply_(
-      `✅ ${session.resubmit ? 'อัปเดตรายงานฉบับแก้ไขเรียบร้อย' : 'สร้างรายงานเรียบร้อย'}\n` +
-      `${session.project.code || ''} • ${thaiDateShort_(session.date)}\n` +
-      `ผู้เขียนรายงาน: ${session.reporter}\n\n📄 PDF:\n${result.pdfUrl}`,
-      [{ label: '✏️ แก้ไขรายงานนี้', data: 'reopen=' + slot, display: '✏️ แก้ไขรายงานนี้' }], true));
+    return replyOrPush_(token, source, reportDoneFlex_(session, result, slot));
   }
 
   let added = 0;
@@ -1591,6 +1587,40 @@ function reopenReport_(token, source, slot) {
   });
   return reply_(token, `📂 เปิดรายงาน ${entry.code || ''} • ${thaiDateShort_(entry.date)} มาแก้ไขแล้ว\n` +
     'กด ✏️ แก้ข้อมูล / 📝 แก้งาน ในการ์ด แล้วกด ✅ ส่งรายงาน เพื่อออกฉบับแก้ไข (ไฟล์เดิมจะย้ายลงถังขยะ)', summaryFlex_(session));
+}
+
+/** การ์ดแจ้งรายงานเสร็จ: ปุ่มเปิด PDF และปุ่มแก้ไข อยู่ในการ์ด (แสดงได้ทั้งไลน์มือถือและคอมพิวเตอร์) */
+function reportDoneFlex_(session, result, slot) {
+  const title = session.resubmit ? '✅ อัปเดตรายงานฉบับแก้ไขแล้ว' : '✅ สร้างรายงานเรียบร้อย';
+  const company = (CONFIG.COMPANIES.find(c => c.key === session.company) || {}).label;
+  const detail = [
+    [session.project.code, thaiDateShort_(session.date)].filter(Boolean).join('  •  '),
+    company && `หัวกระดาษ: ${company}`,
+    `ผู้เขียนรายงาน: ${session.reporter}`,
+    session.supervisor && `ผู้ควบคุมงาน: ${session.supervisor}`,
+  ].filter(Boolean);
+  return {
+    type: 'flex',
+    altText: `${title}\n${result.pdfUrl}`,
+    contents: {
+      type: 'bubble',
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [{ type: 'text', text: title, weight: 'bold', size: 'md', color: BRAND, wrap: true }]
+          .concat(detail.map(t => ({ type: 'text', text: t, size: 'sm', color: '#555555', wrap: true })))
+          .concat([{ type: 'text', text: 'ส่ง PDF ให้ผู้ควบคุมงานตรวจ ถ้ามีจุดผิด กด "แก้ไขรายงานนี้" แก้แล้วส่งใหม่ได้เลย',
+            size: 'xs', color: '#8C8C8C', wrap: true, margin: 'md' }]),
+      },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          { type: 'button', style: 'primary', color: BRAND, height: 'sm', action: { type: 'uri', label: '📄 เปิด PDF', uri: result.pdfUrl } },
+          { type: 'button', style: 'secondary', height: 'sm',
+            action: { type: 'postback', label: '✏️ แก้ไขรายงานนี้', data: 'reopen=' + slot, displayText: '✏️ แก้ไขรายงานนี้' } },
+        ],
+      },
+    },
+  };
 }
 
 /** ส่งฉบับแก้ไขแล้ว: ย้ายไฟล์ฉบับเดิมลงถังขยะ */
