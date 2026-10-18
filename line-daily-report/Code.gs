@@ -130,6 +130,9 @@ function handleEvent_(event) {
     if (msg.imageSet && msg.imageSet.index !== msg.imageSet.total) return;
     const last = session.photos[session.photos.length - 1];
     const count = session.photos.filter(p => p.project === last.project && p.title === last.title).length;
+    if (session.photoTarget) {
+      return reply_(event.replyToken, photoEditPrompt_(`📷 เพิ่มรูปให้ "${last.title}" แล้ว (รวม ${count} รูป)`));
+    }
     const sec = session[session.section];
     reply_(event.replyToken, workPrompt_(session, sec, `📷 ได้รับรูปแล้ว${last.title ? ' — ' + last.title : ''} (${count} รูป)`));
   }
@@ -178,6 +181,10 @@ function handleText_(event, text) {
   const pending = loadSession_(source);
   if (pending && pending.awaiting === 'newproject' && pending.newProject && !CMD_CANCEL.test(text)) {
     return handleNewProjectAnswer_(token, source, text);
+  }
+  if (pending && /^editphoto/.test(pending.awaiting) && !CMD_CANCEL.test(text) && !CMD_STATUS.test(text) && !CMD_SUBMIT.test(text)) {
+    return reply_(token, pending.awaiting === 'editphoto' ? photoMenu_(pending, 'กดเลือกจากปุ่มด้านล่าง')
+      : photoEditPrompt_('ส่งเป็นรูปได้เลย หรือกด "✅ เสร็จ"'));
   }
   if (pending && /^edit(item|group|problem|move)$/.test(pending.awaiting) &&
     !CMD_CANCEL.test(text) && !CMD_STATUS.test(text) && !CMD_SUBMIT.test(text)) {
@@ -522,6 +529,10 @@ function addPhoto_(session, messageId) {
   });
   const blob = res.getBlob().setName(`${session.date}_${messageId}.jpg`);
   const file = getSubFolder_(getRootFolder_(), 'รูปภาพ', session.date).createFile(blob);
+  if (session.photoTarget) {
+    session.photos.push(Object.assign({ id: file.getId() }, session.photoTarget));
+    return;
+  }
   const item = session.today.items[session.today.items.length - 1];
   session.photos.push({
     id: file.getId(),
@@ -760,7 +771,7 @@ function placeLogo_(sheet, companyKey) {
 }
 
 /** รูปตามโครงการ -> งาน: [{ code, jobs: [{ title, ids }] }] ตามลำดับที่ส่ง */
-function groupPhotos_(photos) {
+function groupPhotos_(photos, items) {
   const projects = [];
   photos.forEach(photo => {
     const code = photo.project || '';
@@ -770,7 +781,22 @@ function groupPhotos_(photos) {
     if (!job) project.jobs.push(job = { title: photo.title, ids: [] });
     job.ids.push(photo.id);
   });
-  return projects;
+  if (!items) return projects;
+
+  // เรียงและใส่เลขตามตารางสรุปงาน (งานที่ไม่มีรูปก็ยังนับเลข ให้เลขวงกลมตรงกับตาราง)
+  const order = {};
+  const counter = {};
+  items.forEach((it, i) => {
+    counter[it.group] = (counter[it.group] || 0) + 1;
+    order[it.group + '|' + it.title] = { index: i, number: counter[it.group] };
+  });
+  const pos = (code, title) => order[code + '|' + title] || { index: 1e6, number: 0 };
+  projects.forEach(p => {
+    p.jobs.forEach(j => { j.number = pos(p.code, j.title).number; });
+    p.jobs.sort((a, b) => pos(p.code, a.title).index - pos(p.code, b.title).index);
+  });
+  const first = p => Math.min(...p.jobs.map(j => pos(p.code, j.title).index));
+  return projects.sort((a, b) => first(a) - first(b));
 }
 
 /**
@@ -804,7 +830,7 @@ function layoutPhotos_(projects, aspectOf, areaW, rowHeights) {
             x = k === 0 ? PAD : PAD + LABEL;
           }
           if (k === 0) {
-            out.numbers.push({ n: n + 1, x: x, y: y });
+            out.numbers.push({ n: job.number || n + 1, x: x, y: y });
             x += LABEL;
           }
           out.photos.push({ id: id, x: x, y: y, w: w, h: t });
@@ -831,7 +857,7 @@ function placePhotos_(sheet, s, firstRow, lastRow) {
   const rowH = [];
   for (let r = firstRow; r <= lastRow; r++) rowH.push(sheet.getRowHeight(r));
 
-  const projects = groupPhotos_(s.photos);
+  const projects = groupPhotos_(s.photos, s.today.items);
   const images = {};
   projects.forEach(p => p.jobs.forEach(j => j.ids.forEach(id => {
     const img = insertDriveImage_(sheet, id, 1000, 1, firstRow);
@@ -1108,6 +1134,8 @@ function askAgain_(s) {
   if (step === 'edit') return editMenu_();
   if (step === 'edititems') return editItemsMenu_(s);
   if (step === 'edititem') return editItemPrompt_(s);
+  if (step === 'editphoto') return photoMenu_(s);
+  if (step === 'editphotoadd') return photoEditPrompt_('📷 ส่งรูปของงานนี้');
   if (/^edit(group|problem|move)$/.test(step)) return editItemsMenu_(s);
   if (step && (STEPS[step] || /^qty:/.test(step))) return question_(s, step);
   advance_(s);
@@ -1238,7 +1266,10 @@ function question_(s, step) {
   return STEPS[step].ask(s, s[s.section]);
 }
 
+/** ใส่ข้อความนำหน้า (การ์ด Flex ใส่ข้อความเป็นอีกข้อความหนึ่งก่อนการ์ด) */
 function withPrefix_(message, prefix) {
+  if (!prefix) return message;
+  if (message.type === 'flex') return [{ type: 'text', text: prefix }, message];
   message.text = prefix + '\n\n' + message.text;
   return message;
 }
@@ -1375,15 +1406,20 @@ function editMenu_() {
 
 // ===== แก้ไขงานที่กรอกไปแล้ว =====
 
-/** รายการงานให้เลือกแก้ (หัวข้อ PJ + งานแต่ละข้อ ทั้งวันนี้และแผนพรุ่งนี้) */
+/**
+ * การ์ดเลือกจุดที่จะแก้: เรียงตาม PJ แล้วงานข้อ 1 2 3 ... กดที่งานได้เลย (แสดงได้ทั้งมือถือและคอมพิวเตอร์)
+ */
 function editItemsMenu_(s) {
-  const lines = ['📝 เลือกงานหรือรหัสโครงการที่จะแก้'];
-  const options = [];
+  const rows = [];
+  const button = (label, data, style) => ({
+    type: 'button', style: style || 'secondary', height: 'sm', margin: 'sm',
+    action: { type: 'postback', label: label.slice(0, 40), data: data, displayText: label.slice(0, 300) },
+  });
   ['today', 'plan'].forEach(key => {
     const sec = s[key];
     if (!sec.items.length) return;
-    lines.push('', key === 'today' ? '— งานวันนี้ —' : '— แผนพรุ่งนี้ —');
-    const mark = key === 'plan' ? '🗓️ ' : '';
+    rows.push({ type: 'text', text: key === 'today' ? 'งานวันนี้' : '🗓️ แผนพรุ่งนี้', weight: 'bold', size: 'sm',
+      color: BRAND, margin: rows.length ? 'xl' : 'none' });
     let group = null;
     let n = 0;
     sec.items.forEach((it, i) => {
@@ -1391,19 +1427,53 @@ function editItemsMenu_(s) {
         group = it.group;
         n = 0;
         if (group) {
-          lines.push(`📁 ${group}`);
-          options.push({ label: `${mark}📁 ${group}`, data: `egroup=${key}|${group}` });
+          rows.push({
+            type: 'box', layout: 'horizontal', margin: 'md', alignItems: 'center',
+            contents: [
+              { type: 'text', text: `📁 ${group}`, weight: 'bold', size: 'md', flex: 3 },
+              { type: 'button', style: 'link', height: 'sm', flex: 2,
+                action: { type: 'postback', label: 'แก้รหัส PJ', data: `egroup=${key}|${group}`, displayText: `แก้รหัส ${group}` } },
+            ],
+          });
         }
       }
       n++;
-      const label = `${n}. ${it.title}${it.progress ? ' ' + it.progress : ''}`;
-      lines.push(`   ${label}${it.problem ? '  ⚠️ ' + it.problem : ''}`);
-      options.push({ label: mark + label, data: `eitem=${key}|${i}` });
+      const photos = key === 'today' ? s.photos.filter(p => p.project === it.group && p.title === it.title).length : 0;
+      rows.push(button(`${n}. ${it.title}${it.progress ? ' ' + it.progress : ''}${photos ? ` 📷${photos}` : ''}`,
+        `eitem=${key}|${i}`));
     });
   });
-  if (!options.length) return quickReply_('ยังไม่มีงานให้แก้', [{ label: '📋 ดูสรุป', data: 'summary' }]);
-  if (options.length > 11) lines.push('', '(ปุ่มแสดงได้ไม่ครบ งานที่ไม่มีปุ่ม ลบแล้วพิมพ์ใหม่ได้)');
-  return quickReply_(lines.join('\n'), options.slice(0, 11).concat([{ label: '📋 ดูสรุป', data: 'summary' }]));
+  if (!rows.length) rows.push({ type: 'text', text: 'ยังไม่มีงานในรายงาน', size: 'sm', color: '#8C8C8C' });
+
+  return {
+    type: 'flex',
+    altText: 'เลือกจุดที่จะแก้ไข',
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', backgroundColor: BRAND, paddingAll: '14px',
+        contents: [
+          { type: 'text', text: '📝 เลือกจุดที่จะแก้ไข', color: '#FFFFFF', weight: 'bold', size: 'md' },
+          { type: 'text', text: 'กดที่งาน หรือ "แก้รหัส PJ"', color: '#E0F5F5', size: 'xs' },
+        ],
+      },
+      body: { type: 'box', layout: 'vertical', contents: rows },
+      footer: {
+        type: 'box', layout: 'vertical', spacing: 'sm',
+        contents: [
+          button('✏️ แก้ข้อมูลทั่วไป', 'edit'),
+          {
+            type: 'box', layout: 'horizontal', spacing: 'sm',
+            contents: [
+              button('📋 ดูสรุป', 'summary'),
+              { type: 'button', style: 'primary', color: BRAND, height: 'sm', margin: 'sm',
+                action: { type: 'message', label: '✅ ส่งรายงาน', text: 'ส่ง' } },
+            ],
+          },
+        ],
+      },
+    },
+  };
 }
 
 function editingItem_(s) {
@@ -1422,10 +1492,33 @@ function editItemPrompt_(s) {
     .concat(['', 'พิมพ์ข้อความใหม่แทนได้เลย เช่น',
       today ? '• ขุดดินวางท่อ 60%   (แก้ชื่อและ %)' : '• ขุดดินวางท่อ   (แก้ชื่องาน)'])
     .concat(today ? ['• 80%   (แก้เฉพาะ %)'] : []).join('\n');
-  const options = today ? [{ label: '⚠️ แก้ปัญหา/อุปสรรค', data: 'eprob' }] : [];
+  const options = today ? [{ label: '📷 แก้รูป', data: 'ephoto' }, { label: '⚠️ แก้ปัญหา/อุปสรรค', data: 'eprob' }] : [];
   options.push({ label: '📁 ย้ายไปโครงการอื่น', data: 'emove' });
   options.push({ label: '🗑️ ลบงานนี้', data: 'edel', display: '🗑️ ลบงานนี้' });
   return quickReply_(text, options);
+}
+
+function itemPhotos_(s, item) {
+  return s.photos.filter(p => p.project === item.group && p.title === item.title);
+}
+
+function photoMenu_(s, lead) {
+  const { item } = editingItem_(s);
+  if (!item) return editItemsMenu_(s);
+  const count = itemPhotos_(s, item).length;
+  return quickReply_(`${lead ? lead + '\n\n' : ''}📷 งาน "${item.title}" มี ${count} รูป\nจะแก้รูปอย่างไร?`, [
+    { label: '❌ ไม่แก้รูป', data: 'ephotodone', display: '❌ ไม่แก้รูป' },
+    { label: '➕ เพิ่มรูป', data: 'ephotoadd', display: '➕ เพิ่มรูป' },
+    { label: '🔄 ส่งรูปใหม่แทน', data: 'ephotoreplace', display: '🔄 ส่งรูปใหม่แทนรูปเดิม' },
+    { label: '🗑️ ลบรูปทั้งหมด', data: 'ephotodel', display: '🗑️ ลบรูปทั้งหมด' },
+  ].filter(o => count || (o.data !== 'ephotoreplace' && o.data !== 'ephotodel')));
+}
+
+function photoEditPrompt_(lead) {
+  return quickReply_(`${lead}\n\nส่งรูปได้เลย (หลายรูปพร้อมกันได้) ครบแล้วกด "✅ เสร็จ"`, [
+    { label: '📷 ถ่ายรูป', camera: true }, { label: '🖼️ เลือกรูป', cameraRoll: true },
+    { label: '✅ เสร็จ', data: 'ephotodone', display: '✅ แก้รูปเสร็จ' },
+  ]);
 }
 
 /** รูปผูกกับงานด้วย (รหัสโครงการ, ชื่องาน) แก้งานแล้วต้องแก้ที่รูปด้วย */
@@ -1454,10 +1547,42 @@ function handleEditPostback_(token, source, data) {
     const session = withSession_(source, mutate);
     return reply_(token, message(session));
   };
-  if (data === 'edititems') return ask(s => { s.awaiting = 'edititems'; }, editItemsMenu_);
+  if (data === 'edititems') return ask(s => { s.awaiting = 'edititems'; s.photoTarget = null; }, editItemsMenu_);
+  if (data === 'ephoto') return ask(s => { s.awaiting = 'editphoto'; }, s => photoMenu_(s));
+  if (data === 'ephotoadd' || data === 'ephotoreplace') {
+    let removed = 0;
+    return ask(s => {
+      const { item: it } = editingItem_(s);
+      if (!it) return;
+      if (data === 'ephotoreplace') {
+        removed = itemPhotos_(s, it).length;
+        s.photos = s.photos.filter(p => !(p.project === it.group && p.title === it.title));
+      }
+      s.photoTarget = { project: it.group, title: it.title };
+      s.awaiting = 'editphotoadd';
+    }, s => photoEditPrompt_(removed ? `🗑️ เอารูปเดิมออก ${removed} รูปแล้ว` : `📷 เพิ่มรูปให้งาน "${(editingItem_(s).item || {}).title || ''}"`));
+  }
+  if (data === 'ephotodel') {
+    let removed = 0;
+    return ask(s => {
+      const { item: it } = editingItem_(s);
+      if (it) {
+        removed = itemPhotos_(s, it).length;
+        s.photos = s.photos.filter(p => !(p.project === it.group && p.title === it.title));
+      }
+      s.photoTarget = null;
+      s.editing = null;
+      s.awaiting = 'edititems';
+    }, s => withPrefix_(editItemsMenu_(s), `🗑️ ลบรูป ${removed} รูปแล้ว`));
+  }
+  if (data === 'ephotodone') {
+    return ask(s => { s.photoTarget = null; s.editing = null; s.awaiting = 'edititems'; },
+      s => withPrefix_(editItemsMenu_(s), '✅ เรียบร้อย เลือกจุดอื่นที่จะแก้ หรือกดส่งรายงาน'));
+  }
   const item = data.match(/^eitem=(today|plan)\|(\d+)$/);
   if (item) {
-    return ask(s => { s.editing = { sec: item[1], i: Number(item[2]) }; s.awaiting = 'edititem'; }, editItemPrompt_);
+    return ask(s => { s.editing = { sec: item[1], i: Number(item[2]) }; s.awaiting = 'edititem'; s.photoTarget = null; },
+      editItemPrompt_);
   }
   const group = data.match(/^egroup=(today|plan)\|(.+)$/);
   if (group) {
@@ -1491,6 +1616,7 @@ function handleEditAnswer_(token, source, text) {
   const t = text.trim();
   let msg = '';
   let newCode = '';
+  let askPhotos = false;
   const session = withSession_(source, s => {
     const { ed, sec, item } = editingItem_(s);
     if (s.awaiting === 'editgroup') {
@@ -1515,6 +1641,11 @@ function handleEditAnswer_(token, source, text) {
       }
       relinkPhotos_(s, before, { project: item.group, title: item.title });
       msg = `✅ แก้เป็น "${item.title}${item.progress ? ' ' + item.progress : ''}" แล้ว`;
+      if (ed.sec !== 'plan') {
+        s.awaiting = 'editphoto';
+        askPhotos = true;
+        return;
+      }
     } else if (s.awaiting === 'editproblem') {
       item.problem = /^(ไม่มี|-)$/.test(t) ? '' : t;
       item.done = true;
@@ -1528,6 +1659,7 @@ function handleEditAnswer_(token, source, text) {
     s.editing = null;
     s.awaiting = 'edititems';
   });
+  if (askPhotos) return reply_(token, photoMenu_(session, msg));
   if (newCode && !/,/.test(newCode) && !getProjects_()[newCode]) {
     return reply_(token, withPrefix_(startNewProject_(source, newCode, 'edit'), msg));
   }
@@ -1585,8 +1717,9 @@ function reopenReport_(token, source, slot) {
     Object.keys(s).forEach(k => delete s[k]);
     Object.assign(s, JSON.parse(raw), { resubmit: { slot: slot, pdfId: entry.pdfId, sheetId: entry.sheetId }, awaiting: 'edit' });
   });
+  withSession_(source, s => { s.awaiting = 'edititems'; });
   return reply_(token, `📂 เปิดรายงาน ${entry.code || ''} • ${thaiDateShort_(entry.date)} มาแก้ไขแล้ว\n` +
-    'กด ✏️ แก้ข้อมูล / 📝 แก้งาน ในการ์ด แล้วกด ✅ ส่งรายงาน เพื่อออกฉบับแก้ไข (ไฟล์เดิมจะย้ายลงถังขยะ)', summaryFlex_(session));
+    'กดที่จุดที่จะแก้ แก้เสร็จกด ✅ ส่งรายงาน จะได้ฉบับแก้ไข (ไฟล์เดิมย้ายลงถังขยะ)', editItemsMenu_(session));
 }
 
 /** การ์ดแจ้งรายงานเสร็จ: ปุ่มเปิด PDF และปุ่มแก้ไข อยู่ในการ์ด (แสดงได้ทั้งไลน์มือถือและคอมพิวเตอร์) */
@@ -1740,7 +1873,7 @@ function handlePostback_(event) {
   if (data === 'continue') return startReport_(token, event.source);
   const reopen = data.match(/^reopen=(\d+)$/);
   if (reopen) return reopenReport_(token, event.source, Number(reopen[1]));
-  if (/^(edititems|eitem=|egroup=|eprob|emove|edel)/.test(data)) return handleEditPostback_(token, event.source, data);
+  if (/^(edititems|eitem=|egroup=|eprob|emove|edel|ephoto)/.test(data)) return handleEditPostback_(token, event.source, data);
   const picked = data.match(/^time=(start|end)$/);
   if (picked && event.postback.params && event.postback.params.time) {
     const label = picked[1] === 'start' ? 'เริ่มงาน' : 'เลิกงาน';
@@ -1801,7 +1934,7 @@ function lineApi_(path, payload) {
 }
 
 function reply_(replyToken, ...messages) {
-  return lineApi_('message/reply', { replyToken: replyToken, messages: messages.map(toMessage_) });
+  return lineApi_('message/reply', { replyToken: replyToken, messages: [].concat(...messages).map(toMessage_) });
 }
 /** การสร้าง PDF อาจนานจน reply token หมดอายุ ถ้าตอบไม่สำเร็จให้ส่งแบบ push แทน */
 function replyOrPush_(replyToken, source, message) {
