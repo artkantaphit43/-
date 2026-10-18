@@ -29,9 +29,12 @@ ws.sheet_view.showGridLines = False
 
 for col in 'ABCDEFG':
     ws.column_dimensions[col].width = src.column_dimensions[col].width
+# คอลัมน์ % กว้างขึ้นเล็กน้อย (เอาจากคอลัมน์ F) ให้หัวตาราง "เปอร์เซนต์ความคืบหน้า" ไม่ตัดคำ
+ws.column_dimensions['E'].width += 1.8
+ws.column_dimensions['F'].width -= 1.8
 
 # แถว 1 = โลโก้, ฟอร์มเดิมเริ่มแถว 2
-ws.row_dimensions[1].height = 44
+ws.row_dimensions[1].height = 58
 for r in range(1, LAST_ROW + 1):
     h = src.row_dimensions[r].height
     if h:
@@ -72,6 +75,7 @@ merges = [m for m in merges if not (m.min_row in plan_rows and m.min_col == 1 an
 extra_merges = ['D49:E49', 'F49:G49']
 extra_merges += [f'A{r}:D{r}' for r in summary_rows] + [f'F{r}:G{r}' for r in summary_rows]
 extra_merges += [f'A{r}:C{r}' for r in plan_rows]
+extra_merges += ['F58:G58']
 
 # ข้อมูลตัวอย่าง -> ว่าง
 for ref in ['E3', 'E4', 'E5', 'E6', 'B4', 'B5', 'B6', 'A8', 'B11', 'B12', 'D15', 'B50', 'A51', 'A53',
@@ -86,7 +90,7 @@ for r in range(9, 14):
     ws[T(f'F{r}')].value = '-'
     ws[T(f'F{r}')].font = Font(name=FONT, size=10)
 for r in range(54, 60):
-    ws[T(f'F{r}')].value = '-' if r != 58 else None
+    ws[T(f'F{r}')].value = '-' if r != 59 else None
 
 # checkbox -> ☐
 machines = ['รถเครน ขนาด .......... ตัน', 'รถเฮี๊ยบ ขนาด .......... ตัน', 'รถปูน ขนาด .......... ตัน', 'รถยนต์']
@@ -94,8 +98,12 @@ for i, text in enumerate(machines):
     ws[T(f'D{9 + i}')].value = f'   {BOX}   {text}'
     ws[T(f'D{54 + i}')].value = f'   {BOX}   {text}'
 ws[T('D13')].value = f'   {BOX}   อื่นๆ โปรดระบุ'
-ws[T('D58')].value = None
-ws[T('D59')].value = f'   {BOX}   อื่นๆ โปรดระบุ'
+# แผนพรุ่งนี้: เดิมมีแถวว่างคั่นก่อน "อื่นๆ" ย้ายขึ้นมาต่อจากรถยนต์ เหลือแถวว่างไว้ล่างสุด
+ws[T('D58')].value = f'   {BOX}   อื่นๆ โปรดระบุ'
+ws[T('D58')].font = copy.copy(ws[T('D57')].font)
+ws[T('D59')].value = None
+ws[T('E38')].value = 'เปอร์เซนต์\nความคืบหน้า'
+ws[T('E38')].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 ws[T('A10')].value = f'{BOX} ฝนตก'
 ws[T('B10')].value = f'{BOX} แดดจัด'
 ws[T('C10')].value = f'{BOX} ปกติ'
