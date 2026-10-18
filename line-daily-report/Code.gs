@@ -71,6 +71,7 @@ const CMD_LIST_PROJECTS = /^(โครงการ|รายการโคร�
 const CMD_DELETE_PROJECT = /^ลบโครงการ[:：\s]+(.+)$/;
 const CMD_SIGNATURE = /^ลายเซ็น(?:[:：\s]+(.+))?$/;
 const CMD_PUNCH = /^punch\s*list$/i;
+const CMD_REOPEN = /^(📂\s*)?แก้รายงาน(เก่า|ที่ส่งแล้ว)?$/;
 const CMD_NEW = /^(🆕\s*)?เริ่มใหม่$/;
 const CMD_UNDO = /^(↩️\s*)?(ย้อนกลับ|undo)$/i;
 const CMD_PLAN = /^(แผน|แผนงาน|แผนพรุ่งนี้|พรุ่งนี้|work ?plan)$/i;
@@ -137,6 +138,7 @@ function handleEvent_(event) {
 function handleText_(event, text) {
   const source = event.source;
   const token = event.replyToken;
+  if (CMD_REOPEN.test(text)) return reply_(token, reopenMenu_(source));
   if (CMD_NEW.test(text)) {
     deleteSession_(source);
     return startReport_(token, source);
@@ -149,6 +151,7 @@ function handleText_(event, text) {
         { label: '▶️ ทำต่อ', data: 'continue', display: '▶️ ทำต่อ' },
         { label: '🆕 เริ่มใหม่', text: 'เริ่มใหม่' },
         { label: '📋 ดูสรุป', data: 'summary' },
+        { label: '📂 แก้รายงานที่ส่งแล้ว', text: 'แก้รายงาน' },
       ], true));
     }
     return startReport_(token, source);
@@ -176,6 +179,10 @@ function handleText_(event, text) {
   if (pending && pending.awaiting === 'newproject' && pending.newProject && !CMD_CANCEL.test(text)) {
     return handleNewProjectAnswer_(token, source, text);
   }
+  if (pending && /^edit(item|group|problem|move)$/.test(pending.awaiting) &&
+    !CMD_CANCEL.test(text) && !CMD_STATUS.test(text) && !CMD_SUBMIT.test(text)) {
+    return handleEditAnswer_(token, source, text);
+  }
   if (pending && pending.awaiting === 'newproject-code' && /\d/.test(text)) {
     return reply_(token, startNewProject_(source, normalizeCode_(text), 'none'));
   }
@@ -201,11 +208,15 @@ function handleText_(event, text) {
     // เผื่อโครงการเพิ่งถูกเพิ่มหลังจากเลือกรหัสไปแล้ว
     if (session.project.code && !session.project.name) setProject_(session, session.project.code);
     const result = buildReport_(session);
+    if (session.resubmit) trashOldReport_(session.resubmit);
+    const slot = archiveReport_(source, session, result);
     saveUserDefaults_(source, session);
     deleteSession_(source);
-    return replyOrPush_(token, source,
-      `✅ สร้างรายงานเรียบร้อย\n${session.project.code || ''} • ${thaiDateShort_(session.date)}\n` +
-      `ผู้เขียนรายงาน: ${session.reporter}\n\n📄 PDF:\n${result.pdfUrl}`);
+    return replyOrPush_(token, source, quickReply_(
+      `✅ ${session.resubmit ? 'อัปเดตรายงานฉบับแก้ไขเรียบร้อย' : 'สร้างรายงานเรียบร้อย'}\n` +
+      `${session.project.code || ''} • ${thaiDateShort_(session.date)}\n` +
+      `ผู้เขียนรายงาน: ${session.reporter}\n\n📄 PDF:\n${result.pdfUrl}`,
+      [{ label: '✏️ แก้ไขรายงานนี้', data: 'reopen=' + slot, display: '✏️ แก้ไขรายงานนี้' }], true));
   }
 
   let added = 0;
@@ -467,6 +478,10 @@ function handleNewProjectAnswer_(token, source, text) {
     return reply_(token, workPrompt_(session, session[session.section], `${saved}\n\n📁 โครงการ ${finished.code}`, true));
   }
   if (finished.resume === 'none') return reply_(token, saved);
+  if (finished.resume === 'edit') {
+    withSession_(source, s => { s.awaiting = 'edititems'; });
+    return reply_(token, withPrefix_(editItemsMenu_(session), saved));
+  }
   return reply_(token, withPrefix_(question_(session, session.awaiting), saved));
 }
 
@@ -578,7 +593,7 @@ function buildReport_(session) {
   }
 
   logToSheet_(session, pdfFile.getUrl(), file.getUrl());
-  return { pdfUrl: pdfFile.getUrl(), sheetUrl: file.getUrl() };
+  return { pdfUrl: pdfFile.getUrl(), sheetUrl: file.getUrl(), pdfId: pdfFile.getId(), sheetId: file.getId() };
 }
 
 /** บรรทัดของตารางงาน: หัวข้อ PJ แล้วตามด้วยงาน "1.xxx" (เลขเริ่มใหม่ทุกโครงการ) */
@@ -1095,6 +1110,9 @@ function askAgain_(s) {
   if (step === 'group') return quickReply_('📁 พิมพ์รหัสโครงการถัดไป\nเช่น  PJ 69014', []);
   if (step === 'newproject-code') return quickReply_('📁 พิมพ์รหัสโครงการที่จะเพิ่มหรือแก้ไข\nเช่น  PJ 950', []);
   if (step === 'edit') return editMenu_();
+  if (step === 'edititems') return editItemsMenu_(s);
+  if (step === 'edititem') return editItemPrompt_(s);
+  if (/^edit(group|problem|move)$/.test(step)) return editItemsMenu_(s);
   if (step && (STEPS[step] || /^qty:/.test(step))) return question_(s, step);
   advance_(s);
   return question_(s, s.awaiting);
@@ -1144,7 +1162,8 @@ const STEPS = {
   company: {
     done: s => !!s.company,
     ask: () => quickReply_('🏢 หัวกระดาษรายงานเป็นของบริษัทไหน?',
-      CONFIG.COMPANIES.map(c => ({ label: c.label, text: 'หัวกระดาษ: ' + c.label }))),
+      CONFIG.COMPANIES.map(c => ({ label: c.label, text: 'หัวกระดาษ: ' + c.label }))
+        .concat([{ label: '📂 แก้รายงานที่ส่งแล้ว', text: 'แก้รายงาน' }])),
   },
   reporter: { done: s => !!s.reporter, ask: s => reporterPicker_('👤 ใครเป็นผู้เขียนรายงาน?', (s.last || {}).reporter) },
   supervisor: {
@@ -1354,8 +1373,236 @@ function editMenu_() {
     { label: '⛈️ ผลกระทบ', data: 'ask=impact' },
     { label: '🦺 อุบัติเหตุ', data: 'ask=accident' },
     { label: '🗒️ หมายเหตุ', data: 'ask=notes' },
-    { label: '🗓️ แผนพรุ่งนี้', text: 'แผนพรุ่งนี้' },
+    { label: '📝 แก้ไขงาน', data: 'edititems' },
   ], true);
+}
+
+// ===== แก้ไขงานที่กรอกไปแล้ว =====
+
+/** รายการงานให้เลือกแก้ (หัวข้อ PJ + งานแต่ละข้อ ทั้งวันนี้และแผนพรุ่งนี้) */
+function editItemsMenu_(s) {
+  const lines = ['📝 เลือกงานหรือรหัสโครงการที่จะแก้'];
+  const options = [];
+  ['today', 'plan'].forEach(key => {
+    const sec = s[key];
+    if (!sec.items.length) return;
+    lines.push('', key === 'today' ? '— งานวันนี้ —' : '— แผนพรุ่งนี้ —');
+    const mark = key === 'plan' ? '🗓️ ' : '';
+    let group = null;
+    let n = 0;
+    sec.items.forEach((it, i) => {
+      if (it.group !== group) {
+        group = it.group;
+        n = 0;
+        if (group) {
+          lines.push(`📁 ${group}`);
+          options.push({ label: `${mark}📁 ${group}`, data: `egroup=${key}|${group}` });
+        }
+      }
+      n++;
+      const label = `${n}. ${it.title}${it.progress ? ' ' + it.progress : ''}`;
+      lines.push(`   ${label}${it.problem ? '  ⚠️ ' + it.problem : ''}`);
+      options.push({ label: mark + label, data: `eitem=${key}|${i}` });
+    });
+  });
+  if (!options.length) return quickReply_('ยังไม่มีงานให้แก้', [{ label: '📋 ดูสรุป', data: 'summary' }]);
+  if (options.length > 11) lines.push('', '(ปุ่มแสดงได้ไม่ครบ งานที่ไม่มีปุ่ม ลบแล้วพิมพ์ใหม่ได้)');
+  return quickReply_(lines.join('\n'), options.slice(0, 11).concat([{ label: '📋 ดูสรุป', data: 'summary' }]));
+}
+
+function editingItem_(s) {
+  const ed = s.editing || {};
+  const sec = s[ed.sec] || s.today;
+  return { ed: ed, sec: sec, item: sec.items[ed.i] };
+}
+
+function editItemPrompt_(s) {
+  const { ed, item } = editingItem_(s);
+  if (!item) return editItemsMenu_(s);
+  const today = ed.sec !== 'plan';
+  const photos = s.photos.filter(p => p.project === item.group && p.title === item.title).length;
+  const text = [`✏️ ${item.group ? item.group + ' • ' : ''}${item.title}${item.progress ? ' ' + item.progress : ''}`]
+    .concat(today ? [`ปัญหา/อุปสรรค: ${item.problem || '-'}`, `📷 ${photos} รูป`] : [])
+    .concat(['', 'พิมพ์ข้อความใหม่แทนได้เลย เช่น',
+      today ? '• ขุดดินวางท่อ 60%   (แก้ชื่อและ %)' : '• ขุดดินวางท่อ   (แก้ชื่องาน)'])
+    .concat(today ? ['• 80%   (แก้เฉพาะ %)'] : []).join('\n');
+  const options = today ? [{ label: '⚠️ แก้ปัญหา/อุปสรรค', data: 'eprob' }] : [];
+  options.push({ label: '📁 ย้ายไปโครงการอื่น', data: 'emove' });
+  options.push({ label: '🗑️ ลบงานนี้', data: 'edel', display: '🗑️ ลบงานนี้' });
+  return quickReply_(text, options);
+}
+
+/** รูปผูกกับงานด้วย (รหัสโครงการ, ชื่องาน) แก้งานแล้วต้องแก้ที่รูปด้วย */
+function relinkPhotos_(s, from, to) {
+  s.photos.forEach(p => {
+    if (p.project === from.project && p.title === from.title) {
+      p.project = to.project;
+      p.title = to.title;
+    }
+  });
+}
+
+/** ย้ายงานไปต่อท้ายงานอื่นของโครงการปลายทาง ตารางสรุปจะได้ไม่แตกหัวข้อ PJ ซ้ำ */
+function moveItem_(s, sec, index, code) {
+  const item = sec.items.splice(index, 1)[0];
+  relinkPhotos_(s, { project: item.group, title: item.title }, { project: code, title: item.title });
+  item.group = code;
+  let last = -1;
+  sec.items.forEach((it, i) => { if (it.group === code) last = i; });
+  if (last < 0) sec.items.push(item);
+  else sec.items.splice(last + 1, 0, item);
+}
+
+function handleEditPostback_(token, source, data) {
+  const ask = (mutate, message) => {
+    const session = withSession_(source, mutate);
+    return reply_(token, message(session));
+  };
+  if (data === 'edititems') return ask(s => { s.awaiting = 'edititems'; }, editItemsMenu_);
+  const item = data.match(/^eitem=(today|plan)\|(\d+)$/);
+  if (item) {
+    return ask(s => { s.editing = { sec: item[1], i: Number(item[2]) }; s.awaiting = 'edititem'; }, editItemPrompt_);
+  }
+  const group = data.match(/^egroup=(today|plan)\|(.+)$/);
+  if (group) {
+    return ask(s => { s.editing = { sec: group[1], group: group[2] }; s.awaiting = 'editgroup'; },
+      () => quickReply_(`📁 แก้รหัสโครงการ ${group[2]}\nงานทุกข้อของหัวข้อนี้จะเปลี่ยนตาม\n\nพิมพ์รหัสใหม่ เช่น  PJ 69014`, []));
+  }
+  if (data === 'eprob') {
+    return ask(s => { s.awaiting = 'editproblem'; },
+      () => quickReply_('⚠️ พิมพ์ปัญหา/อุปสรรคใหม่ของงานนี้', [{ label: '✅ ไม่มี', data: 'eprobnone', display: '✅ ไม่มีปัญหา' }]));
+  }
+  if (data === 'emove') return ask(s => { s.awaiting = 'editmove'; }, () => quickReply_('📁 ย้ายงานนี้ไปโครงการไหน?\nพิมพ์รหัส เช่น  PJ 69014', []));
+  if (data === 'eprobnone') return handleEditAnswer_(token, source, 'ไม่มี');
+  if (data === 'edel') {
+    let msg = '';
+    return ask(s => {
+      const { sec, item: it } = editingItem_(s);
+      if (it) {
+        sec.items.splice(s.editing.i, 1);
+        s.photos = s.photos.filter(p => !(p.project === it.group && p.title === it.title));
+        msg = `🗑️ ลบงาน "${it.title}" แล้ว`;
+      }
+      s.editing = null;
+      s.awaiting = 'edititems';
+    }, s => withPrefix_(editItemsMenu_(s), msg));
+  }
+  return null;
+}
+
+/** คำตอบที่พิมพ์ตอนกำลังแก้งาน */
+function handleEditAnswer_(token, source, text) {
+  const t = text.trim();
+  let msg = '';
+  let newCode = '';
+  const session = withSession_(source, s => {
+    const { ed, sec, item } = editingItem_(s);
+    if (s.awaiting === 'editgroup') {
+      const code = normalizeCode_(t);
+      sec.items.forEach(it => { if (it.group === ed.group) it.group = code; });
+      if (sec.group === ed.group) sec.group = code;
+      s.photos.forEach(p => { if (ed.sec !== 'plan' && p.project === ed.group) p.project = code; });
+      if (s.project.code === ed.group) setProject_(s, code);
+      msg = `✅ เปลี่ยน ${ed.group} เป็น ${code} แล้ว`;
+      newCode = code;
+    } else if (!item) {
+      msg = 'ไม่พบงานนี้แล้ว';
+    } else if (s.awaiting === 'edititem') {
+      const before = { project: item.group, title: item.title };
+      const line = t.replace(/^\d+\s*[.)]\s*/, '');
+      const pct = line.match(/^(.*?)\s*(\d+(?:\.\d+)?)\s*%\s*$/);
+      if (pct) {
+        if (pct[1]) item.title = pct[1];
+        item.progress = pct[2] + '%';
+      } else {
+        item.title = line;
+      }
+      relinkPhotos_(s, before, { project: item.group, title: item.title });
+      msg = `✅ แก้เป็น "${item.title}${item.progress ? ' ' + item.progress : ''}" แล้ว`;
+    } else if (s.awaiting === 'editproblem') {
+      item.problem = /^(ไม่มี|-)$/.test(t) ? '' : t;
+      item.done = true;
+      msg = '✅ แก้ปัญหา/อุปสรรคแล้ว';
+    } else if (s.awaiting === 'editmove') {
+      const code = normalizeCode_(t);
+      moveItem_(s, sec, ed.i, code);
+      msg = `✅ ย้าย "${item.title}" ไป ${code} แล้ว`;
+      newCode = code;
+    }
+    s.editing = null;
+    s.awaiting = 'edititems';
+  });
+  if (newCode && !/,/.test(newCode) && !getProjects_()[newCode]) {
+    return reply_(token, withPrefix_(startNewProject_(source, newCode, 'edit'), msg));
+  }
+  return reply_(token, withPrefix_(editItemsMenu_(session), msg));
+}
+
+// ===== เรียกรายงานที่ส่งแล้วกลับมาแก้ =====
+
+const ARCHIVE_SIZE = 10; // จำรายงานที่ส่งแล้วล่าสุดต่อคน
+
+function archiveList_(props, userId) {
+  return JSON.parse(props.getProperty('A_' + userId) || '[]');
+}
+
+/** เก็บข้อมูลรายงานที่ส่งแล้ว (คืนเลขช่องที่เก็บ) */
+function archiveReport_(source, session, result) {
+  const props = PropertiesService.getScriptProperties();
+  const userId = source.userId;
+  let list = archiveList_(props, userId);
+  const old = session.resubmit && list.find(e => e.slot === session.resubmit.slot);
+  const slot = old ? old.slot : Number(props.getProperty('AN_' + userId) || 0);
+  if (!old) props.setProperty('AN_' + userId, String(slot + 1));
+
+  const saved = Object.assign({}, session, { resubmit: null, awaiting: null, editing: null, newProject: null });
+  props.setProperty(`A_${userId}_${slot}`, JSON.stringify(saved));
+  const entry = { slot: slot, date: session.date, code: session.project.code, pdfId: result.pdfId, sheetId: result.sheetId };
+  list = [entry].concat(list.filter(e => e.slot !== slot));
+  list.slice(ARCHIVE_SIZE).forEach(e => props.deleteProperty(`A_${userId}_${e.slot}`));
+  props.setProperty('A_' + userId, JSON.stringify(list.slice(0, ARCHIVE_SIZE)));
+  return slot;
+}
+
+function reopenMenu_(source) {
+  const list = archiveList_(PropertiesService.getScriptProperties(), source.userId);
+  if (!list.length) return quickReply_('ยังไม่มีรายงานที่ส่งแล้ว', [{ label: '📋 เริ่มรายงาน', text: 'เริ่ม' }], true);
+  return quickReply_('📂 เลือกรายงานที่ส่งแล้วที่จะแก้ไข', list.slice(0, 12).map(e => ({
+    label: `${thaiDateShort_(e.date)} ${e.code || ''}`.trim(), data: 'reopen=' + e.slot,
+  })));
+}
+
+/** เปิดรายงานที่ส่งแล้วมาเป็นรายงานที่กำลังทำ (ส่งใหม่จะแทนไฟล์เดิม) */
+function reopenReport_(token, source, slot) {
+  const props = PropertiesService.getScriptProperties();
+  const pending = loadSession_(source);
+  if (pending && !pending.resubmit && (pending.today.items.length || pending.photos.length)) {
+    return reply_(token, quickReply_('⚠️ มีรายงานที่ทำค้างอยู่\nส่งหรือยกเลิกรายงานนั้นก่อน แล้วค่อยเปิดรายงานเก่ามาแก้', [
+      { label: '📋 ดูสรุปรายงานค้าง', data: 'summary' }, { label: '🗑️ ยกเลิกรายงานค้าง', text: 'ยกเลิก' }], true));
+  }
+  const entry = archiveList_(props, source.userId).find(e => e.slot === slot);
+  const raw = entry && props.getProperty(`A_${source.userId}_${slot}`);
+  if (!raw) return reply_(token, 'ไม่พบรายงานนี้แล้ว');
+
+  deleteSession_(source);
+  const session = withSession_(source, s => {
+    Object.keys(s).forEach(k => delete s[k]);
+    Object.assign(s, JSON.parse(raw), { resubmit: { slot: slot, pdfId: entry.pdfId, sheetId: entry.sheetId }, awaiting: 'edit' });
+  });
+  return reply_(token, `📂 เปิดรายงาน ${entry.code || ''} • ${thaiDateShort_(entry.date)} มาแก้ไขแล้ว\n` +
+    'กด ✏️ แก้ข้อมูล / 📝 แก้งาน ในการ์ด แล้วกด ✅ ส่งรายงาน เพื่อออกฉบับแก้ไข (ไฟล์เดิมจะย้ายลงถังขยะ)', summaryFlex_(session));
+}
+
+/** ส่งฉบับแก้ไขแล้ว: ย้ายไฟล์ฉบับเดิมลงถังขยะ */
+function trashOldReport_(resubmit) {
+  [resubmit.pdfId, resubmit.sheetId].forEach(id => {
+    if (!id) return;
+    try {
+      DriveApp.getFileById(id).setTrashed(true);
+    } catch (err) {
+      console.warn('ย้ายไฟล์เดิมลงถังขยะไม่ได้ ' + id + ': ' + err.message);
+    }
+  });
 }
 
 /** การ์ดสรุปรายงาน พร้อมปุ่มแก้ไข / ส่งรายงาน */
@@ -1419,9 +1666,15 @@ function summaryFlex_(s) {
       },
       body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: body },
       footer: {
-        type: 'box', layout: 'horizontal', spacing: 'sm',
+        type: 'box', layout: 'vertical', spacing: 'sm',
         contents: [
-          { type: 'button', style: 'secondary', height: 'sm', action: { type: 'postback', label: '✏️ แก้ไข', data: 'edit' } },
+          {
+            type: 'box', layout: 'horizontal', spacing: 'sm',
+            contents: [
+              { type: 'button', style: 'secondary', height: 'sm', action: { type: 'postback', label: '✏️ แก้ข้อมูล', data: 'edit' } },
+              { type: 'button', style: 'secondary', height: 'sm', action: { type: 'postback', label: '📝 แก้งาน', data: 'edititems' } },
+            ],
+          },
           { type: 'button', style: 'primary', color: BRAND, height: 'sm', action: { type: 'message', label: '✅ ส่งรายงาน', text: 'ส่ง' } },
         ],
       },
@@ -1455,6 +1708,9 @@ function handlePostback_(event) {
   }
   if (data === 'undo') return handleUndo_(token, event.source);
   if (data === 'continue') return startReport_(token, event.source);
+  const reopen = data.match(/^reopen=(\d+)$/);
+  if (reopen) return reopenReport_(token, event.source, Number(reopen[1]));
+  if (/^(edititems|eitem=|egroup=|eprob|emove|edel)/.test(data)) return handleEditPostback_(token, event.source, data);
   const picked = data.match(/^time=(start|end)$/);
   if (picked && event.postback.params && event.postback.params.time) {
     const label = picked[1] === 'start' ? 'เริ่มงาน' : 'เลิกงาน';
@@ -1518,12 +1774,12 @@ function reply_(replyToken, ...messages) {
   return lineApi_('message/reply', { replyToken: replyToken, messages: messages.map(toMessage_) });
 }
 /** การสร้าง PDF อาจนานจน reply token หมดอายุ ถ้าตอบไม่สำเร็จให้ส่งแบบ push แทน */
-function replyOrPush_(replyToken, source, text) {
-  const res = reply_(replyToken, text);
+function replyOrPush_(replyToken, source, message) {
+  const res = reply_(replyToken, message);
   if (res.getResponseCode() === 200) return;
   lineApi_('message/push', {
     to: source.groupId || source.roomId || source.userId,
-    messages: [toMessage_(text)],
+    messages: [toMessage_(message)],
   });
 }
 
