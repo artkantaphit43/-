@@ -567,8 +567,8 @@ const TPL = {
 
 function buildReport_(session) {
   const folder = getSubFolder_(getRootFolder_(), 'รายงาน', session.date);
-  const fileName = `FM_Daily_Report_${(session.project.code || 'PJ').replace(/\s/g, '')}_` +
-    `${session.date.replace(/-/g, '')}_${session.reporter.split(' ')[0]}`;
+  // ชื่อไฟล์ตามแบบของบริษัท เช่น FM_Daily_Report_R01_PJ942_20261018
+  const fileName = `FM_Daily_Report_R01_${(session.project.code || 'PJ').replace(/\s/g, '')}_${session.date.replace(/-/g, '')}`;
   const file = DriveApp.getFileById(getTemplateId_(session.company)).makeCopy(fileName, folder);
   const ss = SpreadsheetApp.openById(file.getId());
   const sheet = ss.getSheets()[0];
@@ -600,7 +600,7 @@ function buildReport_(session) {
   }
 
   logToSheet_(session, pdfFile.getUrl(), file.getUrl());
-  return { pdfUrl: pdfFile.getUrl(), sheetUrl: file.getUrl(), pdfId: pdfFile.getId(), sheetId: file.getId() };
+  return { pdfUrl: pdfFile.getUrl(), sheetUrl: file.getUrl(), pdfId: pdfFile.getId(), sheetId: file.getId(), fileName: fileName };
 }
 
 /** บรรทัดของตารางงาน: หัวข้อ PJ แล้วตามด้วยงาน "1.xxx" (เลขเริ่มใหม่ทุกโครงการ) */
@@ -1734,6 +1734,9 @@ function reportDoneFlex_(session, result, slot) {
     `ผู้เขียนรายงาน: ${session.reporter}`,
     session.supervisor && `ผู้ควบคุมงาน: ${session.supervisor}`,
   ].filter(Boolean);
+  // ไลน์ไม่ให้บอทส่งไฟล์ ปุ่มส่งต่อจึงเปิดหน้าเลือกเพื่อน/กลุ่ม พร้อมชื่อรายงานและลิงก์ PDF
+  const shareText = `📄 ${result.fileName || 'รายงานประจำวัน'}.pdf\n` +
+    `${[session.project.code, thaiDateShort_(session.date), company].filter(Boolean).join(' • ')}\n${result.pdfUrl}`;
   return {
     type: 'flex',
     altText: `${title}\n${result.pdfUrl}`,
@@ -1743,15 +1746,17 @@ function reportDoneFlex_(session, result, slot) {
         type: 'box', layout: 'vertical', spacing: 'sm',
         contents: [{ type: 'text', text: title, weight: 'bold', size: 'md', color: BRAND, wrap: true }]
           .concat(detail.map(t => ({ type: 'text', text: t, size: 'sm', color: '#555555', wrap: true })))
-          .concat([{ type: 'text', text: 'ส่ง PDF ให้ผู้ควบคุมงานตรวจ ถ้ามีจุดผิด กด "แก้ไขรายงานนี้" แก้แล้วส่งใหม่ได้เลย',
+          .concat([{ type: 'text', text: 'ส่งต่อ PDF ให้ผู้ควบคุมงานตรวจ ถ้ามีจุดผิด กด "แก้ไขงาน" แก้แล้วส่งใหม่ได้เลย',
             size: 'xs', color: '#8C8C8C', wrap: true, margin: 'md' }]),
       },
       footer: {
         type: 'box', layout: 'vertical', spacing: 'sm',
         contents: [
           { type: 'button', style: 'primary', color: BRAND, height: 'sm', action: { type: 'uri', label: '📄 เปิด PDF', uri: result.pdfUrl } },
+          { type: 'button', style: 'primary', color: '#06C755', height: 'sm',
+            action: { type: 'uri', label: '📤 ส่งต่อ PDF', uri: 'https://line.me/R/share?text=' + encodeURIComponent(shareText) } },
           { type: 'button', style: 'secondary', height: 'sm',
-            action: { type: 'postback', label: '✏️ แก้ไขรายงานนี้', data: 'reopen=' + slot, displayText: '✏️ แก้ไขรายงานนี้' } },
+            action: { type: 'postback', label: '✏️ แก้ไขงาน', data: 'reopen=' + slot, displayText: '✏️ แก้ไขงาน' } },
         ],
       },
     },
