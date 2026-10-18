@@ -567,8 +567,9 @@ const TPL = {
 
 function buildReport_(session) {
   const folder = getSubFolder_(getRootFolder_(), 'รายงาน', session.date);
-  // ชื่อไฟล์ตามแบบของบริษัท เช่น FM_Daily_Report_R01_PJ942_20261018
-  const fileName = `FM_Daily_Report_R01_${(session.project.code || 'PJ').replace(/\s/g, '')}_${session.date.replace(/-/g, '')}`;
+  // ชื่อไฟล์ตามแบบของบริษัท เช่น FM_Daily_Report_R01_PJ942_20261018 — ใช้ PJ ของงานข้อแรกที่คีย์
+  const firstCode = (session.today.items[0] && session.today.items[0].group) || session.project.code || 'PJ';
+  const fileName = `FM_Daily_Report_R01_${firstCode.split(',')[0].replace(/\s/g, '')}_${session.date.replace(/-/g, '')}`;
   const file = DriveApp.getFileById(getTemplateId_(session.company)).makeCopy(fileName, folder);
   const ss = SpreadsheetApp.openById(file.getId());
   const sheet = ss.getSheets()[0];
