@@ -758,9 +758,10 @@ function placeLogo_(sheet, companyKey) {
   const colW = [];
   for (let c = 1; c <= TPL.lastCol; c++) colW.push(sheet.getColumnWidth(c));
   const img = sheet.insertImage(Utilities.newBlob(Utilities.base64Decode(b64), 'image/png', companyKey + '.png'), 1, 1);
-  // ชิดขอบบน เว้นระยะห่างจากเส้นกรอบฟอร์มด้านล่าง
-  const gapBelow = 18;
-  let h = sheet.getRowHeight(1) - gapBelow - 4;
+  // ให้อยู่กึ่งกลางระหว่างขอบกระดาษกับกรอบฟอร์ม (ขอบบนของ PDF ตั้งไว้แคบ ~13px ในสเกลของชีต)
+  const rowH = sheet.getRowHeight(1);
+  const topMarginPx = 13;
+  let h = Math.round(rowH * 0.55);
   let w = Math.round(img.getWidth() * h / img.getHeight());
   if (w > 260) {
     h = Math.round(h * 260 / w);
@@ -770,7 +771,7 @@ function placeLogo_(sheet, companyKey) {
   let c = 0;
   while (c < colW.length - 1 && x >= colW[c]) { x -= colW[c]; c++; }
   img.setAnchorCell(sheet.getRange(1, c + 1)).setAnchorCellXOffset(Math.round(x))
-    .setAnchorCellYOffset(4).setWidth(w).setHeight(h);
+    .setAnchorCellYOffset(Math.max(0, Math.round((rowH - h - topMarginPx) / 2))).setWidth(w).setHeight(h);
 }
 
 /** รูปตามโครงการ -> งาน: [{ code, jobs: [{ title, ids }] }] ตามลำดับที่ส่ง */
@@ -803,18 +804,21 @@ function groupPhotos_(photos, items) {
 }
 
 /**
- * จัดวางรูปในกรอบ (หน่วย pixel นับจากมุมซ้ายบนของกรอบ): ทุกโครงการมีป้าย PJ หนึ่งแถว
- * งานแต่ละงานมีเลขวงกลมนำหน้า รูปเรียงต่อกันไปทางขวาแล้วขึ้นบรรทัดใหม่
- * เลือกความสูงรูปที่ใหญ่ที่สุดที่ยังวางได้หมดภายในกรอบ
+ * จัดวางรูปในกรอบ (หน่วย pixel นับจากมุมซ้ายบนของกรอบ) แบบฟอร์มเดิม:
+ * ทุกโครงการมีป้าย PJ หนึ่งแถว งานแต่ละงานเป็น "กล่อง" ของตัวเอง (เลขวงกลม + รูป)
+ * เรียงกล่องซ้าย-ขวา 2 คอลัมน์ (หรือเต็มความกว้าง) รูปที่ล้นจะขึ้นบรรทัดใหม่ภายในกล่องของงานนั้นเท่านั้น
+ * เลือกแบบที่ได้รูปใหญ่ที่สุดแต่ยังวางได้หมดในกรอบ
  */
 function layoutPhotos_(projects, aspectOf, areaW, rowHeights) {
-  const PAD = 8, GAP = 6, LABEL = 28, JOB_GAP = 16;
+  const PAD = 8, GAP = 6, LABEL = 28, BLOCK_GAP = 18, ROW_GAP = 12;
   const rowTops = [];
   let areaH = 0;
   rowHeights.forEach(h => { rowTops.push(areaH); areaH += h; });
 
-  const tryHeight = (t, force) => {
-    const out = { height: t, headers: [], numbers: [], photos: [] };
+  const tryLayout = (cols, t, force) => {
+    const out = { height: t, cols: cols, headers: [], numbers: [], photos: [] };
+    const blockW = (areaW - 2 * PAD - BLOCK_GAP * (cols - 1)) / cols;
+    const innerW = blockW - LABEL;
     let y = 4;
     for (const p of projects) {
       if (p.code) {
@@ -823,34 +827,45 @@ function layoutPhotos_(projects, aspectOf, areaW, rowHeights) {
         out.headers.push({ rowIndex: ri, code: p.code });
         y = rowTops[ri] + rowHeights[ri] + GAP;
       }
-      let x = PAD;
+      let col = 0;
+      let rowH = 0;
       p.jobs.forEach((job, n) => {
-        job.ids.forEach((id, k) => {
-          const w = Math.min(t * aspectOf(id), areaW - 2 * PAD - LABEL);
-          const lead = k === 0 ? LABEL : 0;
-          if (x + lead + w > areaW - PAD && x > PAD) {
-            y += t + GAP;
-            x = k === 0 ? PAD : PAD + LABEL;
+        const bx = PAD + col * (blockW + BLOCK_GAP);
+        let x = 0;
+        let by = 0;
+        job.ids.forEach(id => {
+          const w = Math.min(t * aspectOf(id), innerW);
+          if (x > 0 && x + w > innerW) {
+            x = 0;
+            by += t + GAP;
           }
-          if (k === 0) {
-            out.numbers.push({ n: job.number || n + 1, x: x, y: y });
-            x += LABEL;
-          }
-          out.photos.push({ id: id, x: x, y: y, w: w, h: t });
+          out.photos.push({ id: id, x: bx + LABEL + x, y: y + by, w: w, h: t });
           x += w + GAP;
         });
-        x += JOB_GAP;
+        out.numbers.push({ n: job.number || n + 1, x: bx, y: y });
+        rowH = Math.max(rowH, by + t);
+        if (++col === cols) {
+          y += rowH + ROW_GAP;
+          col = 0;
+          rowH = 0;
+        }
       });
-      y += t + GAP;
+      if (col) y += rowH + ROW_GAP;
     }
-    return force || y - GAP <= areaH - 4 ? out : null;
+    return force || y - ROW_GAP <= areaH - 4 ? out : null;
   };
 
-  for (let t = CONFIG.PHOTO_MAX_HEIGHT; t >= 24; t -= 4) {
-    const result = tryHeight(t, false);
-    if (result) return result;
-  }
-  return tryHeight(24, true);
+  let best = null;
+  [2, 1].forEach(cols => {
+    for (let t = CONFIG.PHOTO_MAX_HEIGHT; t >= 24; t -= 4) {
+      const result = tryLayout(cols, t, false);
+      if (result) {
+        if (!best || result.height > best.height) best = result;
+        break;
+      }
+    }
+  });
+  return best || tryLayout(2, 24, true);
 }
 
 function placePhotos_(sheet, s, firstRow, lastRow) {
@@ -1002,7 +1017,7 @@ function exportPdf_(spreadsheetId, gid, lastRow) {
     format: 'pdf', size: 'A4', portrait: 'true', scale: '4', gridlines: 'false', printtitle: 'false',
     sheetnames: 'false', pagenum: 'UNDEFINED', fzr: 'false', attachment: 'false',
     horizontal_alignment: 'CENTER', vertical_alignment: 'TOP',
-    top_margin: '0.3', bottom_margin: '0.3', left_margin: '0.25', right_margin: '0.25',
+    top_margin: '0.1', bottom_margin: '0.3', left_margin: '0.25', right_margin: '0.25',
     gid: gid, r1: 0, c1: 0, r2: lastRow, c2: TPL.lastCol,
   };
   const query = Object.keys(params).map(k => `${k}=${params[k]}`).join('&');
@@ -1736,8 +1751,11 @@ function reportDoneFlex_(session, result, slot) {
     session.supervisor && `ผู้ควบคุมงาน: ${session.supervisor}`,
   ].filter(Boolean);
   // ไลน์ไม่ให้บอทส่งไฟล์ ปุ่มส่งต่อจึงเปิดหน้าเลือกเพื่อน/กลุ่ม พร้อมชื่อรายงานและลิงก์ PDF
+  // ลิงก์ดาวน์โหลดตรง: กดแล้วได้ไฟล์ PDF เลย ไม่ต้องผ่านหน้า Google Drive
+  const fileUrl = result.pdfId ? `https://drive.google.com/uc?export=download&id=${result.pdfId}` : result.pdfUrl;
   const shareText = `📄 ${result.fileName || 'รายงานประจำวัน'}.pdf\n` +
-    `${[session.project.code, thaiDateShort_(session.date), company].filter(Boolean).join(' • ')}\n${result.pdfUrl}`;
+    `${[session.project.code, thaiDateShort_(session.date), company].filter(Boolean).join(' • ')}\n` +
+    `กดเพื่อดาวน์โหลดไฟล์ PDF:\n${fileUrl}`;
   return {
     type: 'flex',
     altText: `${title}\n${result.pdfUrl}`,
@@ -1753,7 +1771,8 @@ function reportDoneFlex_(session, result, slot) {
       footer: {
         type: 'box', layout: 'vertical', spacing: 'sm',
         contents: [
-          { type: 'button', style: 'primary', color: BRAND, height: 'sm', action: { type: 'uri', label: '📄 เปิด PDF', uri: result.pdfUrl } },
+          { type: 'button', style: 'primary', color: BRAND, height: 'sm',
+            action: { type: 'uri', label: '📄 เปิด PDF', uri: fileUrl + (fileUrl.includes('?') ? '&' : '?') + 'openExternalBrowser=1' } },
           { type: 'button', style: 'primary', color: '#06C755', height: 'sm',
             action: { type: 'uri', label: '📤 ส่งต่อ PDF', uri: 'https://line.me/R/share?text=' + encodeURIComponent(shareText) } },
           { type: 'button', style: 'secondary', height: 'sm',
