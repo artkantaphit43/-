@@ -125,6 +125,7 @@ module ArtK
         pre = RunEditor.sync(model, runs)
         warnings = pre[:warnings] + Builder.rebuild(model, runs, s)
         SupportBuilder.adapt(model, runs)
+        SupportBuilder.notify_changed(model, runs)
         show_warnings(warnings, 'ปรับแนวท่อเรียบร้อย (runs rebuilt)')
       rescue StandardError => e
         UI.messagebox("Plant Piping: ปรับแนวท่อไม่สำเร็จ\n#{e.message}")
@@ -341,6 +342,7 @@ module ArtK
           # supports shared with neighbouring pipes already carry this run
           fixed = SupportBuilder.shared_points(model, run.persistent_id).map { |w| H.transform_mm(inv, w) }
           fixed += (extra[run] || []).map { |rec| rec['at'] } # hung here already by a neighbour
+          fixed += SupportBuilder.external_points(model, run.persistent_id).map { |w| H.transform_mm(inv, w) }
           res = Supports.place(pipes, span, loads: loads, fixed: fixed)
           risers += res[:risers]
           recs = []

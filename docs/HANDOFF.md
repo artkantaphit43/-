@@ -1,8 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.0**
-(`dist/artk_plant_pipe-1.16.0.rbz`). Tests: `rake test` (233 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.1**
+(`dist/artk_plant_pipe-1.16.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 1.0.0**
+(`dist/artk_steel_support-1.0.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (259 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -111,6 +112,16 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `FRAME_RISE` 1200 · `in_frame?` (ห่างเสาหลัง/≤ `FRAME_REACH` 1.5 m) · ท่อระหว่างชั้นที่รับไม่ได้ → note ·
   แก้ทั่วไป: `signature` เก็บชุดท่อก่อนกรอง (adapt ไม่สร้าง bracket/โครงใหม่ทุกครั้ง), `drop_covered(model, group)` ลบเฉพาะ
   ซัพพอร์ตเดี่ยวของท่อที่โครงรับจริง (เดิมลบของท่อที่ bracket ไม่ได้รับด้วย)
+- **v1.16.1 + Steel Supports TH 1.0.0**: ผู้ใช้ขอ "ทำแยกปลั๊กอิน แต่ใช้ร่วมกับงานท่อได้ ระยะเหล็กเทียบขนาดจริง" + แบบ 4 แบบ
+  (รูปแบบหมุน 90°): โครงกล่องยึดผนัง (C4", พุก 1/2" ×3, ไอน้ำบนเหล็กฉาก), ขาค้ำสามเหลี่ยม (C4"/3", พุก 3/8" ×2),
+  แขวนใต้ truss (ก้าน 3/8"/1/2", U-bolt รัด chord + C รอง), วางบน truss (U-bolt รัด chord ใต้เหล็ก) →
+  ปลั๊กอินใหม่ `ArtK::SteelSupport` (lib: steel ตาราง มอก./JIS + รูปตัดจริงมี fillet น้ำหนักตรงตาราง ±1%, hardware
+  น็อต/แหวน/U-bolt/พุก/ก้าน, beam (ตรวจคาน/ค้ำ/พุก), details (4 แบบ), pipes (กลุ่มท่อ, fit ทรงกระบอก); su: link (API ของ
+  Plant Piping), probe (raytest หาผนัง/chord บน/ล่าง), generic (ท่อทั่วไปจาก face), planner, builder (attributes,
+  WF-01…, refit), place_tool, report (BOM/CSV), dialog) · Plant Piping 1.16.1: `API` module, `register_external`
+  (Auto Supports เว้นจุดของปลั๊กอินอื่น – PipeBracket รออยู่), `notify_changed`/`CHANGED`, `drop_covered` รับรูปแบบเก่า
+  (model, point, pipes) ที่ PipeBracket เรียก (1.16.0 ทำพัง), ซ่อนชนิด `wallframe` (ยังสร้างใหม่ได้สำหรับไฟล์ 1.16.0) ·
+  `tools/build_rbz.rb` สร้างทั้งสองไฟล์ · ยังไม่ได้ลองใน SketchUp จริง: การตรวจท่อทั่วไปจาก face, raytest หา chord, preview ของ tool
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

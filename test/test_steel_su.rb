@@ -1,0 +1,289 @@
+# frozen_string_literal: true
+
+require_relative 'steel_helper'
+SteelSU.load!
+
+# Steel Supports TH in (stubbed) SketchUp, with Plant Piping's pipes:
+# placing each detail from a clicked pipe, the attributes it keeps, the
+# link with Plant Piping (Auto Supports, its hangers, redrawn pipes),
+# refits, the tool, the BOM and the dialog.
+class TestSteelSU < Minitest::Test
+  PH = ArtK::PlantPipe::ModelHelpers
+  SH = ArtK::SteelSupport::H
+  Z = 2400.0
+  WALL = -450.0
+
+  def setup
+    @model = Sketchup::Model.new
+    Sketchup.active_model = @model
+    Sketchup::InputPoint.next_vertex = nil
+    Sketchup::InputPoint.next_dof = nil
+    Sketchup.write_default(SH::PREF, 'settings', '{}')
+    PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"',
+                                                       'lod' => 'light'))
+    SS::Builder.forget
+    SS::Link.register
+  end
+
+  def pipe_run(y, z, size, svc, ins = 0, x0: 0, x1: 6000)
+    st = ArtK::PlantPipe::Settings.sanitize('service' => svc, 'catalog' => 'CS_B36_10', 'size' => size,
+                                            'lod' => 'light', 'insulation_mm' => ins)
+    ArtK::PlantPipe::Builder.create_run(@model, [[[x0, y, z], [x1, y, z]]], st)[0]
+  end
+
+  def wall!
+    @model.ray_hits = SteelSU.rays(boxes: [[[-1000.0, WALL - 300, 0.0], [9000.0, WALL, 4000.0]]])
+  end
+
+  # The drawing: cold water, chilled water + insulation, air; steam above.
+  def drawing!
+    wall!
+    @cw = pipe_run(-250, Z, '2"', 'CW')
+    @chw = pipe_run(-30, Z, '3"', 'CHWS', 50)
+    @ca = pipe_run(170, Z, '1"', 'CA')
+    @stm = pipe_run(-60, Z + 420, '2"', 'STM', 50)
+  end
+
+  def hit_at(pt)
+    pp = SS::Link.pipe_at(@model, pt)
+    { point: pp[:point], dir: pp[:dir], src: 'pp', pipe: SS::Builder.pipe_record(pp) }
+  end
+
+  def place(detail, pt, opts = {})
+    plan = SS::Planner.plan(@model, detail, hit_at(pt), SH.settings.merge(opts))
+    SS::Builder.create(@model, plan)
+  end
+
+  def supports
+    SH.supports(@model).map(&:first)
+  end
+
+  def test_link_is_available
+    assert SS::Link.available?
+    assert_match(/เชื่อม/, SS::Link.status)
+  end
+
+  def test_pick_on_insulation_surface
+    chw = pipe_run(0, Z, '3"', 'CHWS', 50)
+    hit = SS::Link.pipe_at(@model, [3000, 0, Z + 44.45 + 49])
+    assert_equal chw.persistent_id, hit[:pid]
+    assert_nil SS::Link.pipe_at(@model, [3000, 0, Z + 44.45 + 50 + 40]), 'clear of the insulation'
+    bare = pipe_run(1000, Z, '2"', 'CW')
+    assert_equal bare.persistent_id, SS::Link.pipe_at(@model, [3000, 1000, Z + 30.15 + 25])[:pid]
+    assert_nil SS::Link.pipe_at(@model, [3000, 1000, Z + 30.15 + 45])
+  end
+
+  def test_wall_frame_from_plant_piping_pipes
+    drawing!
+    g = place('wf', [3000, -30, Z])
+    assert_equal 'WF-01', g.get_attribute(SH::DICT, 'number')
+    assert_match(/โครงกล่อง/, g.name)
+    pipes = SH.get_json(g, 'pipes')
+    assert_equal 4, pipes.size, 'three in the box, steam on top'
+    assert_equal [@cw, @chw, @ca, @stm].map(&:persistent_id).sort, pipes.map { |p| p['pid'] }.sort
+    assert_equal 'C100', g.get_attribute(SH::DICT, 'section')
+    assert_equal '1/2', g.get_attribute(SH::DICT, 'anchor')
+    # frame y points away from the wall, which is 420 from the clicked pipe
+    assert_in_delta 420.0, SH.get_json(g, 'struct')['wall'], 0.5
+    assert_operator SH.get_json(g, 'ydir')[1], :>, 0.9
+    # each pipe's support point on its own axis, for Plant Piping
+    stm = pipes.find { |p| p['pid'] == @stm.persistent_id }
+    assert_in_delta Z + 420, stm['at'][2], 0.5
+    assert_in_delta(-60.0, stm['at'][1], 0.5)
+    assert_equal [stm['at']], SS::Builder.points_for(@model, @stm.persistent_id)
+    assert(SH.get_json(g, 'bom').any? { |b| b['cat'] == 'anchor' && b['qty'] == 3 })
+    assert_equal 'WF-02', place('wf', [1000, -30, Z]).get_attribute(SH::DICT, 'number')
+  end
+
+  def test_wall_on_the_other_side_flips_the_frame
+    @model.ray_hits = SteelSU.rays(boxes: [[[-1000.0, 600.0, 0.0], [9000.0, 900.0, 4000.0]]])
+    pipe_run(0, Z, '2"', 'CW')
+    pipe_run(250, Z, '2"', 'CW')
+    g = place('wb', [3000, 0, Z])
+    assert_operator SH.get_json(g, 'ydir')[1], :<, -0.9
+    assert_in_delta 600.0, SH.get_json(g, 'struct')['wall'], 0.5
+    assert_equal 2, SH.get_json(g, 'pipes').size
+    assert_match(/ขาค้ำ/, g.name)
+  end
+
+  def test_no_wall_is_an_error
+    @model.ray_hits = nil
+    pipe_run(0, Z, '2"', 'CW')
+    assert_raises(RuntimeError) { SS::Planner.plan(@model, 'wf', hit_at([3000, 0, Z]), SH.settings) }
+  end
+
+  def test_truss_hanger_moves_under_the_chord
+    chord = { axis: 1, c: [3120.0, 3500.0], r: 24.15, range: [-1500.0, 1500.0] }
+    @model.ray_hits = SteelSU.rays(cyls: [chord], boxes: [[[-1000.0, -3000.0, 4500.0], [9000.0, 3000.0, 4700.0]]])
+    pipe_run(0, Z, '2"', 'CW')
+    pipe_run(200, Z, '3"', 'CHWS', 50)
+    g = place('th', [3000, 0, Z])
+    o = SH.get_json(g, 'origin')
+    assert_in_delta 3120.0, o[0], 1.5, 'the support plane is the chord centre'
+    st = SH.get_json(g, 'struct')
+    assert_equal 'round', st['kind']
+    assert_in_delta 24.15, st['r'], 0.5
+    assert_in_delta 3500.0 - Z, st['z'], 1.0
+    assert_equal '3/8', g.get_attribute(SH::DICT, 'rod')
+    assert_empty SH.get_json(g, 'notes')
+    bom = SH.get_json(g, 'bom')
+    assert_equal 2, bom.count { |b| b['desc'].include?('รัด truss Ø48') }
+  end
+
+  def test_hanger_under_a_flat_soffit_uses_drop_in_anchors
+    @model.ray_hits = SteelSU.rays(boxes: [[[-1000.0, -3000.0, 3500.0], [9000.0, 3000.0, 3700.0]]])
+    pipe_run(0, Z, '2"', 'CW')
+    g = place('th', [3000, 0, Z])
+    assert_in_delta 3000.0, SH.get_json(g, 'origin')[0], 0.5
+    assert(SH.get_json(g, 'bom').any? { |b| b['desc'].include?('Drop-in') })
+  end
+
+  def test_channel_on_truss_chords_below
+    chords = [-200.0, 400.0].map { |y| { axis: 0, c: [y, 2200.0], r: 24.15, range: [-1000.0, 9000.0] } }
+    @model.ray_hits = SteelSU.rays(cyls: chords, boxes: [[[-1000.0, -3000.0, -200.0], [9000.0, 3000.0, 0.0]]])
+    pipe_run(0, Z, '2"', 'CW')
+    pipe_run(200, Z, '2"', 'CW')
+    g = place('tt', [3000, 0, Z])
+    st = SH.get_json(g, 'struct')
+    assert_equal 2, st['chords'].size
+    assert_in_delta(-200.0, st['chords'][0]['y'], 1.0)
+    assert_in_delta 24.15, st['chords'][0]['r'], 0.5
+    assert_equal 2, SH.get_json(g, 'pipes').size
+    assert_match(/วางบนโครง/, g.name)
+  end
+
+  def test_plant_piping_auto_supports_leave_our_supports_out
+    drawing!
+    place('wf', [3000, -30, Z])
+    PH.save_settings(PH.load_settings.merge('support_type' => 'clevis', 'support_group_mm' => 0))
+    @model.selection.push(@ca)
+    ArtK::PlantPipe::Commands.auto_supports
+    xs = PH.get_json(@ca, 'supports', []).map { |r| r['at'][0] }
+    refute_empty xs
+    assert(xs.none? { |x| (x - 3000).abs < 600 }, "no clevis next to the frame: #{xs.map(&:round)}")
+  end
+
+  def test_placing_removes_plant_piping_hanger_there
+    drawing!
+    ArtK::PlantPipe::SupportBuilder.place(@model, 'clevis', ArtK::PlantPipe::Picker.nearest_pipe(@model, [3050, 170, Z]),
+                                          gap: 0)
+    assert_equal 1, PH.get_json(@ca, 'supports', []).size
+    place('wf', [3000, -30, Z])
+    assert_empty PH.get_json(@ca, 'supports', [])
+  end
+
+  def test_refit_takes_a_new_pipe_and_plant_piping_redraws_refit
+    wall!
+    a = pipe_run(-200, Z, '2"', 'CW')
+    pipe_run(0, Z, '2"', 'CW')
+    g = place('wb', [3000, -200, Z])
+    assert_equal 2, SH.get_json(g, 'pipes').size
+    assert_equal :same, SS::Builder.refit(@model, g)
+    c = pipe_run(250, Z, '2"', 'CW')
+    ArtK::PlantPipe::SupportBuilder.notify_changed(@model, [c]) # as after drawing it
+    g2 = supports.first
+    refute g.valid?
+    assert_equal 3, SH.get_json(g2, 'pipes').size
+    assert_equal 'WB-01', g2.get_attribute(SH::DICT, 'number'), 'keeps its number'
+    assert_equal :same, SS::Builder.refit(@model, g2)
+    assert_equal 1, supports.size
+    a.erase!
+    assert_equal :lost, SS::Builder.refit(@model, g2), 'the clicked pipe is gone'
+  end
+
+  def test_place_tool
+    drawing!
+    tool = SS::PlaceTool.new('wf')
+    tool.activate
+    view = @model.active_view
+    Sketchup::InputPoint.next_position = PH.to_pt([2000, -30, Z + 50])
+    tool.onMouseMove(0, 10, 10, view)
+    assert_match(/โครงกล่อง/, view.tooltip)
+    tool.draw(view)
+    refute_empty view.drawn
+    tool.onLButtonDown(0, 10, 10, view)
+    assert_equal 1, supports.size
+    tool.onKeyDown(9, false, 0, view)
+    assert_equal 'wb', SH.settings['detail']
+    Sketchup::InputPoint.next_position = PH.to_pt([2000, 3000, Z])
+    tool.onMouseMove(0, 10, 10, view) # nothing there
+    tool.onLButtonDown(0, 10, 10, view)
+    assert_equal 1, supports.size
+  end
+
+  def test_auto_along_runs_and_report
+    drawing!
+    @model.selection.push(@cw)
+    @model.selection.push(@ca)
+    UI.messages.clear
+    n = SS::Commands.auto('wf')
+    assert_operator n, :>=, 2
+    xs = supports.map { |g| SH.get_json(g, 'origin')[0] }.sort
+    span = ArtK::PlantPipe::API.info(@ca)[:span_m] * 1000.0
+    assert(xs.each_cons(2).all? { |p, q| q - p <= span + 1.0 }, xs.inspect)
+    assert(supports.all? { |g| SH.get_json(g, 'pipes').size == 4 })
+    rows = SS::Report.rows(supports)
+    steel = rows.find { |r| r[:cat] == 'steel' && r[:desc].include?('C100') }
+    assert_operator steel[:length_m], :>, 0
+    csv = SS::Report.csv(supports)
+    assert_match(/พุก Expansion bolt 1\/2"/, csv)
+    html = SS::Report.html(supports)
+    assert_match(/น้ำหนักเหล็กรวม/, html)
+  end
+
+  def test_dialog_payload
+    d = SS::Dialog.payload
+    assert_equal 4, d[:details].size
+    assert(d[:sections].any? { |s| s[:key] == 'C100' })
+    assert_equal true, d[:linked]
+    JSON.generate(d)
+    SS::Dialog.save(JSON.generate('detail' => 'th', 'rod' => '1/2'))
+    assert_equal '1/2', SH.settings['rod']
+  end
+
+  # A faceted tube drawn without Plant Piping, as SketchUp faces.
+  FakeV = Struct.new(:position)
+  class FakeE
+    attr_reader :faces
+
+    def initialize
+      @faces = []
+    end
+  end
+  class FakeF
+    attr_reader :normal, :vertices, :edges
+
+    def initialize(n, pts)
+      @normal = Geom::Vector3d.new(*n)
+      @vertices = pts.map { |p| FakeV.new(PH.to_pt(p)) }
+      @edges = []
+    end
+  end
+
+  def test_generic_cylinder_from_faces
+    n = 24
+    r = 57.0
+    faces = (0...n).map do |k|
+      a0 = 2 * Math::PI * k / n
+      a1 = 2 * Math::PI * (k + 1) / n
+      am = (a0 + a1) / 2
+      pts = [[0, r * Math.cos(a0), 1000 + r * Math.sin(a0)], [3000, r * Math.cos(a0), 1000 + r * Math.sin(a0)],
+             [3000, r * Math.cos(a1), 1000 + r * Math.sin(a1)], [0, r * Math.cos(a1), 1000 + r * Math.sin(a1)]]
+      FakeF.new([0, Math.cos(am), Math.sin(am)], pts)
+    end
+    n.times do |k|
+      e = FakeE.new
+      e.faces << faces[k] << faces[(k + 1) % n]
+      faces[k].edges << e
+      faces[(k + 1) % n].edges << e
+    end
+    cyl = SS::Generic.cylinder(faces[3], Geom::Transformation.new)
+    assert_in_delta 57.0, cyl[:radius], 0.01
+    assert_in_delta 1.0, cyl[:axis][0].abs, 1e-9
+    p = SS::Generic.pipe(cyl, [1500, 0, 1000], [1, 0, 0], [0, 1, 0])
+    assert_in_delta 0.0, p[:y], 0.01
+    assert_in_delta 0.0, p[:z], 0.01
+    assert_in_delta 114.0, p[:od], 0.1
+    assert_operator p[:kg_m], :>, 20
+  end
+end

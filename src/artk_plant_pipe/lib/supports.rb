@@ -52,8 +52,10 @@ module ArtK
         'bracket'  => { name: 'Wall bracket', th: 'แขนค้ำยึดผนัง (Wall bracket)', mount: :side },
         'column'   => { name: 'Column side bracket', th: 'แขนเกาะข้างเสา (Column side bracket)', mount: :side,
                         multi: true },
+        # 1.16.0 only – moved to the Steel Supports TH extension; kept so
+        # frames drawn with 1.16.0 still adapt, hidden from the type lists
         'wallframe' => { name: 'Wall box frame C4" + U-bolts + expansion bolts 1/2"',
-                         th: 'โครงกล่อง C-channel ยึดผนัง/เสา', mount: :side, multi: true }
+                         th: 'โครงกล่อง C-channel ยึดผนัง/เสา', mount: :side, multi: true, hidden: true }
       }.freeze
 
       # Neighbouring pipes share one support when they run parallel (within

@@ -591,6 +591,7 @@ module ArtK
       # Supports next to the new pipe take it in (shared supports).
       def adapt_supports(run)
         SupportBuilder.adapt(@model, [run]) if run
+        SupportBuilder.notify_changed(@model, [run]) if run
       rescue StandardError => e
         puts "Plant Piping: supports not adapted – #{e.message}"
       end

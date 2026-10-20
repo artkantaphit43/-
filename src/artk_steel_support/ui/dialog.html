@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Steel Supports TH</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f6f7f9; --fg: #1d2330; --mut: #667085; --line: #e1e4ea;
+    --acc: #1570ef; --acc-fg: #ffffff; --ok: #067647; --okbg: #ecfdf3; --warn: #b54708; --warnbg: #fffaeb;
+    --steel: #475467; --pipe: #1570ef; --wall: #98a2b3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1f26; --panel: #242833; --fg: #e6e8ec; --mut: #98a2b3; --line: #353b48;
+      --acc: #53b1fd; --acc-fg: #0b1220; --ok: #75e0a7; --okbg: #163226; --warn: #fec84b; --warnbg: #3a2c10;
+      --steel: #d0d5dd; --pipe: #53b1fd; --wall: #667085;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 13px/1.4 "Segoe UI", "Leelawadee UI", "Noto Sans Thai", Tahoma, sans-serif; }
+  header { padding: 12px 14px 8px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; display: flex; justify-content: space-between; align-items: baseline; }
+  header .ver { color: var(--mut); font-size: 11px; font-weight: 400; }
+  .link { font-size: 12px; border-radius: 6px; padding: 5px 8px; margin-top: 6px; }
+  .link.on { background: var(--okbg); color: var(--ok); }
+  .link.off { background: var(--warnbg); color: var(--warn); }
+  main { padding: 12px 14px 18px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 6px; cursor: pointer;
+          text-align: center; font: inherit; color: var(--fg); }
+  .card.on { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc) inset; }
+  .card svg { width: 100%; height: 76px; display: block; }
+  .card b { display: block; font-size: 12px; margin-top: 2px; }
+  .card small { color: var(--mut); font-size: 11px; }
+  svg .st { stroke: var(--steel); fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+  svg .pp { stroke: var(--pipe); fill: none; stroke-width: 1.8; }
+  svg .ub { stroke: var(--mut); fill: none; stroke-width: 1.2; }
+  svg .wl { fill: var(--wall); opacity: .45; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px 10px; margin: 0 0 12px; background: var(--panel); }
+  legend { padding: 0 4px; font-weight: 600; font-size: 12px; color: var(--mut); }
+  label { display: grid; grid-template-columns: 132px 1fr; align-items: center; gap: 8px; margin: 6px 0; }
+  label.chk { grid-template-columns: 18px 1fr; }
+  select, input[type=number] { width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font: inherit; min-width: 0; }
+  .info { font-size: 12px; color: var(--mut); margin-top: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn { background: var(--acc); color: var(--acc-fg); border: 0; border-radius: 7px; padding: 8px 10px;
+         font: inherit; cursor: pointer; text-align: left; }
+  .btn.sec { background: var(--panel); color: var(--fg); border: 1px solid var(--line); }
+  .btn small { display: block; opacity: .8; font-size: 11px; }
+  .only { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ซัพพอร์ตเหล็ก <span class="ver" id="ver"></span></h1>
+  <div class="link" id="link"></div>
+</header>
+<main>
+  <div class="cards" id="cards">
+    <button class="card" data-d="wf"><svg viewBox="0 0 120 80">
+      <rect class="wl" x="2" y="4" width="12" height="72"/>
+      <rect class="st" x="16" y="28" width="66" height="36"/>
+      <path class="ub" d="M10 34h10M10 46h10M10 58h10"/>
+      <circle class="pp" cx="32" cy="55" r="7"/><circle class="pp" cx="52" cy="52" r="10"/><circle class="pp" cx="70" cy="58" r="4"/>
+      <path class="ub" d="M24 64v-9a8 8 0 0 1 16 0v9M41 64v-12a11 11 0 0 1 22 0v12"/>
+      <path class="st" d="M44 28h16M52 28v-6"/><circle class="pp" cx="52" cy="14" r="8"/>
+    </svg><b>โครงกล่องยึดผนัง/เสา</b><small>C 4" · พุก 1/2" ×3 · ท่อร้อนวางบน</small></button>
+    <button class="card" data-d="wb"><svg viewBox="0 0 120 80">
+      <rect class="wl" x="2" y="4" width="12" height="72"/>
+      <path class="st" d="M16 30h80M18 30v42M18 66L80 32"/>
+      <path class="ub" d="M10 38h10M10 62h10"/>
+      <circle class="pp" cx="54" cy="22" r="8"/><circle class="pp" cx="80" cy="20" r="10"/>
+      <path class="ub" d="M45 30v-8a9 9 0 0 1 18 0v8M69 30v-10a11 11 0 0 1 22 0v10"/>
+    </svg><b>ขาค้ำสามเหลี่ยมยึดผนัง</b><small>C 3"/4" · พุก 3/8" ×2</small></button>
+    <button class="card" data-d="th"><svg viewBox="0 0 120 80">
+      <rect class="st" x="6" y="8" width="108" height="6" rx="3"/>
+      <path class="st" d="M24 16h12M84 16h12M30 16v46M90 16v46M14 64h92"/>
+      <circle class="pp" cx="50" cy="55" r="8"/><circle class="pp" cx="72" cy="53" r="10"/>
+      <path class="ub" d="M41 64v-9a9 9 0 0 1 18 0v9M61 64v-11a11 11 0 0 1 22 0v11"/>
+    </svg><b>แขวนใต้โครง Truss</b><small>ก้าน 3/8"/1/2" · U-bolt รัด truss</small></button>
+    <button class="card" data-d="tt"><svg viewBox="0 0 120 80">
+      <path class="st" d="M6 50h108"/>
+      <circle class="st" cx="22" cy="58" r="6"/><circle class="st" cx="98" cy="58" r="6"/>
+      <path class="ub" d="M15 50v8a7 7 0 0 0 14 0v-8M91 50v8a7 7 0 0 0 14 0v-8"/>
+      <circle class="pp" cx="48" cy="40" r="9"/><circle class="pp" cx="72" cy="38" r="11"/>
+      <path class="ub" d="M38 50v-10a10 10 0 0 1 20 0v10M60 50v-12a12 12 0 0 1 24 0v12"/>
+    </svg><b>วางบนโครง Truss</b><small>C 3"/4" · U-bolt รัด truss</small></button>
+  </div>
+
+  <div class="grid2" style="margin-bottom:12px">
+    <button class="btn" data-cmd="place">วางทีละจุด<small>ชี้ที่ท่อแล้วคลิก (Tab เปลี่ยนแบบ)</small></button>
+    <button class="btn" data-cmd="auto" id="autobtn">วางตามแนวท่อที่เลือก<small>ระยะห่างตามขนาดท่อ</small></button>
+  </div>
+
+  <fieldset>
+    <legend>เหล็กและอุปกรณ์ยึด</legend>
+    <label>เหล็ก<select id="section"></select></label>
+    <label class="only" data-for="wf wb">พุก Expansion bolt<select id="anchor"></select></label>
+    <label class="only" data-for="wf">จำนวนพุก<select id="anchors"><option value="2">2 ตัว</option><option value="3">3 ตัว (ตามแบบ)</option><option value="4">4 ตัว</option></select></label>
+    <label class="only" data-for="th">เหล็กเส้นเกลียว<select id="rod"></select></label>
+    <div class="info" id="secinfo">อัตโนมัติ = เหล็กเล็กที่สุดที่ผ่านการตรวจหน่วยแรงดัด 0.6Fy (SS400) และการแอ่น L/240</div>
+  </fieldset>
+
+  <fieldset>
+    <legend>การรับท่อ</legend>
+    <label>ระยะห่างซัพพอร์ต (ม.)<input type="number" id="spacing_m" min="0" max="12" step="0.1"></label>
+    <div class="info">0 = ระยะสูงสุดตามขนาด/วัสดุท่อ (MSS SP-69 / Plant Piping) – ใช้คิดน้ำหนักที่ซัพพอร์ตรับด้วย</div>
+    <label>รวมท่อข้างเคียง ห่างไม่เกิน (มม.)<input type="number" id="gap" min="0" max="1500" step="50"></label>
+    <label class="chk"><input type="checkbox" id="drop_hangers"><span>ลบซัพพอร์ตแขวนของ Plant Piping ที่ตำแหน่งเดียวกัน</span></label>
+  </fieldset>
+
+  <div class="grid2">
+    <button class="btn sec" data-cmd="refit">ปรับตามท่อ<small>ซัพพอร์ตที่เลือก (หรือทั้งหมด)</small></button>
+    <button class="btn sec" data-cmd="report">รายการวัสดุ + ตรวจกำลัง<small>BOM / CSV</small></button>
+  </div>
+  <div class="info">ขนาดเหล็กจริงตาม มอก. 1227 / JIS G 3192 (รางน้ำ, ฉาก) และ มอก. 1228 (ตัวซี) · U-bolt / เหล็กเส้นเกลียวตาม MSS SP-58 ·
+    แรงพุกเป็นค่าทั่วไปในคอนกรีต 210 ksc – ตรวจค่าผู้ผลิต</div>
+</main>
+<script>
+(function () {
+  var S = {}, D = {};
+  function $(id) { return document.getElementById(id); }
+  function call(n, a) { if (window.sketchup && window.sketchup[n]) window.sketchup[n](a); }
+  function fill(sel, items, val) {
+    sel.innerHTML = '';
+    items.forEach(function (it) { var o = document.createElement('option'); o.value = it[0]; o.textContent = it[1]; sel.appendChild(o); });
+    sel.value = String(val);
+  }
+  function save() { call('save', JSON.stringify(S)); }
+  function showDetail() {
+    document.querySelectorAll('.card').forEach(function (c) { c.classList.toggle('on', c.dataset.d === S.detail); });
+    document.querySelectorAll('.only').forEach(function (l) { l.style.display = l.dataset.for.split(' ').indexOf(S.detail) >= 0 ? 'grid' : 'none'; });
+    var d = (D.details || []).filter(function (x) { return x.key === S.detail; })[0];
+    if (d) fill($('section'), [['auto', 'อัตโนมัติ (ตั้งแต่ ' + d.min.replace('C', 'C ') + ')']].concat(D.sections.map(function (s) { return [s.key, s.name]; })), S.section);
+  }
+  window.SS = {
+    init: function (d) {
+      D = d; S = d.settings;
+      $('ver').textContent = 'v' + d.version;
+      $('link').textContent = d.link; $('link').className = 'link ' + (d.linked ? 'on' : 'off');
+      $('autobtn').disabled = !d.linked; $('autobtn').style.opacity = d.linked ? 1 : 0.5;
+      var sizes = d.sizes.map(function (s) { return [s.key, s.name]; });
+      fill($('anchor'), [['auto', 'อัตโนมัติ (ตามแรง)']].concat(sizes), S.anchor);
+      fill($('rod'), [['auto', 'อัตโนมัติ (ตามแรง)']].concat(sizes), S.rod);
+      $('anchors').value = String(S.anchors);
+      $('spacing_m').value = S.spacing_m; $('gap').value = S.gap; $('drop_hangers').checked = !!S.drop_hangers;
+      showDetail();
+    }
+  };
+  document.querySelectorAll('.card').forEach(function (c) {
+    c.addEventListener('click', function () { S.detail = c.dataset.d; showDetail(); save(); });
+  });
+  ['section', 'anchor', 'rod', 'anchors'].forEach(function (id) {
+    $(id).addEventListener('change', function () { S[id] = id === 'anchors' ? Number(this.value) : this.value; save(); });
+  });
+  ['spacing_m', 'gap'].forEach(function (id) {
+    $(id).addEventListener('change', function () { S[id] = Number(this.value) || 0; save(); });
+  });
+  $('drop_hangers').addEventListener('change', function () { S.drop_hangers = this.checked; save(); });
+  document.querySelectorAll('[data-cmd]').forEach(function (b) {
+    b.addEventListener('click', function () { call('command', b.dataset.cmd); });
+  });
+  call('ready');
+})();
+</script>
+</body>
+</html>

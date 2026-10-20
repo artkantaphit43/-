@@ -76,7 +76,8 @@ module ArtK
             end.to_h,
             schemes: Services::SCHEMES,
             material_colors: Services::MATERIAL_COLORS, painted: Services::PAINTED,
-            supports: Supports::TYPES.map { |k, v| { type: k, th: v[:th], name: v[:name], multi: v[:multi] ? true : false } },
+            supports: Supports::TYPES.reject { |k, v| v[:hidden] && k != H.load_settings['support_type'] }
+                                     .map { |k, v| { type: k, th: v[:th], name: v[:name], multi: v[:multi] ? true : false } },
             valves: FittingsData::VALVES.map { |k, v| { type: k, th: v[:th], name: v[:name] } }
           }
         end

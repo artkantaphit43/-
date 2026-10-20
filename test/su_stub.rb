@@ -651,9 +651,18 @@ module Sketchup
   end
 
   class View
-    attr_accessor :tooltip, :pick_paths
+    attr_accessor :tooltip, :pick_paths, :drawing_color, :line_width, :line_stipple
+    attr_reader :drawn
 
     def invalidate; end
+
+    def draw(mode, *pts)
+      (@drawn ||= []) << [mode, pts.flatten]
+    end
+
+    def draw_points(pts, *_a)
+      (@drawn ||= []) << [:points, pts]
+    end
 
     def pick_helper
       PickHelper.new(pick_paths || [])
@@ -692,6 +701,7 @@ module Sketchup
   end
 end
 
+GL_LINES = 1 unless defined?(GL_LINES)
 VK_RIGHT = 39
 VK_LEFT = 37
 VK_UP = 38

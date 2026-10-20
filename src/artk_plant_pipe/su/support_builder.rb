@@ -348,9 +348,16 @@ module ArtK
 
       # Single supports of the member runs right next to a new shared
       # support are now redundant – removed (their runs are rebuilt).
-      def drop_covered(model, group, skip: nil)
-        point = JSON.parse(group.get_attribute(H::DICT, 'at'))
-        ids = H.get_json(group, 'members', []) - [skip]
+      # (model, group, skip:) for our groups; (model, point, pipes) as other
+      # extensions call it (pipes: [[…, pid]]).
+      def drop_covered(model, group, pipes = nil, skip: nil)
+        if pipes
+          point = group
+          ids = pipes.map { |o| o[4] }
+        else
+          point = JSON.parse(group.get_attribute(H::DICT, 'at'))
+          ids = H.get_json(group, 'members', []) - [skip]
+        end
         H.active_runs(model).each do |run, tr|
           next unless ids.include?(run.persistent_id)
 
@@ -360,6 +367,36 @@ module ArtK
 
           H.set_json(run, 'supports', keep)
           Builder.render(model, run, Builder.run_settings(run))
+        end
+      end
+
+      # Supports of other extensions: name => block(model, pid) giving the
+      # world points where they carry run pid (API.register_supports).
+      EXTERNAL = {}
+
+      def register_external(name, &block)
+        EXTERNAL[name.to_s] = block
+        true
+      end
+
+      # Other extensions told when runs were drawn / rebuilt: name =>
+      # block(model, runs) (API.on_runs_changed).
+      CHANGED = {}
+
+      def notify_changed(model, runs)
+        CHANGED.each_value do |b|
+          b.call(model, runs)
+        rescue StandardError => e
+          puts "Plant Piping: change hook failed – #{e.message}"
+        end
+      end
+
+      def external_points(model, pid)
+        EXTERNAL.values.flat_map do |b|
+          Array(b.call(model, pid))
+        rescue StandardError => e
+          puts "Plant Piping: external supports not read – #{e.message}"
+          []
         end
       end
 

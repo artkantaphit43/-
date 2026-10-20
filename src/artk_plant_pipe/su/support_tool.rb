@@ -67,7 +67,7 @@ module ArtK
       def onKeyDown(key, _repeat, _flags, view)
         return false unless key == 9 # Tab
 
-        types = Supports::TYPES.keys
+        types = Supports::TYPES.reject { |_, v| v[:hidden] }.keys
         @type = types[(types.index(@type).to_i + 1) % types.size]
         H.save_settings(H.load_settings.merge('support_type' => @type))
         SettingsDialog.refresh if defined?(SettingsDialog)

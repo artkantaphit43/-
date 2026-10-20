@@ -346,6 +346,24 @@ class TestSharedSupports < Minitest::Test
     assert_empty H.get_json(b, 'supports', [])
   end
 
+  # Other extensions (PipeBracket, Steel Supports TH) call these forms.
+  def test_drop_covered_point_form_and_external_supports
+    a = run_at(0)
+    SupportBuilder.place(@model, 'clevis', hit_on(a, 3000), gap: 0)
+    assert_equal 1, H.get_json(a, 'supports').size
+    SupportBuilder.drop_covered(@model, [3000.0, 0.0, 1000.0], [[nil, nil, nil, nil, a.persistent_id]])
+    assert_empty H.get_json(a, 'supports')
+    SupportBuilder.register_external('test') { |_m, pid| pid == a.persistent_id ? [[3000.0, 0.0, 1000.0]] : [] }
+    @model.selection.push(a)
+    H.save_settings(@s.merge('support_type' => 'clevis'))
+    Commands.auto_supports
+    xs = H.get_json(a, 'supports').map { |r| r['at'][0] }
+    refute_empty xs
+    assert(xs.none? { |x| (x - 3000).abs < 600 }, xs.inspect)
+  ensure
+    SupportBuilder::EXTERNAL.delete('test')
+  end
+
   # Ray against axis-aligned boxes [min, max] (mm): nearest exit/entry.
   def box_rays(boxes)
     lambda do |pt, dir|

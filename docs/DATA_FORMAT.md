@@ -99,7 +99,8 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 **Shared supports** (group, `type = support`, added in 1.10 – new keys only, format unchanged):
 - `at` – JSON, world mm
 - `dir` – JSON
-- `support_type` – trapeze / hframe / sleeper / bracket / column (1.12) / wallframe (1.16)
+- `support_type` – trapeze / hframe / sleeper / bracket / column (1.12) / wallframe (1.16.0 only – moved to
+  the Steel Supports TH extension in 1.16.1; still rebuilt / adapted, just no longer offered)
 - `base_type` – the type the user chose
 - `members` – JSON run persistent ids
 - `signature` – of the pipes found at `at` (since 1.16: before a bracket / frame leaves out the
@@ -118,3 +119,10 @@ butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends`
 `stub_dn`. Tee and join records may carry `main_joint` – the main run's `hdpe_joint`.
 
 **Model:** `fmt` – the format the file was last upgraded to.
+
+**Other extensions (1.16.1):** `ArtK::PlantPipe::API` (LEVEL 1, `su/api.rb`) is the stable surface other
+extensions call; Steel Supports TH keeps its own groups in the `ArtK_SteelSupport` dictionary
+(docs/STEEL_SUPPORTS.md) and never writes Plant Piping data except through `API.drop_hangers` (the
+same removal of single supports Plant Piping does itself). `SupportBuilder.drop_covered(model, point,
+pipes)` keeps working for PipeBracket.
+
