@@ -280,6 +280,72 @@ class TestSharedSupports < Minitest::Test
     assert_empty shared
   end
 
+  def wall_run(y, z, size, svc, ins = 0)
+    st = @s.merge('size' => size, 'service' => svc, 'insulation_mm' => ins)
+    Builder.create_run(@model, [[[0, y, z], [6000, y, z]]], Settings.sanitize(st))[0]
+  end
+
+  # The user's detail: cold water, chilled water (insulated) and air in a
+  # C4 box on the wall (y = −600), steam on top of it.
+  def test_wall_frame_carries_the_lines_inside_and_steam_on_top
+    cw = wall_run(-300, 1000, '2"', 'CW')
+    wall_run(-100, 1000, '3"', 'CHWS', 50)
+    wall_run(100, 1000, '1"', 'CA')
+    wall_run(-150, 1420, '2"', 'STM', 50)
+    note = SupportBuilder.place(@model, 'wallframe', hit_on(cw, 3000))
+    assert_nil note
+    assert_equal 1, shared.size
+    g = shared.first
+    assert_equal 'wallframe', g.get_attribute(H::DICT, 'support_type')
+    assert_equal 4, H.get_json(g, 'members').size, 'three inside + steam on top'
+    assert_equal 'Steel C-channel 4" (C4×5.4)', g.get_attribute(H::DICT, 'member_name')
+    assert_operator g.get_attribute(H::DICT, 'member_length_mm'), :>, 2 * (300 + 100 + 30 + 100)
+    assert_equal 0, SupportBuilder.adapt(@model), 'nothing changed – the frame stays'
+  end
+
+  def test_wall_frame_leaves_out_far_and_high_pipes_and_keeps_their_supports
+    a = run_at(0)
+    run_at(450)
+    c = run_at(900) # 600 + 900 + 30 > 1.5 m from the wall
+    SupportBuilder.place(@model, 'clevis', hit_on(c, 3000), gap: 0)
+    assert_equal 1, H.get_json(c, 'supports').size
+    note = SupportBuilder.place(@model, 'wallframe', hit_on(a, 3000))
+    assert_nil note
+    g = shared.first
+    assert_equal 2, H.get_json(g, 'members').size
+    assert_equal 1, H.get_json(c, 'supports').size, 'the far pipe keeps its own hanger'
+    SupportBuilder.adapt(@model)
+    assert g.valid?, 'the frame is not rebuilt for the pipe it leaves out'
+  end
+
+  def test_wall_frame_notes_a_pipe_between_the_levels
+    a = run_at(0, size: '6"')
+    run_at(300, 1240)    # on a 294 mm packer
+    run_at(500, 1250.2)  # 304 above the box bottom: no packer that tall, too low for the top
+    note = SupportBuilder.place(@model, 'wallframe', hit_on(a, 3000))
+    assert_match(/1 ท่อ/, note)
+    assert_equal 2, H.get_json(shared.first, 'members').size
+  end
+
+  def test_wall_frame_takes_a_pipe_drawn_later_and_auto_supports
+    a = run_at(0)
+    SupportBuilder.place(@model, 'wallframe', hit_on(a, 3000))
+    assert_equal 1, H.get_json(shared.first, 'members').size
+    b = run_at(250)
+    assert_equal 1, SupportBuilder.adapt(@model, [b])
+    assert_equal 2, H.get_json(shared.first, 'members').size
+    @model.selection.push(a)
+    @model.selection.push(b)
+    Commands.clear_supports
+    assert_empty shared
+    H.save_settings(@s.merge('support_type' => 'wallframe'))
+    Commands.auto_supports
+    refute_empty shared
+    assert(shared.all? { |sg| sg.get_attribute(H::DICT, 'support_type') == 'wallframe' && H.get_json(sg, 'members').size == 2 })
+    assert_empty H.get_json(a, 'supports', [])
+    assert_empty H.get_json(b, 'supports', [])
+  end
+
   # Ray against axis-aligned boxes [min, max] (mm): nearest exit/entry.
   def box_rays(boxes)
     lambda do |pt, dir|

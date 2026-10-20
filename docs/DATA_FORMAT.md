@@ -99,10 +99,11 @@ older `rev` are rebuilt in place, so every copy in the file updates.
 **Shared supports** (group, `type = support`, added in 1.10 – new keys only, format unchanged):
 - `at` – JSON, world mm
 - `dir` – JSON
-- `support_type` – trapeze / hframe / sleeper / bracket
+- `support_type` – trapeze / hframe / sleeper / bracket / column (1.12) / wallframe (1.16)
 - `base_type` – the type the user chose
 - `members` – JSON run persistent ids
-- `signature`
+- `signature` – of the pipes found at `at` (since 1.16: before a bracket / frame leaves out the
+  ones it cannot reach – older groups that left one out are rebuilt once when a pipe next to them changes)
 
 Shared supports from versions before 1.10 have no `at` and are left as they are.
 

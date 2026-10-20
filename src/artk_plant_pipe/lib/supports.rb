@@ -51,7 +51,9 @@ module ArtK
         'shoe'     => { name: 'Sleeper + pipe shoe', th: 'คานรองท่อ + Pipe shoe', mount: :below },
         'bracket'  => { name: 'Wall bracket', th: 'แขนค้ำยึดผนัง (Wall bracket)', mount: :side },
         'column'   => { name: 'Column side bracket', th: 'แขนเกาะข้างเสา (Column side bracket)', mount: :side,
-                        multi: true }
+                        multi: true },
+        'wallframe' => { name: 'Wall box frame C4" + U-bolts + expansion bolts 1/2"',
+                         th: 'โครงกล่อง C-channel ยึดผนัง/เสา', mount: :side, multi: true }
       }.freeze
 
       # Neighbouring pipes share one support when they run parallel (within
@@ -68,8 +70,17 @@ module ArtK
       # What a single-pipe support becomes when it carries several pipes.
       MULTI_OF = {
         'clevis' => 'trapeze', 'trapeze' => 'trapeze', 'stand' => 'hframe',
-        'hframe' => 'hframe', 'shoe' => 'sleeper', 'bracket' => 'bracket', 'column' => 'column'
+        'hframe' => 'hframe', 'shoe' => 'sleeper', 'bracket' => 'bracket', 'column' => 'column',
+        'wallframe' => 'wallframe'
       }.freeze
+
+      # Wall box frame: pipes inside on the bottom member (U-bolts), a hot
+      # line on top (on an angle shoe – free to slide), so the frame takes
+      # pipes up to FRAME_RISE above the lowest one.
+      FRAME_RISE = 1200.0
+      FRAME_REACH = 1500.0 # mm from the wall face
+      # ASTM C4×5.4 channel: depth, flange width, web, flange thickness
+      C4 = { d: 101.6, bf: 40.1, tw: 4.67, tf: 7.52 }.freeze
 
       # Supports hung one per pipe: beside a neighbour, the neighbour gets
       # its own (sized for that pipe) at the same section – each pipe from
@@ -520,6 +531,100 @@ module ArtK
         packers(part, offsets, arm_top)
         offsets.each { |y, r, z| u_bolt(part, y, z.to_f, r, [0.06 * r, 5.0].max, z.to_f - r - 2.0, steps) } if detailed
         part
+      end
+
+      # C-channel member from a to b (frame coords, on the web's outer
+      # face), depth along the pipe (x), flanges toward +toes.
+      def channel(part, a, b, toes, c: C4)
+        l = Vec.sub(b, a)
+        len = Vec.length(l)
+        return part if len < 1.0
+
+        f = M.frame(a, [1.0, 0.0, 0.0], Vec.scale(l, 1.0 / len))
+        s = Vec.dot(f[:z], toes).negative? ? -1.0 : 1.0
+        part.add(:steel, M.box(f, [0, len / 2.0, s * c[:tw] / 2.0], [c[:d] - 2 * c[:tf], len, c[:tw]]))
+        [-1, 1].each do |k|
+          part.add(:steel, M.box(f, [k * (c[:d] / 2.0 - c[:tf] / 2.0), len / 2.0, s * c[:bf] / 2.0], [c[:tf], len, c[:bf]]))
+        end
+        part
+      end
+
+      # Wall-mounted box frame of C4 channel (the user's detail): back post
+      # bolted to the wall with three 1/2" expansion bolts, bottom member
+      # carrying the pipes with U-bolts (higher ones on packers), top member
+      # and outer post closing the box. A pipe higher than the box rides on
+      # a T-shoe of two angles on the top member instead (steam / hot – it
+      # slides). offsets: [[y, r, z, insulation]] from the clicked pipe,
+      # wall face at y = -wall, r over the insulation.
+      # Returns [part, { length: channel mm, upper: n, skipped: n, carried: offsets }].
+      def wall_frame(offsets, wall, steps: 16, detailed: true)
+        part = Mesh::Part.new
+        c = C4
+        z_b = offsets.map { |_, r, z| z.to_f - r }.min
+        lower = offsets.select { |_, r, z| z.to_f - r - z_b <= GROUP_RISE }
+        top_lower = lower.map { |_, r, z| z.to_f + r }.max
+        base = ->(o) { frame_shoe_base(o) }
+        upper = (offsets - lower).select { |o| base.call(o) - c[:bf] >= top_lower + 30.0 }
+        lo = upper.map(&base).min
+        upper = upper.select { |o| base.call(o) - lo <= GROUP_RISE } if lo
+        skipped = offsets.size - lower.size - upper.size
+        z_t = lo || top_lower + 80.0 + c[:bf]
+        y_w = -wall
+        y_out = (lower.map { |y, r, _| y + r } + upper.map { |y, r, _| y + [r, 55.0].max }).max + 60.0 + c[:bf]
+        z_bot = z_b - c[:bf]
+        # posts (web on the wall / outside, flanges toward the inside)
+        channel(part, [0, y_w, z_bot], [0, y_w, z_t], [0, 1, 0])
+        channel(part, [0, y_out, z_bot], [0, y_out, z_t], [0, -1, 0])
+        # bottom and top members between the posts (web on top, toes down)
+        channel(part, [0, y_w + c[:bf], z_b], [0, y_out - c[:bf], z_b], [0, 0, -1])
+        channel(part, [0, y_w + c[:bf], z_t], [0, y_out - c[:bf], z_t], [0, 0, -1])
+        packers(part, lower, z_b)
+        if detailed
+          h = z_t - z_bot
+          [0.15, 0.5, 0.85].each { |k| expansion_bolt(part, y_w, z_bot + k * h) }
+          lower.each do |y, r, z|
+            rod_r = [0.06 * r, 5.0].max
+            u_bolt(part, y, z.to_f, r, rod_r, z_b - c[:tw] - 14.0, steps)
+            [-1, 1].each do |s|
+              yy = y + s * (r + rod_r)
+              part.add(:galv, M.ngon_prism([0, yy, z_b - c[:tw] - 10.0], [0, yy, z_b - c[:tw]], rod_r * 1.9, 6))
+            end
+          end
+        end
+        upper.each { |y, r, z, ins| angle_shoe(part, y, z.to_f - r + ins.to_f, z_t) }
+        len = 2 * (z_t - z_bot) + 2 * (y_out - y_w - 2 * c[:bf])
+        [part, { length: len, upper: upper.size, skipped: skipped, carried: lower + upper }]
+      end
+
+      # Can a pipe y from the clicked one sit in a frame on a wall at -wall:
+      # clear of the back post (U-bolt nuts, shoe) and within reach.
+      def in_frame?(y, r, wall)
+        near = y - [r + 3.0 * [0.06 * r, 5.0].max, 55.0].max
+        near > -wall + C4[:bf] + 5.0 && wall + y + r <= FRAME_REACH
+      end
+
+      # Underside of the T-shoe base under an upper (hot) pipe: the web is
+      # welded to the bare pipe and clears the insulation by 30 mm.
+      def frame_shoe_base(offset)
+        _y, r, z, ins = offset
+        z.to_f - r + ins.to_f - [ins.to_f + 30.0, 50.0].max - 5.0
+      end
+
+      # 1/2" (M12) expansion bolt through the back post web into the wall.
+      def expansion_bolt(part, y_w, z)
+        web = y_w + C4[:tw]
+        part.add(:galv, M.cylinder([0, y_w - 70.0, z], [0, web + 18.0, z], 6.0, steps: ROUND))
+        part.add(:galv, M.cylinder([0, web, z], [0, web + 3.0, z], 13.0, steps: ROUND)) # washer
+        part.add(:galv, M.ngon_prism([0, web + 3.0, z], [0, web + 13.0, z], 11.0, 6, ref: [0, 0, 1]))
+      end
+
+      # T-shoe of two L50×50×5 angles back to back under a hot pipe (bare
+      # bottom at bop): the flat legs slide on the top member (z_t), the
+      # upright legs are welded to the pipe.
+      def angle_shoe(part, y, bop, z_t)
+        f = M.frame([0, y, z_t], [1, 0, 0], [0, 1, 0])
+        part.add(:steel, M.box(f, [0, 0, 2.5], [200, 100, 5]))
+        part.add(:steel, M.box(f, [0, 0, (5 + bop - z_t) / 2.0], [200, 10, bop - z_t - 5]))
       end
 
       # Cantilever bracket on a wall / column face at y = -wall, arm under

@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.15.3**
-(`dist/artk_plant_pipe-1.15.3.rbz`). Tests: `rake test` (225 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.0**
+(`dist/artk_plant_pipe-1.16.0.rbz`). Tests: `rake test` (233 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -105,6 +105,12 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   ข้อต่อที่ลบ → ทุกแขนหยุดที่ปลายท่อ (ปลายเปิด), ทิ้ง supports/tees/joins/วาล์วที่ไม่อยู่บนแนว · RunEditor.sync (AutoSync, เปิดเครื่องมือ)
   render run ที่มีชิ้นถูกลบก่อน (transparent → Undo พร้อมการลบ) · AutoSync เช็ก run ที่เข้าไปแก้ข้างในเมื่อออกมา · elbow geom มี `vertex`
 - **v1.15.3**: ปุ่ม "ยืด/หด/ย้ายท่อ" และ "ตรวจท่อ" ในหน้าต่างเครื่องมือ (เดิมมีแค่แถบเครื่องมือ/เมนู – ผู้ใช้หาไม่เจอ)
+- **v1.16.0**: ซัพพอร์ตชนิดใหม่ `wallframe` ตามแบบที่ผู้ใช้ส่ง (ภาพแบบหมุน 90°): โครงกล่อง C4 (`Supports::C4`, `channel`,
+  `wall_frame`) ยึดผนัง/เสาด้วย expansion bolt ½" 3 ตัว, ท่อในกล่องรัด U-bolt บนคานล่าง (+ packer), ท่อที่สูงกว่ากล่อง
+  (`frame_shoe_base`, ฉนวน + 30 ≥ 50 มม.) วางบน T-shoe เหล็กฉากบนคานบน · `members(type: 'wallframe')` หาท่อสูงได้ถึง
+  `FRAME_RISE` 1200 · `in_frame?` (ห่างเสาหลัง/≤ `FRAME_REACH` 1.5 m) · ท่อระหว่างชั้นที่รับไม่ได้ → note ·
+  แก้ทั่วไป: `signature` เก็บชุดท่อก่อนกรอง (adapt ไม่สร้าง bracket/โครงใหม่ทุกครั้ง), `drop_covered(model, group)` ลบเฉพาะ
+  ซัพพอร์ตเดี่ยวของท่อที่โครงรับจริง (เดิมลบของท่อที่ bracket ไม่ได้รับด้วย)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

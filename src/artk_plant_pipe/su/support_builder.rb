@@ -213,23 +213,39 @@ module ArtK
       end
 
       # The clicked pipe and the neighbours that share its support.
-      def members(model, point, dir, gap: group_gap)
+      def members(model, point, dir, gap: group_gap, type: nil)
+        if type == 'wallframe' # a hot line rides on top of the box
+          return Supports.group(crossing_pipes(model, point, dir, rise: Supports::FRAME_RISE + 300.0),
+                                gap: [gap, 1.0].max, rise: Supports::FRAME_RISE)
+        end
         Supports.group(crossing_pipes(model, point, dir), gap: gap)
+      end
+
+      # Nearest wall / column face beside +point+ across the pipe:
+      # [direction to it, horizontal distance] or raises.
+      def wall_side(model, point, dir)
+        side = Vec.cross(UP, horizontal(dir))
+        hits = [side, Vec.scale(side, -1.0)].map { |v| [v, cast(model, point, v, max_dist: SIDE_SEARCH)] }
+                                            .reject { |_, h| h.nil? }
+        raise 'ไม่พบผนัง/เสาภายใน 3 m (no wall or column within 3 m)' if hits.empty?
+
+        v, h = hits.min_by { |_, hh| Vec.dist(hh[:point], point) }
+        [v, Vec.dist([h[:point][0], h[:point][1], 0], [point[0], point[1], 0])]
       end
 
       # Place a support of +type+ where the user clicked a pipe (hit from
       # Picker.nearest_pipe). Neighbouring pipes are carried too: the
       # support becomes its multi-pipe form. Returns a note or nil.
       def place(model, type, hit, lod: :detailed, steps: 16, gap: group_gap)
-        mem = members(model, hit[:proj], hit[:dir], gap: gap)
+        mem = members(model, hit[:proj], hit[:dir], gap: gap, type: type)
         return place_each(model, type, hit, mem) if each_pipe?(type) && mem.size > 1
 
         multi = Supports::TYPES[type][:multi] ? type : (mem.size > 1 && Supports::MULTI_OF[type])
         return add_record(model, hit[:run], hit[:tr], type, hit[:proj], hit[:dir]) unless multi
 
         model.start_operation('Plant Piping: Support', true)
-        _g, note = create_multi(model, multi, hit[:proj], hit[:dir], base: type, lod: lod, steps: steps, pipes: mem)
-        drop_covered(model, hit[:proj], mem)
+        g, note = create_multi(model, multi, hit[:proj], hit[:dir], base: type, lod: lod, steps: steps, pipes: mem)
+        drop_covered(model, g)
         model.commit_operation
         note
       rescue StandardError
@@ -332,8 +348,9 @@ module ArtK
 
       # Single supports of the member runs right next to a new shared
       # support are now redundant – removed (their runs are rebuilt).
-      def drop_covered(model, point, pipes)
-        ids = pipes.map { |o| o[4] }
+      def drop_covered(model, group, skip: nil)
+        point = JSON.parse(group.get_attribute(H::DICT, 'at'))
+        ids = H.get_json(group, 'members', []) - [skip]
         H.active_runs(model).each do |run, tr|
           next unless ids.include?(run.persistent_id)
 
@@ -385,15 +402,15 @@ module ArtK
           next unless near.call(at)
 
           dir = JSON.parse(g.get_attribute(H::DICT, 'dir'))
-          mem = members(model, at, dir, gap: gap)
+          mem = members(model, at, dir, gap: gap, type: g.get_attribute(H::DICT, 'support_type'))
           next if mem.empty? || signature(mem) == g.get_attribute(H::DICT, 'signature')
 
           base = g.get_attribute(H::DICT, 'base_type') || g.get_attribute(H::DICT, 'support_type')
           type = g.get_attribute(H::DICT, 'support_type')
           s = H.load_settings
           g.erase!
-          create_multi(model, type, at, dir, base: base, lod: s['lod'].to_sym, steps: s['segments'], pipes: mem, op: false)
-          drop_covered(model, at, mem)
+          ng, = create_multi(model, type, at, dir, base: base, lod: s['lod'].to_sym, steps: s['segments'], pipes: mem, op: false)
+          drop_covered(model, ng)
           n += 1
         end
         n += adapt_each(model, near, gap)
@@ -412,7 +429,7 @@ module ArtK
             s = H.load_settings
             g, = create_multi(model, multi, at, dir, base: rec['type'], lod: s['lod'].to_sym, steps: s['segments'],
                                                      pipes: mem, op: false)
-            drop_covered(model, at, mem) if g
+            drop_covered(model, g) if g
             n += 1 if g
           end
         end
@@ -502,6 +519,8 @@ module ArtK
         pipes ||= members(model, point, dir)
         raise 'ไม่พบท่อที่ตัดผ่านตำแหน่งนี้ (no pipes cross this point)' if pipes.empty?
 
+        scope = pipes # what adapt finds here again – brackets / frames may carry fewer
+
         base ||= type
         f = frame(point, dir)
         offsets = pipes.map { |y, r, z, _| [y, r, z] }
@@ -544,7 +563,7 @@ module ArtK
             raise 'ไม่พบเสาข้างท่อภายใน 3 m – คลิกท่อตรงช่วงที่ผ่านเสา (no column beside the pipe)'
           point = col[:at]
           if col[:moved] # the pipes beside the column face
-            pipes = members(model, point, dir)
+            pipes = scope = members(model, point, dir)
             raise 'ท่อไม่ผ่านหน้าเสา (the pipe does not pass the column face)' if pipes.empty?
           end
           x = horizontal(dir)
@@ -563,13 +582,8 @@ module ArtK
           attrs = { 'member_name' => 'Steel SHS 75×75 (column bracket)',
                     'member_length_mm' => (arm + (reach > 450 ? 0.85 * reach : 0)).round }
         when 'bracket'
+          v, wall = wall_side(model, point, dir)
           side = Vec.cross(UP, horizontal(dir))
-          hits = [side, Vec.scale(side, -1.0)].map { |v| [v, cast(model, point, v, max_dist: SIDE_SEARCH)] }
-                                              .reject { |_, h| h.nil? }
-          raise 'ไม่พบผนัง/เสาภายใน 3 m (no wall or column within 3 m)' if hits.empty?
-
-          v, h = hits.min_by { |_, hh| Vec.dist(hh[:point], point) }
-          wall = Vec.dist([h[:point][0], h[:point][1], 0], [point[0], point[1], 0])
           # bracket frame: y from the wall toward the pipes
           sgn = Vec.dot(v, side).positive? ? -1.0 : 1.0
           offsets = offsets.map { |y, r, z| [sgn * y, r, z] }
@@ -581,6 +595,18 @@ module ArtK
           attrs = { 'member_name' => "Steel angle / box #{offsets.size > 1 ? 75 : 50} (bracket)",
                     'member_length_mm' => (reach + 0.7 * reach).round }
           pipes = pipes.select { |y, r, z, *| offsets.any? { |oy, orr, oz| (oy - sgn * y).abs < 0.5 && orr == r && oz == z } }
+        when 'wallframe'
+          v, wall = wall_side(model, point, dir)
+          side = Vec.cross(UP, horizontal(dir))
+          sgn = Vec.dot(v, side).positive? ? -1.0 : 1.0
+          offsets = pipes.map { |y, r, z, _s, _id, ins| [sgn * y, r, z, ins.to_f] }
+                         .select { |y, r, _| Supports.in_frame?(y, r, wall) || y.abs < 1.0 }
+          f = Mesh.frame(point, horizontal(dir), Vec.scale(v, -1.0))
+          f = Mesh.frame(point, Vec.scale(horizontal(dir), -1.0), Vec.scale(v, -1.0)) if Vec.dot(Vec.cross(f[:x], f[:y]), UP).negative?
+          part, info = Supports.wall_frame(offsets, wall, steps: steps, detailed: det)
+          attrs = { 'member_name' => 'Steel C-channel 4" (C4×5.4)', 'member_length_mm' => info[:length].round }
+          note = "#{info[:skipped]} ท่ออยู่สูง/ต่ำเกินกล่อง – ไม่ได้รับ (pipe outside the frame levels)" if info[:skipped].positive?
+          pipes = pipes.select { |y, r, z, *| info[:carried].any? { |oy, orr, oz| (oy - sgn * y).abs < 0.5 && orr == r && oz == z } }
         else
           raise "unknown support #{type}"
         end
@@ -596,7 +622,7 @@ module ArtK
                                    'pipe_size' => "#{pipes.size} pipes", 'size' => "#{pipes.size} pipes",
                                    'service' => 'multi', 'pipes' => pipes.map { |o| o[3] }.join(', '),
                                    'at' => point.to_json, 'dir' => horizontal(dir).to_json,
-                                   'members' => pipes.map { |o| o[4] }.to_json, 'signature' => signature(pipes)))
+                                   'members' => pipes.map { |o| o[4] }.to_json, 'signature' => signature(scope)))
         model.commit_operation if op
         [g, note]
       rescue StandardError

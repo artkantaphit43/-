@@ -347,7 +347,7 @@ module ArtK
           res[:supports].each do |s|
             at_w = H.transform_mm(tr, s[:at])
             dir_w = Vec.unit(H.from_vec(H.to_vec(s[:dir]).transform(tr)))
-            mem = SupportBuilder.members(model, at_w, dir_w)
+            mem = SupportBuilder.members(model, at_w, dir_w, type: type)
             multi = Supports::TYPES[type][:multi] ? type : (mem.size > 1 && Supports::MULTI_OF[type])
             if each && mem.size > 1
               # every pipe at this section hangs from the same beam
@@ -361,9 +361,9 @@ module ArtK
               paired += added.values.sum(&:size)
               notes.concat(ns)
             elsif multi
-              _g, note = SupportBuilder.create_multi(model, multi, at_w, dir_w, base: type, lod: st['lod'].to_sym,
-                                                                                steps: st['segments'], pipes: mem, op: false)
-              SupportBuilder.drop_covered(model, at_w, mem.reject { |o| o[4] == run.persistent_id })
+              g, note = SupportBuilder.create_multi(model, multi, at_w, dir_w, base: type, lod: st['lod'].to_sym,
+                                                                               steps: st['segments'], pipes: mem, op: false)
+              SupportBuilder.drop_covered(model, g, skip: run.persistent_id)
               shared += 1
             else
               rec, note = SupportBuilder.record_for(model, run, tr, type, s[:at], s[:dir])
