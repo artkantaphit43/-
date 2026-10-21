@@ -18,7 +18,8 @@ class TestSteelSU < Minitest::Test
     Sketchup.active_model = @model
     Sketchup::InputPoint.next_vertex = nil
     Sketchup::InputPoint.next_dof = nil
-    Sketchup.write_default(SH::PREF, 'settings', '{}')
+    Sketchup.write_default(SH::PREF, 'settings_b64', nil)
+    SH.forget_settings
     PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '2"',
                                                        'lod' => 'light'))
     SS::Builder.forget
@@ -314,7 +315,8 @@ class TestSteelSU < Minitest::Test
   end
 
   def test_dialog_payload_and_old_settings
-    Sketchup.write_default(SH::PREF, 'settings', '{"detail":"wf"}')
+    Sketchup.write_default(SH::PREF, 'settings_b64', [JSON.generate('detail' => 'wf')].pack('m0'))
+    SH.forget_settings
     assert_equal 'A', SH.settings['detail'], '1.0 types are no longer offered'
     d = SS::Dialog.payload
     assert_equal %w[A B C D], d[:types].map { |t| t[:key] }
@@ -323,6 +325,14 @@ class TestSteelSU < Minitest::Test
     SS::Dialog.save(JSON.generate('detail' => 'C', 'spacing_m' => 3))
     assert_equal 'C', SH.settings['detail']
     assert_equal 3, SH.settings['spacing_m']
+    # what SketchUp keeps has no double quote in it, and reads back (new session)
+    stored = Sketchup.read_default(SH::PREF, 'settings_b64')
+    refute_includes stored, '"'
+    SH.forget_settings
+    assert_equal 'C', SH.settings['detail']
+    # the window's place button uses it: the tool is C, not A
+    SS::Dialog.command('place')
+    assert_equal 'C', @model.tool.instance_variable_get(:@detail)
   end
 
   # A faceted tube drawn without Plant Piping, as SketchUp faces.

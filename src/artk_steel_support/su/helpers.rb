@@ -108,17 +108,32 @@ module ArtK
         end
       end
 
+      # Kept as base64 JSON: SketchUp's read/write_default does not
+      # round-trip double quotes (Plant Piping learnt the same) – plain JSON
+      # came back unreadable and the type always fell back to A.
       def settings
-        raw = Sketchup.read_default(PREF, 'settings', '{}')
-        s = DEFAULTS.merge(JSON.parse(raw.to_s))
+        @settings ||= read_settings
+        s = DEFAULTS.merge(@settings)
         s['detail'] = DEFAULTS['detail'] unless Std::TYPES.key?(s['detail']) # 1.0's types are gone from the tools
         s
-      rescue JSON::ParserError
-        DEFAULTS.dup
+      end
+
+      def read_settings
+        raw = Sketchup.read_default(PREF, 'settings_b64', nil)
+        return {} if raw.nil? || raw.to_s.empty?
+
+        JSON.parse(raw.to_s.unpack1('m0').force_encoding('UTF-8'))
+      rescue StandardError
+        {}
       end
 
       def save_settings(s)
-        Sketchup.write_default(PREF, 'settings', JSON.generate(DEFAULTS.merge(s.slice(*DEFAULTS.keys))))
+        @settings = DEFAULTS.merge(s.slice(*DEFAULTS.keys))
+        Sketchup.write_default(PREF, 'settings_b64', [JSON.generate(@settings)].pack('m0'))
+      end
+
+      def forget_settings
+        @settings = nil
       end
     end
   end
