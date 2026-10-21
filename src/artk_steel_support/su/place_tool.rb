@@ -33,7 +33,7 @@ module ArtK
 
       def onMouseMove(_flags, x, y, view)
         @ip.pick(view, x, y)
-        @hit = pipe_hit(view) || face_hit(view)
+        @hit = pipe_hit(view) || face_hit(view, x, y)
         @plan = @hit && plan_for(@hit)
         view.tooltip = tip
         status
@@ -129,32 +129,63 @@ module ArtK
 
       # A vertical face under the cursor (column / wall): point, normal
       # (world) and where the camera is.
-      # Snapped to a column edge / corner: the vertical face of that edge
-      # turned to the camera.
-      def face_hit(view)
+      # The column face the support goes on: the face seen under the
+      # cursor (PickHelper – what the user looks at, even when the point
+      # snapped to an edge or corner), its out side toward the camera.
+      # Fallbacks: the InputPoint's face, then the edge's face turned to
+      # the camera.
+      def face_hit(view, x = nil, y = nil)
         return nil unless @ip.valid?
 
-        tr = @ip.respond_to?(:transformation) ? @ip.transformation : Geom::Transformation.new
-        eye = view.respond_to?(:camera) ? H.from_pt(view.camera.eye) : nil
+        eye = view.respond_to?(:camera) && view.camera ? H.from_pt(view.camera.eye) : nil
         pos = H.from_pt(@ip.position)
-        face = vertical_face(tr, eye, pos)
+        face, tr = column_face(view, x, y, eye, pos)
         return nil unless face
 
         n = Vec.unit(H.from_vec(face.normal.transform(tr)))
         { face: true, point: pos, normal: n, eye: eye, obj: [face, tr], key: [face.object_id, (pos[2] / 10.0).round] }
       end
 
-      def vertical_face(tr, eye, pos)
+      def column_face(view, x, y, eye, pos)
         cands = []
-        cands << @ip.face if @ip.respond_to?(:face) && @ip.face
-        cands.concat(@ip.edge.faces) if @ip.respond_to?(:edge) && @ip.edge
-        cands.reject { |f| part_of_ours?(f) }.select do |f| # a support / pipe face is no column
-          n = Vec.unit(H.from_vec(f.normal.transform(tr)))
-          n[2].abs <= 0.3
-        end.max_by do |f|
-          n = Vec.horizontal(H.from_vec(f.normal.transform(tr)))
-          eye ? Vec.dot(n, Vec.unit(Vec.sub(eye, pos))).abs : 0.0
+        cands << picked(view, x, y) if x
+        ip_tr = @ip.respond_to?(:transformation) ? @ip.transformation : Geom::Transformation.new
+        cands << [@ip.face, ip_tr] if @ip.respond_to?(:face) && @ip.face
+        if @ip.respond_to?(:edge) && @ip.edge
+          edge = @ip.edge.faces.map { |f| [f, ip_tr] }
+          cands.concat(edge.sort_by { |f, t| -facing(f, t, eye, pos) }.select { |f, t| facing(f, t, eye, pos) > 0.05 })
         end
+        cands.compact.find { |f, t| usable?(f, t, pos) }
+      end
+
+      # Face under the cursor pixel and its transformation.
+      def picked(view, x, y)
+        ph = view.pick_helper
+        ph.do_pick(x, y)
+        f = ph.respond_to?(:picked_face) && ph.picked_face
+        return nil unless f
+
+        i = (0...ph.count).find { |k| ph.leaf_at(k) == f }
+        [f, i ? ph.transformation_at(i) : Geom::Transformation.new]
+      end
+
+      # Upright, not ours, and the picked point on its plane.
+      def usable?(face, tr, pos)
+        return false if part_of_ours?(face)
+
+        n = Vec.unit(H.from_vec(face.normal.transform(tr)))
+        return false if n[2].abs > 0.3
+
+        v = face.vertices.first
+        on = H.transform_mm(tr, H.from_pt(v.position))
+        Vec.dot(Vec.sub(pos, on), n).abs < 5.0
+      end
+
+      def facing(face, tr, eye, pos)
+        return 0.0 unless eye
+
+        n = Vec.horizontal(H.from_vec(face.normal.transform(tr)))
+        Vec.dot(n, Vec.unit(Vec.sub(eye, pos)))
       end
 
       def part_of_ours?(face)

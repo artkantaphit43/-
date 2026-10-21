@@ -292,6 +292,54 @@ class TestSteelSU < Minitest::Test
     assert_in_delta 3000.0, ray[:origin][0], 2.0
   end
 
+  # The user's next case: the point snapped to the column's right edge,
+  # where the face seen (front, +y) meets one facing away (+x). The
+  # support must stand out of the seen face, centred, never in the column.
+  def column_faces
+    front = FakeF.new([0, 1, 0], [[2800, -450, 0], [3200, -450, 0], [3200, -450, 4000], [2800, -450, 4000]])
+    right = FakeF.new([1, 0, 0], [[3200, -450, 0], [3200, -850, 0], [3200, -850, 4000], [3200, -450, 4000]])
+    edge = FakeE.new
+    edge.faces << right << front # the hidden one first, as the bug had it
+    [front, right, edge]
+  end
+
+  def outside_column?(plan)
+    pts = plan[:result].part.solids.select { |r, _| r == :steel }.flat_map { |_, q| q.polys.flatten(1) }
+    pts.none? do |px, py, pz|
+      w = SS::Vec.add(SS::Vec.add(SS::Vec.add(plan[:origin], SS::Vec.scale(plan[:x], px)), SS::Vec.scale(plan[:y], py)),
+                      [0, 0, pz])
+      w[0] > 2801 && w[0] < 3199 && w[1] > -849 && w[1] < -451
+    end
+  end
+
+  def test_tool_on_the_column_edge_stands_out_of_the_face_seen
+    column!
+    front, _right, edge = column_faces
+    view = @model.active_view
+    # seen from far left: the front face at a grazing angle, the right one
+    # facing away (what made 2.0.3 pick it and run the frame through)
+    view.camera = Sketchup::Camera.new(PH.to_pt([-5000, 600, 6000]))
+    Sketchup::InputPoint.next_position = PH.to_pt([3200, -450, 2000])
+    Sketchup::InputPoint.next_edge = edge
+    %w[A D].each do |t|
+      [[[front]], []].each do |paths| # with the face under the cursor, and without (edge only)
+        view.pick_paths = paths
+        tool = SS::PlaceTool.new(t)
+        tool.onMouseMove(0, 10, 10, view)
+        plan = tool.instance_variable_get(:@plan)
+        refute plan[:error], plan[:error]
+        assert_operator plan[:y][1], :>, 0.99, "#{t}: out of the front face"
+        assert_in_delta 3000.0, plan[:origin][0], 1e-6, "#{t}: column centre"
+        assert_in_delta(-450.0, plan[:origin][1], 1e-6)
+        assert outside_column?(plan), "#{t}: steel inside the column"
+      end
+    end
+  ensure
+    Sketchup::InputPoint.next_edge = nil
+    view.pick_paths = nil
+    view.camera = nil
+  end
+
   # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.
   def test_any_number_of_pipes_passing
     column!

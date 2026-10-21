@@ -606,7 +606,7 @@ module Sketchup
   # InputPoint whose pick position is set by the test.
   class InputPoint
     class << self
-      attr_accessor :next_position, :next_vertex, :next_dof
+      attr_accessor :next_position, :next_vertex, :next_dof, :next_face, :next_edge
     end
     attr_reader :position
 
@@ -637,9 +637,13 @@ module Sketchup
       InputPoint.next_vertex ? 0 : 3
     end
 
-    def face; end
+    def face
+      InputPoint.next_face
+    end
 
-    def edge; end
+    def edge
+      InputPoint.next_edge
+    end
 
     def tooltip
       ''
@@ -651,7 +655,7 @@ module Sketchup
   end
 
   class View
-    attr_accessor :tooltip, :pick_paths, :drawing_color, :line_width, :line_stipple
+    attr_accessor :tooltip, :pick_paths, :drawing_color, :line_width, :line_stipple, :camera
     attr_reader :drawn
 
     def invalidate; end
@@ -686,7 +690,22 @@ module Sketchup
     def path_at(i)
       @paths[i]
     end
+
+    def leaf_at(i)
+      @paths[i]&.last
+    end
+
+    def transformation_at(_i)
+      Geom::Transformation.new
+    end
+
+    # The first face-like leaf (the test puts the visible one first).
+    def picked_face
+      @paths.map(&:last).find { |e| e.respond_to?(:normal) && e.respond_to?(:vertices) }
+    end
   end
+
+  Camera = Struct.new(:eye)
 
   class Model
     attr_reader :tool
