@@ -141,7 +141,7 @@ module ArtK
         return nil unless face
 
         n = Vec.unit(H.from_vec(face.normal.transform(tr)))
-        { face: true, point: pos, normal: n, eye: eye, key: [face.object_id, (pos[2] / 10.0).round] }
+        { face: true, point: pos, normal: n, eye: eye, obj: [face, tr], key: [face.object_id, (pos[2] / 10.0).round] }
       end
 
       def vertical_face(tr, eye, pos)
@@ -170,7 +170,7 @@ module ArtK
         @cache[key] ||= begin
           model = Sketchup.active_model
           if hit[:face]
-            Placer.from_face(model, @detail, hit[:point], hit[:normal], hit[:eye], H.settings)
+            Placer.from_face(model, @detail, hit[:point], hit[:normal], hit[:eye], H.settings, face: hit[:obj])
           else
             Placer.from_pipe(model, @detail, hit, H.settings)
           end

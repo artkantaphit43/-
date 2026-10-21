@@ -45,7 +45,7 @@ module ArtK
       def wall(model, origin, y, skip: [])
         [[y, 1], [Vec.scale(y, -1.0), -1]].filter_map do |v, s|
           h = cast(model, origin, v, skip: skip)
-          h && { side: s, dist: h[:dist] }
+          h && { side: s, dist: h[:dist], path: h[:path] }
         end.min_by { |w| w[:dist] }
       end
 

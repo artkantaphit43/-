@@ -33,7 +33,7 @@ module ArtK
           y = Vec.scale(y, -1.0)
         end
         face = Vec.along(o, y, -w[:dist])
-        col = span(model, face, x, y, skip: skip)
+        col = extent(model, face, x, y, Generic.face_of(w[:path]), skip: skip)
         sc = centre(col)
         at = Vec.along(face, x, sc)
         list = section(model, at, x, y, hit)
@@ -59,13 +59,15 @@ module ArtK
       # Click on a column / wall face at the height of the support's top
       # (arm top / frame top). normal: the face's (world); eye: the camera,
       # to know its front. Pipes passing there – any number – get U-bolts.
-      def from_face(model, t, point, normal, eye, opts = {})
+      # face: [face, transformation] when known – its own outline gives the
+      # column's width (a click on its edge / corner still centres).
+      def from_face(model, t, point, normal, eye, opts = {}, face: nil)
         raise 'คลิกที่ผิวด้านข้างของเสา/ผนัง (vertical face)' if normal[2].abs > 0.3
 
         y = Vec.horizontal(normal)
         y = Vec.scale(y, -1.0) if eye && Vec.dot(y, Vec.sub(eye, point)).negative?
         x = Vec.cross(y, UP)
-        col = span(model, point, x, y)
+        col = extent(model, point, x, y, face)
         origin = Vec.add(Vec.along(point, x, centre(col)), [0, 0, -Std.top(t)])
         pipes = section(model, origin, x, y, nil)
         plan(t, origin, x, y, pipes, opts, nil, { face: 0.0, column: column(col) })
@@ -108,17 +110,33 @@ module ArtK
         list.uniq { |p| [(p[:y] / 5.0).round, (p[:z] / 5.0).round] }
       end
 
-      # Extent of the face along x from face_pt: [lo, hi] (mm) or nil.
+      # The column face's extent along x from face_pt: from the face's own
+      # vertices when we have it ([face, transformation]), else by rays.
+      def extent(model, face_pt, x, y, face, skip: [])
+        return span(model, face_pt, x, y, skip: skip) unless face && face[0].respond_to?(:vertices)
+
+        f, tr = face
+        s = f.vertices.map { |v| Vec.dot(Vec.sub(H.transform_mm(tr, H.from_pt(v.position)), face_pt), x) }
+        lo, hi = s.minmax
+        return span(model, face_pt, x, y, skip: skip) unless lo && lo < hi && lo <= 1.0 && hi >= -1.0
+
+        [lo, hi]
+      end
+
+      # Extent of the face along x from face_pt by rays: [lo, hi] (mm) or
+      # nil. Picked right on an edge the first ray may miss – a few mm in
+      # either way is tried.
       def span(model, face_pt, x, y, skip: [])
         front = Vec.along(face_pt, y, FRONT)
         on = lambda do |s|
           h = Probe.cast(model, Vec.along(front, x, s), Vec.scale(y, -1.0), max: FRONT + 40.0, skip: skip)
           h && (h[:dist] - FRONT).abs < 12.0
         end
-        return nil unless on.call(0.0)
+        s0 = [0.0, 10.0, -10.0, 30.0, -30.0].find { |s| on.call(s) }
+        return nil unless s0
 
         [-1, 1].map do |k|
-          lo = 0.0
+          lo = k.positive? ? [s0, 0.0].max : [-s0, 0.0].max
           lo += 25.0 while lo < 1600.0 && on.call(k * (lo + 25.0))
           hi = lo + 25.0
           6.times do

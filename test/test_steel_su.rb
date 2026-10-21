@@ -279,6 +279,19 @@ class TestSteelSU < Minitest::Test
     assert_operator back[:y][1], :>, 0.9
   end
 
+  # The user's case: the cursor snapped onto the column's corner edge.
+  def test_click_on_the_column_edge_still_centres
+    column!
+    face = FakeF.new([0, 1, 0], [[2800, -450, 0], [3200, -450, 0], [3200, -450, 4000], [2800, -450, 4000]])
+    pl = SS::Placer.from_face(@model, 'A', [3200.0, -450.0, 2000.0], [0, 1.0, 0], [5000.0, 5000.0, 2000.0],
+                              face: [face, Geom::Transformation.new])
+    assert_in_delta 3000.0, pl[:origin][0], 1e-6, 'centre of the face outline'
+    assert_equal 400, pl[:struct][:column]
+    # without the face (rays only), a pick just off the edge still finds it
+    ray = SS::Placer.from_face(@model, 'A', [3201.0, -450.0, 2000.0], [0, 1.0, 0], [5000.0, 5000.0, 2000.0])
+    assert_in_delta 3000.0, ray[:origin][0], 2.0
+  end
+
   # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.
   def test_any_number_of_pipes_passing
     column!
