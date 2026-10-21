@@ -259,11 +259,14 @@ class TestSteelSU < Minitest::Test
     column!
     plan = SS::Placer.from_face(@model, 'D', [3150.0, -450.0, 1500.0], [0, 1.0, 0], [3150.0, 5000.0, 1500.0])
     assert_in_delta 3000.0, plan[:origin][0], 1.0
+    assert_in_delta 1500.0 - 420.0, plan[:origin][2], 1e-6, 'the picked point is the top of the frame'
+    pts = plan[:result].part.solids.select { |r, _| r == :steel }.flat_map { |_, q| q.polys.flatten(1) }
+    assert_in_delta 420.0, pts.map { |q| q[2] }.max, 1e-6
     g = SS::Builder.create(@model, plan)
     assert SH.get_json(g, 'info')['nominal']
     assert_equal 3, g.entities.grep(Sketchup::ConstructionPoint).size, 'guide points at the drawn pipe centres'
     assert_equal :same, SS::Builder.refit(@model, g)
-    run6 = pipe_run(-120, 1500 + 84.15, '6"', 'CW')
+    run6 = pipe_run(-120, 1080 + 84.15, '6"', 'CW')
     ArtK::PlantPipe::SupportBuilder.notify_changed(@model, [run6]) # as after drawing it
     g2 = supports.first
     refute g.valid?
@@ -274,6 +277,23 @@ class TestSteelSU < Minitest::Test
     # the back of the face is its front when the camera looks from there
     back = SS::Placer.from_face(@model, 'A', [3150.0, -450.0, 1500.0], [0, -1.0, 0], [3150.0, 5000.0, 1500.0])
     assert_operator back[:y][1], :>, 0.9
+  end
+
+  # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.
+  def test_any_number_of_pipes_passing
+    column!
+    top = 2000.0
+    lvl = top - 420.0
+    [[150, '2"', 30.15], [300, '3"', 44.45], [480, '4"', 57.15], [650, '2"', 30.15]].each do |f, size, r|
+      pipe_run(f - 450, lvl + r, size, 'CW')
+    end
+    d = SS::Placer.from_face(@model, 'D', [3000.0, -450.0, top], [0, 1.0, 0], [3000.0, 5000.0, top])
+    assert_equal [150.0, 300.0, 480.0, 650.0], d[:result].carried.map { |q| q[:y] }
+    refute d[:result].info[:nominal]
+    assert_empty d[:result].notes
+    assert_equal 4, d[:result].bom.count { |b| b[:cat] == 'ubolt' }
+    one = SS::Placer.from_face(@model, 'A', [3000.0, -450.0, lvl], [0, 1.0, 0], [3000.0, 5000.0, lvl])
+    assert_equal [150.0], one[:result].carried.map { |q| q[:y] }, 'A at the pipes: the one within its arm'
   end
 
   def test_every_column_along_a_run

@@ -56,8 +56,9 @@ module ArtK
         pl
       end
 
-      # Click on a column / wall face at the height of the steel's top.
-      # normal: the face's (world); eye: the camera, to know its front.
+      # Click on a column / wall face at the height of the support's top
+      # (arm top / frame top). normal: the face's (world); eye: the camera,
+      # to know its front. Pipes passing there – any number – get U-bolts.
       def from_face(model, t, point, normal, eye, opts = {})
         raise 'คลิกที่ผิวด้านข้างของเสา/ผนัง (vertical face)' if normal[2].abs > 0.3
 
@@ -65,7 +66,7 @@ module ArtK
         y = Vec.scale(y, -1.0) if eye && Vec.dot(y, Vec.sub(eye, point)).negative?
         x = Vec.cross(y, UP)
         col = span(model, point, x, y)
-        origin = Vec.along(point, x, centre(col))
+        origin = Vec.add(Vec.along(point, x, centre(col)), [0, 0, -Std.top(t)])
         pipes = section(model, origin, x, y, nil)
         plan(t, origin, x, y, pipes, opts, nil, { face: 0.0, column: column(col) })
       end

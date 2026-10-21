@@ -129,17 +129,32 @@ module ArtK
 
       # A vertical face under the cursor (column / wall): point, normal
       # (world) and where the camera is.
+      # Snapped to a column edge / corner: the vertical face of that edge
+      # turned to the camera.
       def face_hit(view)
-        return nil unless @ip.valid? && @ip.respond_to?(:face) && (face = @ip.face)
-        return nil if part_of_ours?(face) # a support / pipe face is no column
+        return nil unless @ip.valid?
 
         tr = @ip.respond_to?(:transformation) ? @ip.transformation : Geom::Transformation.new
-        n = Vec.unit(H.from_vec(face.normal.transform(tr)))
-        return nil if n[2].abs > 0.3
-
         eye = view.respond_to?(:camera) ? H.from_pt(view.camera.eye) : nil
         pos = H.from_pt(@ip.position)
+        face = vertical_face(tr, eye, pos)
+        return nil unless face
+
+        n = Vec.unit(H.from_vec(face.normal.transform(tr)))
         { face: true, point: pos, normal: n, eye: eye, key: [face.object_id, (pos[2] / 10.0).round] }
+      end
+
+      def vertical_face(tr, eye, pos)
+        cands = []
+        cands << @ip.face if @ip.respond_to?(:face) && @ip.face
+        cands.concat(@ip.edge.faces) if @ip.respond_to?(:edge) && @ip.edge
+        cands.reject { |f| part_of_ours?(f) }.select do |f| # a support / pipe face is no column
+          n = Vec.unit(H.from_vec(f.normal.transform(tr)))
+          n[2].abs <= 0.3
+        end.max_by do |f|
+          n = Vec.horizontal(H.from_vec(f.normal.transform(tr)))
+          eye ? Vec.dot(n, Vec.unit(Vec.sub(eye, pos))).abs : 0.0
+        end
       end
 
       def part_of_ours?(face)
@@ -177,7 +192,7 @@ module ArtK
       end
 
       def status
-        Sketchup.status_text = "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือที่หน้าเสาตรงระดับหลังเหล็กรับท่อ แล้วคลิก | Tab = A/B/C/D"
+        Sketchup.status_text = "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือหน้าเสาที่ระดับบนสุดของซัพพอร์ต แล้วคลิก | Tab = A/B/C/D"
       end
     end
   end

@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.1**
-(`dist/artk_plant_pipe-1.16.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.1**
-(`dist/artk_steel_support-2.0.1.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (269 runs, all green).
+(`dist/artk_plant_pipe-1.16.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.2**
+(`dist/artk_steel_support-2.0.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (270 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -132,6 +132,8 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **Steel Supports 2.0.1**: ผู้ใช้เลือก C/D ในหน้าต่างแต่ได้ A ทุกครั้ง – ตั้งค่าเก็บเป็น JSON ด้วย write_default ซึ่ง SketchUp
   ทำเครื่องหมาย " เพี้ยน (บทเรียนเดียวกับ Plant Piping) อ่านกลับไม่ได้ → ค่าเริ่มต้น A · เก็บเป็น base64 (`settings_b64`) + จำในหน่วยความจำ ·
   ภาพผู้ใช้ขึ้น "Plant Piping TH เวอร์ชันเก่า" = ยังไม่ได้ลง 1.16.1 (ส่งให้อีกครั้ง)
+- **Steel Supports 2.0.2**: "จุดคลิกต้องเป็นด้านบน" → คลิกหน้าเสา = บนสุดของซัพพอร์ต (`Std.top`: แขน A/B, คานบน C/D) ·
+  ชี้ขอบ/มุมเสาได้ (หน้าตั้งของ edge ที่หันหากล้อง) · ผู้ใช้ถาม "1 2 3 4 ท่อผ่าน ออโต้มั้ย" → ใช่: U-bolt ทุกเส้นที่ผ่านจริง (เทสต์ 4 เส้น)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

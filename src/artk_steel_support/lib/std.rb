@@ -73,6 +73,13 @@ module ArtK
         s[:height] - Steel.depth(s[:sec])
       end
 
+      # Top of the steel above the level the pipes sit on: the point
+      # picked on a column face is the support's top (arm / frame top).
+      def top(t)
+        s = type(t)
+        s[:form] == :bracket ? 0.0 : top_level(s)
+      end
+
       # Support +t+ for the pipes there (support coordinates; nil / empty:
       # the drawing's own lines, with guide points at their centres).
       def build(t, pipes = nil, opts = {})
