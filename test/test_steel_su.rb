@@ -73,6 +73,8 @@ class TestSteelSU < Minitest::Test
     assert_nil SS::Link.pipe_at(@model, [3000, 1000, Z + 30.15 + 45])
   end
 
+  # ---------- 1.0 details (no longer offered; still refitted in old files) ----------
+
   def test_wall_frame_from_plant_piping_pipes
     drawing!
     g = place('wf', [3000, -30, Z])
@@ -191,54 +193,136 @@ class TestSteelSU < Minitest::Test
     assert_equal :lost, SS::Builder.refit(@model, g2), 'the clicked pipe is gone'
   end
 
+  # ---------- standard supports A–D ----------
+
+  COLUMN = [[2800.0, -850.0, 0.0], [3200.0, -450.0, 4000.0]].freeze # 400 wide, face at y = −450
+
+  def column!(more = [])
+    @model.ray_hits = SteelSU.rays(boxes: [COLUMN] + more)
+  end
+
+  def std(t, pt, opts = {})
+    plan = SS::Placer.from_pipe(@model, t, hit_at(pt), SH.settings.merge(opts))
+    SS::Builder.create(@model, plan)
+  end
+
+  def face(y)
+    y + 450.0
+  end
+
+  def test_d_at_the_column_centre_with_u_bolts_on_the_pipes
+    column!
+    big = pipe_run(-120, Z, '6"', 'CW')                       # 330 from the face, as drawn
+    pipe_run(90, Z - 84.15 + 36.5, '2-1/2"', 'CW')            # 540
+    pipe_run(240, Z - 84.15 + 24.15, '1-1/2"', 'CW')          # 690
+    g = std('D', [3150, -120, Z])
+    o = SH.get_json(g, 'origin')
+    assert_in_delta 3000.0, o[0], 1.0, 'centre of the column'
+    assert_in_delta(-450.0, o[1], 0.5, 'on the column face')
+    assert_in_delta Z - 84.15, o[2], 0.5, 'steel top under the pipes'
+    assert_equal 'D-01', g.get_attribute(SH::DICT, 'number')
+    assert_match(/ซัพพอร์ต D/, g.name)
+    pipes = SH.get_json(g, 'pipes')
+    assert_equal [330.0, 540.0, 690.0], pipes.map { |q| q['y'] }
+    assert_includes pipes.map { |q| q['pid'] }, big.persistent_id
+    assert_equal 400, SH.get_json(g, 'struct')['column']
+    assert_equal '1/2', g.get_attribute(SH::DICT, 'anchor')
+    assert_equal false, SH.get_json(g, 'info')['nominal']
+  end
+
+  def test_c_takes_the_steam_line_on_top
+    column!
+    pipe_run(-120, Z, '6"', 'CW')
+    pipe_run(150, Z - 84.15 + 30.15, '2"', 'CA')
+    stm = pipe_run(-15, Z - 84.15 + 420 + 5 + 100 + 57.15, '4"', 'STM')
+    g = std('C', [3050, -15, Z - 84.15 + 420 + 105 + 57.15])  # clicking the steam line
+    assert_in_delta Z - 84.15, SH.get_json(g, 'origin')[2], 0.5, 'level from the lines inside'
+    pipes = SH.get_json(g, 'pipes')
+    assert_equal 3, pipes.size
+    assert_includes pipes.map { |q| q['pid'] }, stm.persistent_id
+  end
+
+  def test_on_a_wall_it_stays_where_clicked_and_reach_is_checked
+    wall!
+    pipe_run(-450 + 160, Z, '4"', 'CW')
+    g = std('A', [3100, -290, Z])
+    assert_in_delta 3100.0, SH.get_json(g, 'origin')[0], 1.0
+    assert_nil SH.get_json(g, 'struct')['column']
+    assert_equal 'C75', g.get_attribute(SH::DICT, 'section')
+    pipe_run(0, Z + 1000, '2"', 'CW') # 450 from the wall: beyond A's 310
+    err = assert_raises(RuntimeError) { SS::Placer.from_pipe(@model, 'A', hit_at([3000, 0, Z + 1000]), {}) }
+    assert_match(/เกินระยะ/, err.message)
+  end
+
+  def test_face_click_without_pipes_then_pipes_drawn_refit_it
+    column!
+    plan = SS::Placer.from_face(@model, 'D', [3150.0, -450.0, 1500.0], [0, 1.0, 0], [3150.0, 5000.0, 1500.0])
+    assert_in_delta 3000.0, plan[:origin][0], 1.0
+    g = SS::Builder.create(@model, plan)
+    assert SH.get_json(g, 'info')['nominal']
+    assert_equal 3, g.entities.grep(Sketchup::ConstructionPoint).size, 'guide points at the drawn pipe centres'
+    assert_equal :same, SS::Builder.refit(@model, g)
+    run6 = pipe_run(-120, 1500 + 84.15, '6"', 'CW')
+    ArtK::PlantPipe::SupportBuilder.notify_changed(@model, [run6]) # as after drawing it
+    g2 = supports.first
+    refute g.valid?
+    assert_equal 'D-01', g2.get_attribute(SH::DICT, 'number')
+    assert_equal [run6.persistent_id], SH.get_json(g2, 'pipes').map { |q| q['pid'] }
+    assert_in_delta 3000.0, SH.get_json(g2, 'origin')[0], 1.0, 'the steel stays put'
+    assert_equal :same, SS::Builder.refit(@model, g2)
+    # the back of the face is its front when the camera looks from there
+    back = SS::Placer.from_face(@model, 'A', [3150.0, -450.0, 1500.0], [0, -1.0, 0], [3150.0, 5000.0, 1500.0])
+    assert_operator back[:y][1], :>, 0.9
+  end
+
+  def test_every_column_along_a_run
+    column!([[[4800.0, -850.0, 0.0], [5200.0, -450.0, 4000.0]]])
+    r = pipe_run(-120, Z, '6"', 'CW', x0: 0, x1: 8000)
+    @model.selection.push(r)
+    UI.messages.clear
+    assert_equal 2, SS::Commands.columns('D')
+    xs = supports.map { |g| SH.get_json(g, 'origin')[0] }.sort
+    assert_in_delta 3000.0, xs[0], 2.0
+    assert_in_delta 5000.0, xs[1], 2.0
+    assert_equal 0, SS::Commands.columns('D'), 'not twice'
+    rows = SS::Report.rows(supports)
+    assert_in_delta 2 * 2.78, rows.find { |q| q[:cat] == 'steel' }[:length_m], 0.01
+    assert_match(/พุก Expansion bolt 1\/2"/, SS::Report.csv(supports))
+    assert_match(/น้ำหนักเหล็กรวม/, SS::Report.html(supports))
+  end
+
   def test_place_tool
-    drawing!
-    tool = SS::PlaceTool.new('wf')
+    column!
+    pipe_run(-120, Z, '6"', 'CW')
+    tool = SS::PlaceTool.new('B')
     tool.activate
     view = @model.active_view
-    Sketchup::InputPoint.next_position = PH.to_pt([2000, -30, Z + 50])
+    Sketchup::InputPoint.next_position = PH.to_pt([3100, -120, Z + 90])
     tool.onMouseMove(0, 10, 10, view)
-    assert_match(/โครงกล่อง/, view.tooltip)
+    assert_match(/ซัพพอร์ต B/, view.tooltip)
+    assert_match(/กลางเสา/, view.tooltip)
     tool.draw(view)
     refute_empty view.drawn
     tool.onLButtonDown(0, 10, 10, view)
     assert_equal 1, supports.size
     tool.onKeyDown(9, false, 0, view)
-    assert_equal 'wb', SH.settings['detail']
-    Sketchup::InputPoint.next_position = PH.to_pt([2000, 3000, Z])
+    assert_equal 'C', SH.settings['detail']
+    Sketchup::InputPoint.next_position = PH.to_pt([3100, 3000, Z])
     tool.onMouseMove(0, 10, 10, view) # nothing there
     tool.onLButtonDown(0, 10, 10, view)
     assert_equal 1, supports.size
   end
 
-  def test_auto_along_runs_and_report
-    drawing!
-    @model.selection.push(@cw)
-    @model.selection.push(@ca)
-    UI.messages.clear
-    n = SS::Commands.auto('wf')
-    assert_operator n, :>=, 2
-    xs = supports.map { |g| SH.get_json(g, 'origin')[0] }.sort
-    span = ArtK::PlantPipe::API.info(@ca)[:span_m] * 1000.0
-    assert(xs.each_cons(2).all? { |p, q| q - p <= span + 1.0 }, xs.inspect)
-    assert(supports.all? { |g| SH.get_json(g, 'pipes').size == 4 })
-    rows = SS::Report.rows(supports)
-    steel = rows.find { |r| r[:cat] == 'steel' && r[:desc].include?('C100') }
-    assert_operator steel[:length_m], :>, 0
-    csv = SS::Report.csv(supports)
-    assert_match(/พุก Expansion bolt 1\/2"/, csv)
-    html = SS::Report.html(supports)
-    assert_match(/น้ำหนักเหล็กรวม/, html)
-  end
-
-  def test_dialog_payload
+  def test_dialog_payload_and_old_settings
+    Sketchup.write_default(SH::PREF, 'settings', '{"detail":"wf"}')
+    assert_equal 'A', SH.settings['detail'], '1.0 types are no longer offered'
     d = SS::Dialog.payload
-    assert_equal 4, d[:details].size
-    assert(d[:sections].any? { |s| s[:key] == 'C100' })
+    assert_equal %w[A B C D], d[:types].map { |t| t[:key] }
     assert_equal true, d[:linked]
     JSON.generate(d)
-    SS::Dialog.save(JSON.generate('detail' => 'th', 'rod' => '1/2'))
-    assert_equal '1/2', SH.settings['rod']
+    SS::Dialog.save(JSON.generate('detail' => 'C', 'spacing_m' => 3))
+    assert_equal 'C', SH.settings['detail']
+    assert_equal 3, SH.settings['spacing_m']
   end
 
   # A faceted tube drawn without Plant Piping, as SketchUp faces.

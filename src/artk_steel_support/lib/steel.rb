@@ -146,14 +146,16 @@ module ArtK
         Mesh.area2d(outline).negative? ? outline.reverse : outline
       end
 
-      def angle_profile(s)
+      # a2: the second leg cut shorter (a shoe trimmed to the pipe).
+      def angle_profile(s, a2 = nil)
         a, t, r1, r2 = s.values_at(:a, :t, :r1, :r2)
+        a2 ||= a
         hp = Math::PI / 2.0
         pts = [[0.0, 0.0], [a, 0.0]]
         pts += Mesh.arc2d([a - r2, t - r2], r2, 0.0, hp, ARC)
         pts += Mesh.arc2d([t + r1, t + r1], r1, -hp, -Math::PI, ARC)
-        pts += Mesh.arc2d([t - r2, a - r2], r2, 0.0, hp, ARC)
-        pts << [0.0, a]
+        pts += Mesh.arc2d([t - r2, a2 - r2], r2, 0.0, hp, ARC)
+        pts << [0.0, a2]
         pts
       end
 
@@ -211,18 +213,19 @@ module ArtK
         Mesh.extrude(profile(key), a, u, v, ax, len, cut0: cut0, cut1: cut1)
       end
 
-      # An angle with its heel on a → b, legs along leg1 / leg2.
-      def angle(key, a, b, leg1, leg2)
+      # An angle with its heel on a → b, legs along leg1 / leg2 (leg2 cut
+      # to leg2_len when given).
+      def angle(key, a, b, leg1, leg2, leg2_len: nil)
         ax = Vec.sub(b, a)
         len = Vec.length(ax)
         ax = Vec.scale(ax, 1.0 / len)
         u = Vec.unit(leg1)
         v = Vec.unit(leg2)
-        if Vec.dot(Vec.cross(u, v), ax).negative?
-          # mirror: swap legs so the profile stays counter-clockwise
-          u, v = v, u
+        if Vec.dot(Vec.cross(u, v), ax).negative? # run it the other way: the profile stays counter-clockwise
+          a = b
+          ax = Vec.scale(ax, -1.0)
         end
-        Mesh.extrude(profile(key), a, u, v, ax, len)
+        Mesh.extrude(angle_profile(get(key), leg2_len), a, u, v, ax, len)
       end
     end
   end

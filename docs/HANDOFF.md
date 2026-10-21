@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.1**
-(`dist/artk_plant_pipe-1.16.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 1.0.0**
-(`dist/artk_steel_support-1.0.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (259 runs, all green).
+(`dist/artk_plant_pipe-1.16.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.0**
+(`dist/artk_steel_support-2.0.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (269 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -122,6 +122,13 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   (Auto Supports เว้นจุดของปลั๊กอินอื่น – PipeBracket รออยู่), `notify_changed`/`CHANGED`, `drop_covered` รับรูปแบบเก่า
   (model, point, pipes) ที่ PipeBracket เรียก (1.16.0 ทำพัง), ซ่อนชนิด `wallframe` (ยังสร้างใหม่ได้สำหรับไฟล์ 1.16.0) ·
   `tools/build_rbz.rb` สร้างทั้งสองไฟล์ · ยังไม่ได้ลองใน SketchUp จริง: การตรวจท่อทั่วไปจาก face, raytest หา chord, preview ของ tool
+- **Steel Supports TH 2.0.0**: ผู้ใช้ส่งแบบมาตรฐาน A B C D (รูป CAD มีระยะ) "ระยะขอตามนี้จริงๆ จับพิกัดกลางเสา" + ตอบคำถาม:
+  แทนแบบ 1.0 ทั้งหมด (เหลือ A–D), วางได้ทั้งคลิกท่อและคลิกหน้าเสา, เหล็กตามแบบ U-bolt ตามท่อ, พุก A/B 3/8" C/D 1/2" →
+  `lib/std.rb` (TYPES ระยะตามแบบ, เหล็กตั้งเอวในระนาบซัพพอร์ต มุม mitre, ค้ำยัน 45° จากโคนเสา, C: L50 seat + L100 shoe สตีม),
+  `su/placer.rb` (from_pipe / from_face / refit_plan, `span` หาความกว้างหน้าเสาด้วย raytest → กึ่งกลาง, ≤ 1.2 ม. = เสา),
+  `Commands.columns` (ไล่ตามแนวท่อทุก 10 ซม. หาเสา), tool/ไอคอน/หน้าต่าง A–D · แบบ 1.0 (wf/wb/th/tt) เก็บโค้ดไว้ให้ไฟล์เก่า refit ได้ ·
+  การอ่านระยะจากรูป: ขนาดโครง/แขน/ระยะท่อตามตัวเลข, ตำแหน่งพุก/ท่อแบบ A, B ไม่มีตัวเลข → วัดจากรูป (A ท่อที่ 0.16, พุก 0.07/0.24 ฯลฯ)
+  · ยังไม่ได้ลองใน SketchUp จริง: หาความกว้างเสา, คลิกหน้าเสา (InputPoint#face + camera.eye), จุดไกด์ (add_cpoint/add_cline)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

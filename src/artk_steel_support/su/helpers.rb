@@ -14,7 +14,7 @@ module ArtK
         galv: ['SS ชุบซิงค์ (zinc plated)', [196, 200, 206]]
       }.freeze
       DEFAULTS = {
-        'detail' => 'wf', 'section' => 'auto', 'anchor' => 'auto', 'anchors' => 3, 'rod' => 'auto',
+        'detail' => 'A', 'section' => 'auto', 'anchor' => 'auto', 'anchors' => 3, 'rod' => 'auto',
         'spacing_m' => 0, 'gap' => 600, 'drop_hangers' => true
       }.freeze
 
@@ -110,7 +110,9 @@ module ArtK
 
       def settings
         raw = Sketchup.read_default(PREF, 'settings', '{}')
-        DEFAULTS.merge(JSON.parse(raw.to_s))
+        s = DEFAULTS.merge(JSON.parse(raw.to_s))
+        s['detail'] = DEFAULTS['detail'] unless Std::TYPES.key?(s['detail']) # 1.0's types are gone from the tools
+        s
       rescue JSON::ParserError
         DEFAULTS.dup
       end

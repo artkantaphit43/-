@@ -5,7 +5,7 @@
 require_relative 'test_helper'
 
 SS_ROOT = File.expand_path('../src/artk_steel_support', __dir__)
-%w[vec mesh steel hardware beam pipes details].each { |f| require File.join(SS_ROOT, 'lib', f) }
+%w[vec mesh steel hardware beam pipes details std].each { |f| require File.join(SS_ROOT, 'lib', f) }
 SS = ArtK::SteelSupport
 
 module SteelSU
@@ -21,7 +21,7 @@ module SteelSU
        support_tool api].each { |f| require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__) }
     ArtK::SteelSupport.const_set(:PLUGIN_ROOT, SS_ROOT) unless defined?(ArtK::SteelSupport::PLUGIN_ROOT)
     require File.join(SS_ROOT, 'version')
-    %w[helpers link probe generic planner builder place_tool report commands dialog].each do |f|
+    %w[helpers link probe generic planner placer builder place_tool report commands dialog].each do |f|
       require File.join(SS_ROOT, 'su', f)
     end
     @loaded = true

@@ -186,3 +186,92 @@ class TestSteelCore < Minitest::Test
     assert_nil SS::Pipes.fit_cylinder([[0, 0, 1], [0, 1, 0], [1, 0, 0]], pts), 'a box is no pipe'
   end
 end
+
+# The user's standard column supports A–D: steel exactly as drawn.
+class TestSteelStd < Minitest::Test
+  P = SteelSU.method(:pipe)
+
+  def steel(res)
+    res.part.solids.select { |r, _| r == :steel }.flat_map { |_, s| s.polys.flatten(1) }
+  end
+
+  def range(pts, i)
+    pts.map { |p| p[i] }.minmax.map { |v| v.round(3) }
+  end
+
+  def test_all_closed_and_sized_as_drawn
+    { 'A' => [[0, 310], [-300, 0], [-20, 20]], 'B' => [[0, 480], [-400, 0], [-25, 25]],
+      'D' => [[0, 870], [-100, 420], [-25, 25]] }.each do |t, (ys, zs, xs)|
+      res = SS::Std.build(t)
+      res.part.solids.each { |role, s| assert SS::Mesh.closed?(s), "#{t} #{role}" }
+      res.part.solids.each { |_, s| assert_operator SS::Mesh.volume(s), :>, 0 }
+      pts = steel(res)
+      assert_equal ys, range(pts, 1), "#{t} out from the column face"
+      assert_equal zs, range(pts, 2), "#{t} height"
+      assert_equal xs, range(pts, 0), "#{t} flange width along the pipe"
+    end
+    c = SS::Std.build('C')
+    assert_equal [0.0, 870.0], range(steel(c), 1)
+    assert_equal [-100.0, 525.0], range(steel(c), 2), 'frame + 2" seat + 4" angle shoe'
+  end
+
+  def test_sections_anchors_and_bom_as_drawn
+    a = SS::Std.build('A')
+    assert_equal 'C75', a.info[:section]
+    assert_equal '3/8', a.info[:anchor]
+    assert_equal 2, a.bom.find { |b| b[:cat] == 'anchor' }[:qty]
+    assert_equal [310, 300, 318], a.bom.select { |b| b[:cat] == 'steel' }.map { |b| b[:length] }
+    b = SS::Std.build('B')
+    assert_equal 'C100', b.info[:section]
+    assert_equal '3/8', b.info[:anchor]
+    assert_equal [480, 400, 424], b.bom.select { |r| r[:cat] == 'steel' }.map { |r| r[:length] }
+    %w[C D].each do |t|
+      r = SS::Std.build(t)
+      assert_equal '1/2', r.info[:anchor]
+      assert_equal 3, r.bom.find { |x| x[:cat] == 'anchor' }[:qty]
+      assert_equal [1740, 1040], r.bom.select { |x| x[:cat] == 'steel' && x[:key] == 'C100' }.map { |x| x[:length] }
+    end
+    c = SS::Std.build('C')
+    assert_equal %w[L50 L100], c.bom.select { |x| x[:cat] == 'steel' && x[:key] != 'C100' }.map { |x| x[:key] }
+  end
+
+  def test_drawing_pipe_positions_when_no_pipes
+    d = SS::Std.build('D')
+    assert d.info[:nominal]
+    assert_equal [330.0, 540.0, 690.0], d.carried.map { |p| p[:y] } # 0.33, +0.21, +0.15
+    assert_equal 3, d.info[:guides].size
+    c = SS::Std.build('C')
+    assert_equal [330.0, 600.0, 435.0], c.carried.map { |p| p[:y] }
+    steam = c.carried.last
+    assert_in_delta 420 + 5 + 100 + 57.15, steam[:z], 1e-6
+  end
+
+  def test_u_bolts_follow_the_pipes_steel_stays
+    pipes = [P.call(300, 84.15, 168.3, 0, '6"'), P.call(520, 30.15 + 40, 60.3, 0, '2"')] # 2" on a 40 packer
+    d = SS::Std.build('D', pipes)
+    refute d.info[:nominal]
+    assert_equal [300.0, 520.0], d.carried.map { |p| p[:y] }
+    assert_equal [0, 870], [steel(d).map { |p| p[1] }.min.round, steel(d).map { |p| p[1] }.max.round]
+    assert(d.bom.any? { |b| b[:cat] == 'plate' }, 'packer under the higher pipe')
+    # the 6" U-bolt straddles y = 300 (not the drawing's 330)
+    ub = d.part.solids.map { |_, s| s.polys.flatten(1) }.find do |pts|
+      ys = pts.map { |p| p[1] }
+      pts.map { |p| p[2] }.max > 160 && ys.min > 150 && ys.max < 450
+    end
+    ys = ub.map { |p| p[1] }
+    assert_in_delta 300.0, (ys.min + ys.max) / 2.0, 1e-6
+    assert_in_delta 2 * (84.15 + 1 + 12.7), ys.max - ys.min, 1e-6
+    out = SS::Std.build('A', [P.call(0, 30, 60.3, 0, 'x'), P.call(165, 57.15, 114.3, 0, '4"')])
+    assert_equal ['4"'], out.carried.map { |p| p[:label] }
+    assert(out.notes.any? { |n| n.include?('x') }, 'the pipe against the column is noted')
+  end
+
+  def test_steam_shoe_fits_the_steam_line
+    low = SS::Std.build('C', [P.call(330, 84.15, 168.3), P.call(440, 420 + 5 + 60 + 57.15, 114.3, 0, 'st')])
+    assert_equal 440.0, low.carried.last[:y]
+    assert_in_delta 420 + 5 + 60, steel(low).map { |p| p[2] }.max, 1e-6, 'shoe leg cut to the pipe'
+    high = SS::Std.build('C', [P.call(330, 84.15, 168.3), P.call(440, 420 + 5 + 150 + 57.15, 114.3, 0, 'st')])
+    assert_in_delta 420 + 5 + 150, steel(high).map { |p| p[2] }.max, 1e-6, 'packed up under the shoe'
+    assert(high.bom.any? { |b| b[:cat] == 'plate' })
+  end
+end

@@ -2,17 +2,18 @@
 
 module ArtK
   module SteelSupport
-    # Point at a pipe: the support is worked out and outlined (orange =
-    # passes the checks, red = does not / cannot be placed); click places
-    # it. Tab cycles the detail.
+    # Point at a pipe beside a column – or at the column face, at the
+    # height of the steel's top: the support (A–D) is worked out at the
+    # column's centre and outlined (orange; red = a check fails / cannot
+    # be placed); click places it. Tab cycles A → B → C → D.
     class PlaceTool
       OK = Sketchup::Color.new(255, 120, 0)
       BAD = Sketchup::Color.new(220, 30, 30)
       PIPE = Sketchup::Color.new(0, 120, 255)
-      DETAILS = Details::TYPES.keys.freeze
+      DETAILS = Std::TYPES.keys.freeze
 
       def initialize(detail)
-        @detail = detail
+        @detail = DETAILS.include?(detail) ? detail : DETAILS.first
         @ip = Sketchup::InputPoint.new
         @cache = {}
       end
@@ -32,7 +33,7 @@ module ArtK
 
       def onMouseMove(_flags, x, y, view)
         @ip.pick(view, x, y)
-        @hit = pipe_hit(view)
+        @hit = pipe_hit(view) || face_hit(view)
         @plan = @hit && plan_for(@hit)
         view.tooltip = tip
         status
@@ -87,10 +88,12 @@ module ArtK
         pts = res.lines.flat_map { |a, b| [H.to_pt(a).transform(tr), H.to_pt(b).transform(tr)] }
         view.draw(GL_LINES, pts) unless pts.empty?
         view.drawing_color = PIPE
+        view.line_stipple = res.info[:nominal] ? '-' : ''
         res.carried.each do |p|
           c = Vec.add(Vec.add(@plan[:origin], Vec.scale(@plan[:y], p[:y])), [0, 0, p[:z]])
           view.draw(GL_LINES, [H.to_pt(Vec.along(c, @plan[:x], -400)), H.to_pt(Vec.along(c, @plan[:x], 400))])
         end
+        view.line_stipple = ''
       end
 
       def getExtents
@@ -124,13 +127,38 @@ module ArtK
           pipe: Generic.pipe(cyl, on, Vec.horizontal(cyl[:axis]), y) }
       end
 
-      # One plan per pipe and 50 mm step along it (the rays are not free).
+      # A vertical face under the cursor (column / wall): point, normal
+      # (world) and where the camera is.
+      def face_hit(view)
+        return nil unless @ip.valid? && @ip.respond_to?(:face) && (face = @ip.face)
+        return nil if part_of_ours?(face) # a support / pipe face is no column
+
+        tr = @ip.respond_to?(:transformation) ? @ip.transformation : Geom::Transformation.new
+        n = Vec.unit(H.from_vec(face.normal.transform(tr)))
+        return nil if n[2].abs > 0.3
+
+        eye = view.respond_to?(:camera) ? H.from_pt(view.camera.eye) : nil
+        pos = H.from_pt(@ip.position)
+        { face: true, point: pos, normal: n, eye: eye, key: [face.object_id, (pos[2] / 10.0).round] }
+      end
+
+      def part_of_ours?(face)
+        d = face.respond_to?(:parent) && face.parent
+        d.respond_to?(:instances) && d.instances.any? { |i| H.ours?(i) || Link.pp_entity?(i) }
+      end
+
+      # One plan per pipe / face and 50 mm step (the rays are not free).
       def plan_for(hit)
-        along = Vec.dot(hit[:point], Vec.horizontal(hit[:dir]))
-        key = hit[:key] + [@detail, (along / 50.0).round]
+        along = hit[:face] ? 0 : (Vec.dot(hit[:point], Vec.horizontal(hit[:dir])) / 50.0).round
+        key = hit[:key] + [@detail, along]
         @cache.clear if @cache.size > 200
         @cache[key] ||= begin
-          Planner.plan(Sketchup.active_model, @detail, hit, H.settings)
+          model = Sketchup.active_model
+          if hit[:face]
+            Placer.from_face(model, @detail, hit[:point], hit[:normal], hit[:eye], H.settings)
+          else
+            Placer.from_pipe(model, @detail, hit, H.settings)
+          end
         rescue StandardError => e
           { error: e.message, origin: hit[:point] }
         end
@@ -141,16 +169,15 @@ module ArtK
         return @plan[:error] if @plan[:error]
 
         res = @plan[:result]
-        sec = Steel.get(res.info[:section])
-        txt = "#{Details::TYPES[@detail][:th]}: #{sec[:name]} · #{res.carried.size} ท่อ"
-        txt += " · พุก #{Hardware.label(res.info[:anchor])} ×#{res.info[:anchors]}" if res.info[:anchor]
-        txt += " · ก้าน #{Hardware.label(res.info[:rod])}" if res.info[:rod]
-        txt += ' · ไม่ผ่านการตรวจ' unless res.ok?
+        txt = "#{Std.type(@detail)[:th]} · พุก #{Hardware.label(res.info[:anchor])} ×#{res.info[:anchors]}"
+        txt += res.info[:nominal] ? ' · ยังไม่มีท่อ: U-bolt ตามแบบ + จุดไกด์' : " · รัด #{res.carried.size} ท่อ"
+        col = @plan[:struct][:column]
+        txt += col ? " · กลางเสา (กว้าง #{col} มม.)" : ' · ผนัง: วางตรงที่ชี้'
         ([txt] + res.notes).join("\n")
       end
 
       def status
-        Sketchup.status_text = "ซัพพอร์ตเหล็ก: #{Details::TYPES[@detail][:th]} – ชี้ที่ท่อแล้วคลิก | Tab = เปลี่ยนแบบ"
+        Sketchup.status_text = "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือที่หน้าเสาตรงระดับหลังเหล็กรับท่อ แล้วคลิก | Tab = A/B/C/D"
       end
     end
   end

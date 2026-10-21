@@ -31,9 +31,10 @@ module ArtK
         Link.register
         {
           version: VERSION, link: Link.status, linked: Link.available?, settings: H.settings,
-          details: Details::TYPES.map { |k, v| { key: k, th: v[:th], en: v[:en], min: v[:min] } },
-          sections: Steel::SECTIONS.select { |k, _| Steel.channel?(k) }.map { |k, v| { key: k, name: v[:name] } },
-          sizes: Hardware::ORDER.map { |s| { key: s, name: Hardware.label(s) } }
+          types: Std::TYPES.map do |k, v|
+            { key: k, th: v[:th], section: Steel.get(v[:sec])[:name], anchor: Hardware.label(v[:anchor]),
+              anchors: v[:bolts].size }
+          end
         }
       end
 
@@ -47,7 +48,7 @@ module ArtK
         detail = H.settings['detail']
         case name
         when 'place' then Commands.place(detail)
-        when 'auto' then Commands.auto(detail)
+        when 'columns' then Commands.columns(detail)
         when 'refit' then Commands.refit
         when 'report' then Commands.report
         end

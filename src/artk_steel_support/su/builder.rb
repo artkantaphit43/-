@@ -2,9 +2,10 @@
 
 module ArtK
   module SteelSupport
-    # Supports in the model: one group each, numbered per detail (WF-01 …),
+    # Supports in the model: one group each, numbered per type (A-01 …),
     # with everything needed to rebuild it later stored on it
-    # (docs/STEEL_SUPPORTS_FORMAT.md).
+    # (docs/STEEL_SUPPORTS.md). Types A–D (Std, Placer); wf / wb / th / tt
+    # are the 1.0 details, still refitted in files drawn with 1.0.
     module Builder
       FORMAT = 1
       NEAR = 2500.0 # mm, pipes changed this close to a support refit it
@@ -20,10 +21,9 @@ module ArtK
         g.transformation = H.edit_transform(model).inverse * H.frame_transform(plan[:origin], plan[:x], plan[:y])
         g.layer = H.tag(model)
         number ||= next_number(model, plan[:detail])
-        info = Details::TYPES[plan[:detail]]
-        sec = Steel.get(res.info[:section])
-        g.name = "#{number} #{info[:th]} #{sec[:inch]} (#{res.carried.size} ท่อ)"
+        g.name = "#{number} #{title(plan)} (#{res.carried.size} ท่อ)"
         write(g, plan, number)
+        guides(g, res)
         drop_hangers(model, plan) if H.settings['drop_hangers']
         model.commit_operation if op
         g
@@ -32,9 +32,25 @@ module ArtK
         raise
       end
 
+      def title(plan)
+        t = plan[:detail]
+        return Std.type(t)[:th] if Placer.std?(t)
+
+        "#{Details::TYPES[t][:th]} #{Steel.get(plan[:result].info[:section])[:inch]}"
+      end
+
+      # Placed without pipes: guide points / lines on the drawing's pipe
+      # centres to draw the pipes to.
+      def guides(g, res)
+        res.info[:guides].to_a.each do |y, z|
+          g.entities.add_cpoint(H.to_pt([0.0, y, z]))
+          g.entities.add_cline(H.to_pt([-500.0, y, z]), H.to_pt([500.0, y, z])) if g.entities.respond_to?(:add_cline)
+        end
+      end
+
       def write(g, plan, number)
         res = plan[:result]
-        hit = plan[:hit]
+        hit = plan[:hit] || {}
         pipes = res.carried.map do |p|
           { 'pid' => p[:pid], 'label' => p[:label], 'y' => p[:y].round(1), 'z' => p[:z].round(1), 'od' => p[:od].round(2),
             'ins' => p[:ins].to_f, 'src' => p[:src] || 'pp', 'at' => world_at(plan, p).map { |c| c.round(1) } }
@@ -50,7 +66,7 @@ module ArtK
         H.set_json(g, 'origin', plan[:origin].map { |c| c.round(2) })
         H.set_json(g, 'xdir', plan[:x])
         H.set_json(g, 'ydir', plan[:y])
-        H.set_json(g, 'hit_dir', hit[:dir])
+        H.set_json(g, 'hit_dir', hit[:dir] || plan[:x])
         H.set_json(g, 'ref', { 'src' => hit[:src], 'pid' => ref[:pid], 'od' => ref[:od], 'label' => ref[:label],
                                'cyl' => hit[:cyl] })
         H.set_json(g, 'opts', plan[:opts] || {})
@@ -121,12 +137,17 @@ module ArtK
       end
 
       # Rebuild +g+ for the pipes there now: :same, :done or :lost (no pipe).
+      # A–D stay where they are (steel as drawn); 1.0 details follow the
+      # clicked pipe.
       def refit(model, g, op: true)
-        hit = rehit(model, g)
-        return :lost unless hit
+        if Placer.std?(g.get_attribute(H::DICT, 'detail'))
+          plan = Placer.refit_plan(model, g)
+        else
+          hit = rehit(model, g)
+          return :lost unless hit
 
-        opts = H.get_json(g, 'opts', {})
-        plan = Planner.plan(model, g.get_attribute(H::DICT, 'detail'), hit, opts)
+          plan = Planner.plan(model, g.get_attribute(H::DICT, 'detail'), hit, H.get_json(g, 'opts', {}))
+        end
         same = Pipes.signature(plan[:result].carried) == stored_signature(g) &&
                plan[:result].info[:section] == g.get_attribute(H::DICT, 'section')
         return :same if same
