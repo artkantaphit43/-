@@ -3,7 +3,7 @@
 module ArtK
   module SteelSupport
     # Point at a pipe beside a column – or at the column face, at the
-    # height of the steel's top: the support (A–D) is worked out at the
+    # level the pipes sit on (lock point, marked): the support (A–D) is worked out at the
     # column's centre and outlined (orange; red = a check fails / cannot
     # be placed); click places it. Tab cycles A → B → C → D.
     class PlaceTool
@@ -87,6 +87,7 @@ module ArtK
         view.drawing_color = res.ok? ? OK : BAD
         pts = res.lines.flat_map { |a, b| [H.to_pt(a).transform(tr), H.to_pt(b).transform(tr)] }
         view.draw(GL_LINES, pts) unless pts.empty?
+        view.draw_points([H.to_pt(lock_point)], 10, 4, res.ok? ? OK : BAD)
         view.drawing_color = PIPE
         view.line_stipple = res.info[:nominal] ? '-' : ''
         res.carried.each do |p|
@@ -94,6 +95,13 @@ module ArtK
           view.draw(GL_LINES, [H.to_pt(Vec.along(c, @plan[:x], -400)), H.to_pt(Vec.along(c, @plan[:x], 400))])
         end
         view.line_stipple = ''
+      end
+
+      # The lock point: the inner corner of the steel the pipes sit on at
+      # the column (arm top at the face / bottom member at the frame post).
+      def lock_point
+        inner = Std.bearing(Std.type(@plan[:detail]))[0]
+        Vec.along(@plan[:origin], @plan[:y], inner)
       end
 
       def getExtents
@@ -219,11 +227,13 @@ module ArtK
         txt += res.info[:nominal] ? ' · ยังไม่มีท่อ: U-bolt ตามแบบ + จุดไกด์' : " · รัด #{res.carried.size} ท่อ"
         col = @plan[:struct][:column]
         txt += col ? " · กลางเสา (กว้าง #{col} มม.)" : ' · ผนัง: วางตรงที่ชี้'
+        txt += ' · จุดล็อก ✕ = ท้องท่อ' if @hit && @hit[:face]
         ([txt] + res.notes).join("\n")
       end
 
       def status
-        Sketchup.status_text = "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือหน้าเสาที่ระดับบนสุดของซัพพอร์ต แล้วคลิก | Tab = A/B/C/D"
+        Sketchup.status_text = "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือหน้าเสาที่ระดับท้องท่อ (มุมในบนเหล็กรับท่อ) แล้วคลิก | " \
+                               'Tab = A/B/C/D'
       end
     end
   end

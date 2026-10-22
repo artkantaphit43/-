@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.7**
-(`dist/artk_steel_support-2.0.7.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (284 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.8**
+(`dist/artk_steel_support-2.0.8.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (284 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -162,6 +162,9 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   แก้: PP เรียก rest hook แม้ path ว่าง · Steel `Builder.rest_at(..., model:)` ไม่มีซัพพอร์ตใน path → หาจากตำแหน่ง
   (`frames` แคช 1 วิ, `rest_on(loose: true)`: |lx| ≤ 503 และอยู่บนเส้นไกด์ (y = ตำแหน่งตามแบบ ±3) หรือบนเหล็ก) ·
   **บทเรียน: อย่าพึ่ง instance_path อย่างเดียว – ภาพผู้ใช้ปลายท่ออยู่หน้าซัพพอร์ต = คลิกบนเส้นไกด์**
+- **Steel Supports 2.0.8** (ภาพ D กรอบแดงที่มุมในล่าง: "เปลี่ยนจุดวางซัพพอร์ตใช้ล็อกเป็นตรงนี้แทน รอบก่อนทักผิด"): คลิกหน้าเสา
+  = ระดับท้องท่อ (บนเหล็กรับท่อ: บนแขน A/B, บนคานล่าง C/D) แทนบนสุดของซัพพอร์ต (2.0.2) · `Std.top` ลบ, `Placer.from_face`
+  origin = จุดคลิก · PlaceTool วาด ✕ ที่มุมใน (`lock_point` = origin + y·`Std.bearing[0]`) · ไฟล์เก่าไม่กระทบ (origin เก็บเป็นระดับรับท่ออยู่แล้ว)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

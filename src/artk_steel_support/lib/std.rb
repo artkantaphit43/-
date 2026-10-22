@@ -140,13 +140,6 @@ module ArtK
         p[:r] + 1.0 + u[:d] / 2.0 + u[:wod] / 2.0
       end
 
-      # Top of the steel above the level the pipes sit on: the point
-      # picked on a column face is the support's top (arm / frame top).
-      def top(t)
-        s = type(t)
-        s[:form] == :bracket ? 0.0 : top_level(s)
-      end
-
       # Support +t+ for the pipes there (support coordinates; nil / empty:
       # the drawing's own lines). The drawing's places no pipe takes get
       # guide points where those lines rest (info rests: [y, z] of their

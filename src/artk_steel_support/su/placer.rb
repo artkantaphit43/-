@@ -56,8 +56,10 @@ module ArtK
         pl
       end
 
-      # Click on a column / wall face at the height of the support's top
-      # (arm top / frame top). normal: the face's (world); eye: the camera,
+      # Click on a column / wall face at the level the pipes sit on – the
+      # lock point: the inner corner of the steel at the column (arm top /
+      # top of a frame's bottom member), the pipes' undersides; 2.0.2–2.0.7
+      # took the support's top. normal: the face's (world); eye: the camera,
       # to know its front. Pipes passing there – any number – get U-bolts.
       # face: [face, transformation] when known – its own outline gives the
       # column's width (a click on its edge / corner still centres).
@@ -68,7 +70,7 @@ module ArtK
         y = Vec.scale(y, -1.0) if eye && Vec.dot(y, Vec.sub(eye, point)).negative?
         x = Vec.cross(y, UP)
         col = extent(model, point, x, y, face)
-        origin = Vec.add(Vec.along(point, x, centre(col)), [0, 0, -Std.top(t)])
+        origin = Vec.along(point, x, centre(col))
         pipes = section(model, origin, x, y, nil)
         plan(t, origin, x, y, pipes, opts, nil, { face: 0.0, column: column(col) })
       end
