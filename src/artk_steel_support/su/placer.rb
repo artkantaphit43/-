@@ -84,21 +84,21 @@ module ArtK
         y = H.get_json(g, 'ydir')
         ref = H.get_json(g, 'ref', {})
         hit = ref['src'] == 'generic' ? { src: 'generic' } : nil
-        pipes = section(model, origin, x, y, hit)
+        pipes = section(model, origin, x, y, hit, min_y: Std.type(t)[:form] == :rod ? -Float::INFINITY : -50.0)
         plan(t, origin, x, y, pipes, H.get_json(g, 'opts', {}), hit, H.get_json(g, 'struct', {}))
       end
 
       def plan(t, origin, x, y, pipes, opts, hit, struct)
-        res = Std.build(t, pipes, opts)
+        res = Std.build(t, pipes, opts, struct)
         { detail: t, origin: origin, x: x, y: y, result: res, struct: struct, opts: opts,
           hit: hit || { src: 'face', dir: x } }
       end
 
       # Pipes crossing the support's plane, from the face (y) and the given
       # level (z): Plant Piping's, and round ones found by rays.
-      def section(model, origin, x, y, hit)
+      def section(model, origin, x, y, hit, min_y: -50.0)
         list = Link.pipes_across(model, origin, x, reach: 1500.0, rise: WINDOW + 600.0)
-        list = list.select { |p| p[:y] > -50.0 }
+        list = list.select { |p| p[:y] > min_y }
         if (hit && hit[:src] == 'generic') || !Link.available?
           known = list.map { |p| { point: Vec.add(Vec.along(origin, y, p[:y]), [0, 0, p[:z]]), axis: x, radius: p[:r] } }
           known << hit[:cyl] if hit && hit[:cyl]
@@ -148,6 +148,177 @@ module ArtK
           end
           k * lo
         end.sort
+      end
+
+      # ---------- E: hung from a round member ----------
+
+      # E from a Plant Piping pipe under a round member: centred on that
+      # member's axis (found by rays – no need to pick its centre), across
+      # the pipes of the tier(s) there, its bottom member level with the
+      # lowest pipe's underside; pipes stacked above get the upper tier.
+      # right: the camera's right (the member's end on the left as seen).
+      def from_pipe_hanger(model, t, hit, opts, right: nil)
+        raise 'ท่อแนวตั้ง – ใช้ riser clamp ที่ระดับพื้น' if hit[:dir][2].abs > 0.5
+
+        s = Std.type(t)
+        x = Vec.horizontal(hit[:dir])
+        x = Vec.scale(x, -1.0) if right && Vec.dot(Vec.cross(UP, x), right).negative?
+        y = Vec.cross(UP, x)
+        o = hit[:point]
+        skip = hit[:cyl] ? [hit[:cyl]] : []
+        c = Probe.above(model, o, x, (hit[:pipe] ? hit[:pipe][:r].to_f : 0.0) + 5.0, skip: skip)
+        raise 'ไม่พบท่อกลมด้านบนที่จะแขวน (เหนือท่อ ±0.6 ม. ตามแนวท่อ)' unless c && c[:kind] == :round
+
+        centre = Vec.along(o, x, c[:x])
+        lo, hi = Std.bearing(s)
+        list = section(model, centre, x, y, hit, min_y: -Float::INFINITY)
+        me = list.min_by { |p| p[:y].abs + p[:z].abs }
+        under = list.select do |p|
+          (p[:y] - me[:y]).abs <= hi - lo && p[:z] + p[:r] + 15.0 < c[:z] - c[:r]
+        end
+        tiers = stacks(under)
+        i = tiers.index { |tr| tr.include?(me) } or raise 'ท่อที่ชี้อยู่สูงเกินท่อกลมด้านบน'
+        pick = if tiers.size < 2 then [tiers[i]]
+               elsif i.zero? then tiers[0, 2]
+               else tiers[i - 1, 2]
+               end
+        bop = pick.first.map { |p| Pipes.bottom(p) }.min
+        gap = pick[1] ? pick[1].map { |p| Pipes.bottom(p) }.min - bop : (s[:tiers] == 2 ? s[:gap] : nil)
+        y0 = window(pick.flatten, me, lo, hi)
+        origin = Vec.add(Vec.along(centre, y, y0), [0.0, 0.0, bop])
+        pipes = list.map { |p| p.merge(y: p[:y] - y0, z: p[:z] - bop) }
+        pl = plan(t, origin, x, y, pipes, opts, hit, { chord: { z: c[:z] - bop, r: c[:r] }, gap: gap })
+        mine = pl[:result].carried.any? { |p| (p[:y] - (me[:y] - y0)).abs < 1.0 && (p[:z] - (me[:z] - bop)).abs < 1.0 }
+        raise "ท่อ #{me[:label]} ไม่อยู่ในตำแหน่งที่ซัพพอร์ต #{t} รับได้" unless mine
+
+        rods_hung(model, pl)
+      end
+
+      # F from a pipe under a round member: the cradle on that member's
+      # axis (found by rays – along the pipe over it, or across it), the
+      # pipe in its clamp; the origin under the axis at the pipe's
+      # underside.
+      def from_pipe_rod(model, t, hit, opts)
+        raise 'ท่อแนวตั้ง – ใช้ riser clamp ที่ระดับพื้น' if hit[:dir][2].abs > 0.5
+
+        x = Vec.horizontal(hit[:dir])
+        y = Vec.cross(UP, x)
+        o = hit[:point]
+        skip = hit[:cyl] ? [hit[:cyl]] : []
+        r = hit[:pipe] ? hit[:pipe][:r].to_f : 0.0
+        if (c = Probe.over(model, o, y, r + 5.0, skip: skip))
+          origin = Vec.add(Vec.along(o, y, c[:y]), [0.0, 0.0, -r])
+          chord = { z: c[:z] + r, r: c[:r], along: 'x' }
+        elsif (c = Probe.above(model, o, x, r + 5.0, skip: skip)) && c[:kind] == :round
+          origin = Vec.add(Vec.along(o, x, c[:x]), [0.0, 0.0, -r])
+          chord = { z: c[:z] + r, r: c[:r], along: 'y' }
+        else
+          raise 'ไม่พบท่อกลมเหนือท่อที่จะแขวน (ตามแนวท่อ ±0.4 ม. / ขวางท่อ ±0.6 ม.)'
+        end
+        pipes = section(model, origin, x, y, hit, min_y: -Float::INFINITY)
+        pl = plan(t, origin, x, y, pipes, opts, hit, { chord: chord })
+        me = pl[:result].carried.first
+        unless me && (me[:z] - r).abs < 1.0 && me[:y].abs <= 250.0
+          raise "ท่อ #{hit[:pipe] && hit[:pipe][:label]} อยู่ใกล้ท่อกลมเกินไป / ไม่อยู่ใต้ท่อกลม"
+        end
+
+        pl
+      end
+
+      # F without pipes: hung from the clicked round member, the pipe (to
+      # be drawn) under it along it, its underside at world z +bop+.
+      def from_chord_rod(model, t, chord, at, bop, opts)
+        ax = Vec.unit(chord[:axis])
+        raise 'ท่อกลมที่จะแขวนต้องวางแนวนอน' if ax[2].abs > 0.2
+
+        x = Vec.horizontal(ax)
+        y = Vec.cross(UP, x)
+        c = Vec.add(chord[:point], Vec.scale(ax, Vec.dot(Vec.sub(at, chord[:point]), ax)))
+        geo = { chord: { z: c[2] - bop, r: chord[:radius], along: 'x' } }
+        need = Std.rod_geo(geo)[:r] + 60.0 + 2.0 * Std.nominal(t).first[:r] + Std.clamp_ear(Std.nominal(t).first) + 80.0
+        raise "ระดับท้องท่อสูงเกินไป – ใต้ท่อกลมต้องสูงกว่าท้องท่ออย่างน้อย #{need.round} มม." if c[2] - bop < need
+
+        origin = [c[0], c[1], bop]
+        pipes = section(model, origin, x, y, nil, min_y: -Float::INFINITY)
+        plan(t, origin, x, y, pipes, opts, { src: 'chord', dir: x }, geo)
+      end
+
+      # E hung from the round member +chord+ the user clicked ({ point:,
+      # axis:, radius: } – read from its faces), centred on its axis at the
+      # point clicked (+at+), the bottom member's top (the pipes'
+      # undersides) at world z +bop+.
+      def from_chord(model, t, chord, at, bop, opts, right: nil)
+        ax = Vec.unit(chord[:axis])
+        raise 'ท่อกลมที่จะแขวนต้องวางแนวนอน' if ax[2].abs > 0.2
+
+        s = Std.type(t)
+        y = Vec.horizontal(ax)
+        y = Vec.scale(y, -1.0) if right && Vec.dot(y, right).negative?
+        x = Vec.cross(y, UP)
+        c = Vec.add(chord[:point], Vec.scale(ax, Vec.dot(Vec.sub(at, chord[:point]), ax)))
+        gap = s[:tiers] == 2 ? s[:gap] : nil
+        drop = c[2] - chord[:radius] - bop - (gap || 0.0)
+        if drop < Std.min_drop
+          raise "ระดับท้องท่อสูงเกินไป – ใต้ท่อกลมต้องสูงกว่าคาน#{gap ? 'บน' : ''} อย่างน้อย #{Std.min_drop.round} มม."
+        end
+
+        origin = Vec.add(Vec.along([c[0], c[1], 0.0], y, -s[:length] / 2.0), [0.0, 0.0, bop])
+        pipes = section(model, origin, x, y, nil)
+        pl = plan(t, origin, x, y, pipes, opts, { src: 'chord', dir: x },
+                  { chord: { z: c[2] - bop, r: chord[:radius] }, gap: gap })
+        return pl unless chord[:length] # a Plant Piping pipe: its extent is not known here
+
+        s[:rods].each do |ry|
+          along = Vec.dot(Vec.sub(Vec.along(origin, y, ry), chord[:point]), ax)
+          next if along.between?(-5.0, chord[:length] + 5.0)
+
+          pl[:result].notes << "ท่อกลมด้านบนไม่ถึงเหล็กเส้นที่ #{(ry / 1000.0).round(2)} ม. – ตรวจตำแหน่ง/ความยาวท่อกลม"
+        end
+        pl
+      end
+
+      # Pipes in tiers, bottom up: one above all of a tier's pipes starts
+      # the next.
+      def stacks(pipes)
+        pipes.sort_by { |p| Pipes.bottom(p) }.each_with_object([]) do |p, out|
+          if out.empty? || Pipes.bottom(p) > out.last.map { |q| Pipes.top(q) }.max
+            out << [p]
+          else
+            out.last << p
+          end
+        end
+      end
+
+      # Where E's y = 0 goes (from the centre) so the pipes there lie
+      # between the rods: centred on them; too wide – the clicked pipe's
+      # nearest neighbours that fit.
+      def window(pipes, me, lo, hi)
+        span = ->(list) { [list.map { |q| q[:y] - Std.side(q) }.min, list.map { |q| q[:y] + Std.side(q) }.max] }
+        take = []
+        pipes.sort_by { |p| (p[:y] - me[:y]).abs }.each do |p|
+          a, b = span.call(take + [p])
+          take << p if b - a <= hi - lo
+        end
+        take = [me] if take.empty?
+        a, b = span.call(take)
+        (a + b) / 2.0 - (lo + hi) / 2.0
+      end
+
+      # The round member over both rods? (rays up from the top tier) –
+      # noted when not.
+      def rods_hung(model, pl)
+        res = pl[:result]
+        geo = Std.hanger_geo(pl[:detail], pl[:struct])
+        under = pl[:origin][2] + geo[:chord][:z] - geo[:chord][:r]
+        from = pl[:origin][2] + Std.levels(pl[:detail], pl[:struct]).last + 10.0
+        Std.type(pl[:detail])[:rods].each do |ry|
+          start = Vec.add(Vec.along(pl[:origin], pl[:y], ry), [0.0, 0.0, from - pl[:origin][2]])
+          h = Probe.cast(model, start, UP, max: 4000.0)
+          next if h && (h[:point][2] - under).abs <= 30.0
+
+          res.notes << "ท่อกลมด้านบนไม่อยู่เหนือเหล็กเส้นที่ #{(ry / 1000.0).round(2)} ม. – ตรวจตำแหน่ง/ความยาวท่อกลม"
+        end
+        pl
       end
 
       # Width of a column face (nil: a wall, or not found).

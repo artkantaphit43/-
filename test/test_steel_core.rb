@@ -338,6 +338,64 @@ class TestSteelStd < Minitest::Test
     assert_equal 200.0, SS::Std.rest('B', 250.0, 0.0)[:y], 'size not known (Plant Piping 1.16.2)'
   end
 
+  # ---------- E ----------
+
+  def test_e_as_drawn
+    e = SS::Std.build('E', nil, {}, { chord: { z: 900.0, r: 50.8 } })
+    e.part.solids.each { |role, sol| assert SS::Mesh.closed?(sol), "E #{role}" }
+    assert_equal [230.0, 565.0], e.carried.map { |p| p[:y] }, 'the drawing: 0.23 and 0.565 from the end'
+    assert_equal [[230.0, 0.0], [565.0, 0.0]], e.info[:rests]
+    st = steel(e)
+    member = st.select { |p| p[2] <= 0.0 }
+    assert_equal [0.0, 800.0], range(member, 1), 'C 4" 0.80 long'
+    assert_equal [-100.0, 0.0], range(member, 2)
+    assert_equal 900.0 - 50.8, st.map { |p| p[2] }.max.round(3), 'the clips touch the round member'
+    assert_equal '3/8', e.info[:rod], 'rods by load: one tier as drawn'
+    rods = e.bom.find { |b| b[:cat] == 'rod' }
+    assert_equal 2, rods[:qty]
+    assert_equal 1, e.bom.count { |b| b[:cat] == 'steel' }
+    assert_equal 2, e.bom.count { |b| b[:cat] == 'plate' && b[:key] == 'clip' }
+    assert_equal 2, e.bom.count { |b| b[:key] == 'ubt 1/2 102' }, 'U-bolt over the round member'
+    assert_equal 0, e.info[:anchors]
+    assert e.ok?
+    # rods 0.70 apart, 0.05 in from the ends, hung in the clips
+    rod_pts = e.part.solids.select { |r, _| r == :galv }.map { |_, sol| sol.polys.flatten(1) }
+                .select { |pts| pts.map { |q| q[2] }.minmax.reduce(:-).abs > 500 }
+    assert_equal [50.0, 750.0], rod_pts.map { |pts| (pts.map { |q| q[1] }.sum / pts.size).round(1) }.sort
+    assert_raises(ArgumentError) { SS::Std.build('E', nil, {}, { chord: { z: 100.0, r: 50.0 } }) }
+  end
+
+  def test_e2_second_tier_as_far_as_cs_top_member
+    gap = SS::Std.top_level(SS::Std.type('C'))
+    assert_equal 420.0, gap
+    e2 = SS::Std.build('E2', nil, {}, { chord: { z: 1300.0, r: 50.8 } })
+    assert_equal 2, e2.info[:tiers]
+    assert_equal [[230.0, 0.0], [565.0, 0.0], [230.0, gap], [565.0, gap]], e2.info[:rests]
+    assert_equal 2, e2.bom.count { |b| b[:cat] == 'steel' }
+    assert_equal '1/2', e2.info[:rod], 'two tiers: more on the rods'
+    assert_match(/2 ชั้น/, e2.info[:title])
+    # pipes stacked on E: two tiers, each its U-bolts; one into the steel: noted
+    pipes = [P.call(230, 84.15, 168.3, 0, '6"'), P.call(300, gap + 30.15, 60.3, 0, '2" บน'),
+             P.call(560, gap - 20.0, 60.3, 0, 'x')]
+    e = SS::Std.build('E', pipes, {}, { chord: { z: 1300.0, r: 50.8 }, gap: gap })
+    assert_equal [230.0, 300.0], e.carried.map { |p| p[:y] }
+    assert(e.notes.any? { |n| n.include?('x') && n.include?('จมในเหล็ก') })
+    one = SS::Std.build('E', [P.call(400, gap + 60.0, 60.3)], {}, { chord: { z: 1300.0, r: 50.8 } })
+    assert one.info[:nominal], 'one tier: a pipe up there is not on it'
+    assert(one.notes.any? { |n| n.include?('ไม่อยู่ในตำแหน่ง') })
+  end
+
+  def test_pipes_drawn_onto_e_go_to_its_places
+    geo = { 'chord' => { 'z' => 1300.0, 'r' => 50.8 }, 'gap' => 420.0 }
+    six = { od: 168.3, ins: 0.0 }
+    low = SS::Std.rest('E2', 150.0, 0.0, six, [], geo: geo)
+    assert_equal [0.0, 230.0], [low[:z], low[:y]]
+    up = SS::Std.rest('E2', 600.0, 420.0, { od: 114.3, ins: 50.0 }, [], geo: geo)
+    assert_equal [420.0, 565.0], [up[:z], up[:y]]
+    assert_nil SS::Std.rest('E', 400.0, 420.0, six, [], geo: { 'chord' => { 'z' => 900.0, 'r' => 50.8 } }), 'one tier'
+    assert_nil SS::Std.rest('E', 30.0, 0.0), 'outside the rods'
+  end
+
   def test_steam_shoe_fits_the_steam_line
     low = SS::Std.build('C', [P.call(330, 84.15, 168.3), P.call(440, 420 + 5 + 60 + 57.15, 114.3, 0, 'st')])
     assert_equal 440.0, low.carried.last[:y]

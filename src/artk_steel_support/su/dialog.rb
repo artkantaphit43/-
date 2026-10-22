@@ -32,8 +32,14 @@ module ArtK
         {
           version: VERSION, link: Link.status, linked: Link.available?, settings: H.settings,
           types: Std::TYPES.map do |k, v|
-            { key: k, th: v[:th], section: Steel.get(v[:sec])[:name], anchor: Hardware.label(v[:anchor]),
-              anchors: v[:bolts].size }
+            fix = case v[:form]
+                  when :hanger then 'แขวนท่อกลมด้วยเหล็กเส้น 2 เส้น (3/8"–5/8" ตามน้ำหนัก) · U-bolt คร่อมท่อกลม + ตัวยึด C'
+                  when :rod then 'เหล็กเส้น 1 เส้น (ตามน้ำหนัก ≥ MSS SP-69) + เกลียวเร่ง + แคลมป์รัดท่อ 2 สลัก · ตัวรับ U + U-bolt บนท่อกลม'
+                  else "พุก Expansion bolt #{Hardware.label(v[:anchor])} × #{v[:bolts].size}"
+                  end
+            sec = v[:sec] ? Steel.get(v[:sec])[:name] : 'แขวนเดี่ยว'
+            { key: k, th: v[:th], section: sec, anchor: v[:anchor] && Hardware.label(v[:anchor]),
+              anchors: v[:bolts].to_a.size, info: "#{sec} · #{fix}" }
           end
         }
       end

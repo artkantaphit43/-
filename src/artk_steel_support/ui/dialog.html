@@ -90,11 +90,35 @@
       <circle class="pp" cx="48" cy="55" r="9"/><circle class="pp" cx="72" cy="60" r="4"/><circle class="pp" cx="88" cy="61" r="3"/>
       <path class="ub" d="M38 64v-9a10 10 0 0 1 20 0v9M67 64v-4a5 5 0 0 1 10 0v4M84 64v-3a4 4 0 0 1 8 0v3"/>
     </svg><b>D</b><small>C 4" · พุก 1/2" ×3 · ท่อ 3 เส้น</small></button>
+    <button class="card" data-d="E"><svg viewBox="0 0 120 84">
+      <rect class="wl" x="6" y="4" width="108" height="10" rx="5"/>
+      <path class="ub" d="M24 18V8M30 18V8M90 18V8M96 18V8"/>
+      <path class="st" d="M22 16h10v8H22M98 16H88v8h10"/>
+      <path class="ub" d="M27 24v52M93 24v52"/>
+      <rect class="st" x="17" y="66" width="86" height="10"/>
+      <circle class="pp" cx="45" cy="56" r="9"/><circle class="pp" cx="74" cy="54" r="11"/><circle class="pp" cx="74" cy="54" r="5"/>
+      <path class="ub" d="M35 66v-10a10 10 0 0 1 20 0v10M62 66v-12a12 12 0 0 1 24 0v12"/>
+    </svg><b>E</b><small>แขวนท่อกลม · C 4" 0.80 · เหล็กเส้น 2 เส้น</small></button>
+    <button class="card" data-d="E2"><svg viewBox="0 0 120 84">
+      <rect class="wl" x="6" y="2" width="108" height="8" rx="4"/>
+      <path class="st" d="M22 11h10v6H22M98 11H88v6h10"/>
+      <path class="ub" d="M27 17v63M93 17v63"/>
+      <rect class="st" x="17" y="40" width="86" height="8"/><rect class="st" x="17" y="72" width="86" height="8"/>
+      <circle class="pp" cx="45" cy="32" r="7"/><circle class="pp" cx="74" cy="33" r="6"/>
+      <circle class="pp" cx="45" cy="64" r="7"/><circle class="pp" cx="74" cy="63" r="8"/>
+      <path class="ub" d="M37 40v-8a8 8 0 0 1 16 0v8M67 40v-7a7 7 0 0 1 14 0v7M37 72v-8a8 8 0 0 1 16 0v8M65 72v-9a9 9 0 0 1 18 0v9"/>
+    </svg><b>E 2 ชั้น</b><small>แขวนท่อกลม · 2 ชั้นห่าง 0.42 (เท่า C)</small></button>
+    <button class="card" data-d="F"><svg viewBox="0 0 120 84">
+      <rect class="wl" x="10" y="3" width="100" height="10" rx="5"/>
+      <path class="st" d="M50 18h6v8h8v-8h6"/><path class="ub" d="M53 18V9a7 7 0 0 1 14 0v9"/>
+      <path class="ub" d="M60 26v40"/><rect class="ub" x="56" y="31" width="8" height="14"/>
+      <circle class="pp" cx="60" cy="72" r="8"/><path class="st" d="M57 60v4M63 60v4M57 80v3M63 80v3"/>
+    </svg><b>F</b><small>แขวนเดี่ยว · เกลียวเร่ง + แคลมป์ · ท่อตามแนวทรัส</small></button>
   </div>
 
   <div class="grid2" style="margin-bottom:12px">
-    <button class="btn" data-cmd="place">วางทีละจุด<small>ชี้ท่อข้างเสา หรือหน้าเสาที่ระดับท้องท่อ (Tab เปลี่ยนแบบ)</small></button>
-    <button class="btn" data-cmd="columns" id="autobtn">วางทุกเสาตามแนวท่อ<small>แนวท่อ Plant Piping ที่เลือก</small></button>
+    <button class="btn" data-cmd="place">วางทีละจุด<small>A–D: ชี้ท่อข้างเสา หรือหน้าเสาที่ระดับท้องท่อ · E: ชี้ท่อใต้ท่อกลม หรือคลิกท่อกลม (Tab เปลี่ยนแบบ)</small></button>
+    <button class="btn" data-cmd="columns" id="autobtn">วางตามแนวท่อ<small id="autotxt">แนวท่อ Plant Piping ที่เลือก</small></button>
   </div>
 
   <fieldset>
@@ -102,7 +126,8 @@
     <div id="tinfo" class="info" style="margin-top:0"></div>
     <div class="info">ขนาดเหล็กและระยะตามแบบ · วางกึ่งกลางหน้าเสาเอง (ผนังยาวเกิน 1.2 ม. วางตรงที่ชี้) ·
       คลิกท่อ = ระดับหลังเหล็กเท่าใต้ท่อล่างสุด · คลิกหน้าเสา = จุดคลิกคือจุดล็อก: มุมในบนเหล็กรับท่อที่หน้าเสา (ระดับท้องท่อ) ·
-      U-bolt รัดท่อทุกเส้นที่ผ่านจริง (1, 2, 3, 4 … เส้น ตำแหน่ง/ขนาดตามท่อ, ท่อสูงกว่ามีแผ่นรอง) · ยังไม่มีท่อ = U-bolt ตามแบบ + เส้นไกด์ท้องท่อไว้วาดท่อ</div>
+      U-bolt รัดท่อทุกเส้นที่ผ่านจริง (1, 2, 3, 4 … เส้น ตำแหน่ง/ขนาดตามท่อ, ท่อสูงกว่ามีแผ่นรอง) · ยังไม่มีท่อ = U-bolt ตามแบบ + เส้นไกด์ท้องท่อไว้วาดท่อ ·
+      E: เข้ากึ่งกลางท่อกลมด้านบนเอง · ชี้ท่อ = ระดับท้องท่อล่างสุด (ท่อซ้อน 2 ชั้น = 2 ชั้นเอง) · คลิกท่อกลม แล้วพิมพ์ระยะลงจากใต้ท่อกลมถึงท้องท่อ / คลิกจุดที่ระดับท้องท่อ</div>
   </fieldset>
 
   <fieldset>
@@ -128,7 +153,10 @@
   function showType() {
     document.querySelectorAll('.card').forEach(function (c) { c.classList.toggle('on', c.dataset.d === S.detail); });
     var t = (D.types || []).filter(function (x) { return x.key === S.detail; })[0];
-    if (t) { $('tname').textContent = t.th; $('tinfo').textContent = t.section + ' · พุก Expansion bolt ' + t.anchor + ' × ' + t.anchors; }
+    if (t) { $('tname').textContent = t.th; $('tinfo').textContent = t.info; }
+    var hang = /^E/.test(S.detail || '');
+    $('autotxt').textContent = S.detail === 'F' ? 'ทุกระยะซัพพอร์ตใต้ท่อกลม · แนวท่อ Plant Piping ที่เลือก' : 'แนวท่อ Plant Piping ที่เลือก';
+    $('autobtn').disabled = !D.linked || hang; $('autobtn').style.opacity = (!D.linked || hang) ? 0.5 : 1;
   }
   window.SS = {
     init: function (d) {

@@ -366,7 +366,7 @@ class TestSteelSU < Minitest::Test
 
   # Draw a Plant Piping pipe of +size+ from a point picked on +path+
   # (a support / its guide) along +x.
-  def draw_onto(size, path, start)
+  def draw_onto(size, path, start, along: [1.0, 0.0, 0.0])
     PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => size,
                                                        'lod' => 'light', 'snap45' => false))
     tool = ArtK::PlantPipe::PipeTool.new
@@ -380,8 +380,10 @@ class TestSteelSU < Minitest::Test
     tool.onLButtonDown(0, 0, 0, view)
     Sketchup::InputPoint.next_path = nil
     Sketchup::InputPoint.next_dof = nil
-    tool.onKeyDown(VK_RIGHT, 0, 0, view)
-    Sketchup::InputPoint.next_position = PH.to_pt([start[0] + 4000, start[1] + 300, 0])
+    tool.onKeyDown(along[0].abs > 0.5 ? VK_RIGHT : VK_LEFT, 0, 0, view)
+    side = [-along[1], along[0], 0.0]
+    Sketchup::InputPoint.next_position = PH.to_pt(SS::Vec.add(SS::Vec.add(start, SS::Vec.scale(along, 4000.0)),
+                                                              SS::Vec.scale(side, 300.0)).tap { |q| q[2] = 0.0 })
     tool.onMouseMove(0, 0, 0, view)
     tool.onLButtonDown(0, 0, 0, view)
     tool.onReturn(view)
@@ -614,7 +616,8 @@ class TestSteelSU < Minitest::Test
     SH.forget_settings
     assert_equal 'A', SH.settings['detail'], '1.0 types are no longer offered'
     d = SS::Dialog.payload
-    assert_equal %w[A B C D], d[:types].map { |t| t[:key] }
+    assert_equal %w[A B C D E E2 F], d[:types].map { |t| t[:key] }
+    assert_match(/เหล็กเส้น/, d[:types].last[:info])
     assert_equal true, d[:linked]
     JSON.generate(d)
     SS::Dialog.save(JSON.generate('detail' => 'C', 'spacing_m' => 3))
@@ -628,6 +631,271 @@ class TestSteelSU < Minitest::Test
     # the window's place button uses it: the tool is C, not A
     SS::Dialog.command('place')
     assert_equal 'C', @model.tool.instance_variable_get(:@detail)
+  end
+
+  # ---------- E: hung from a round member ----------
+
+  CHORD_X = 3120.0
+  CHORD_Z = 3000.0
+  CHORD_R = 50.8
+
+  # The round member (4" truss chord) across the pipes, 120 off the point
+  # clicked along them – the user cannot pick its centre exactly.
+  def chord!
+    @model.ray_hits = SteelSU.rays(cyls: [{ axis: 1, c: [CHORD_X, CHORD_Z], r: CHORD_R, range: [-3000.0, 3000.0] }])
+  end
+
+  def test_e_from_a_pipe_centres_on_the_round_member_and_stacks_two_tiers
+    chord!
+    six = pipe_run(-150, 2000, '6"', 'CW')
+    pipe_run(180, 2000 - 84.15 + 107.15, '4"', 'CHWS', 50)
+    up = pipe_run(0, 2000 - 84.15 + 420 + 30.15, '2"', 'CW') # stacked above: the second tier
+    plan = SS::Placer.from_pipe_hanger(@model, 'E', hit_at([3000, -150, 2000]), SH.settings)
+    o = plan[:origin]
+    assert_in_delta CHORD_X, o[0], 1.0, 'on the round member\'s axis'
+    assert_in_delta 2000 - 84.15, o[2], 0.1, 'the pipes\' undersides'
+    res = plan[:result]
+    assert_equal 2, res.info[:tiers]
+    assert_in_delta 420.0, plan[:struct][:gap], 0.1
+    assert_in_delta CHORD_Z - o[2], plan[:struct][:chord][:z], 1.0
+    assert_in_delta CHORD_R, plan[:struct][:chord][:r], 0.5
+    assert_equal 3, res.carried.size
+    ys = res.carried.map { |p| p[:y] }
+    assert(ys.all? { |y| y.between?(70.0, 730.0) }, 'between the rods')
+    assert_empty res.notes
+    g = SS::Builder.create(@model, plan)
+    assert_equal 'E-01', g.get_attribute(SH::DICT, 'number')
+    assert_match(/ซัพพอร์ต E 2 ชั้น/, g.name)
+    assert_equal [six.persistent_id, up.persistent_id].sort, (SH.get_json(g, 'pipes').map { |q| q['pid'] } & [six.persistent_id, up.persistent_id]).sort
+    assert_equal :same, SS::Builder.refit(@model, g)
+    no = pipe_run(0, 3500, '2"', 'CW', x0: 0, x1: 6000) # above the round member
+    assert_raises(RuntimeError) { SS::Placer.from_pipe_hanger(@model, 'E', hit_at([3000, 0, 3500]), {}) }
+    assert no
+  end
+
+  def test_e_needs_a_round_member_above
+    @model.ray_hits = nil
+    pipe_run(0, 2000, '2"', 'CW')
+    err = assert_raises(RuntimeError) { SS::Placer.from_pipe_hanger(@model, 'E', hit_at([3000, 0, 2000]), {}) }
+    assert_match(/ท่อกลม/, err.message)
+  end
+
+  # A faceted round member along y (what the user clicks).
+  def chord_faces
+    n = 24
+    faces = (0...n).map do |k|
+      a0 = 2 * Math::PI * k / n
+      a1 = 2 * Math::PI * (k + 1) / n
+      am = (a0 + a1) / 2
+      pt = ->(a, y) { [CHORD_X + CHORD_R * Math.cos(a), y, CHORD_Z + CHORD_R * Math.sin(a)] }
+      FakeF.new([Math.cos(am), 0, Math.sin(am)], [pt.call(a0, -3000), pt.call(a0, 3000), pt.call(a1, 3000), pt.call(a1, -3000)])
+    end
+    n.times do |k|
+      e = FakeE.new
+      e.faces << faces[k] << faces[(k + 1) % n]
+      faces[k].edges << e
+      faces[(k + 1) % n].edges << e
+    end
+    faces
+  end
+
+  # No pipes yet: click the round member (anywhere on it – centred), then
+  # type the drop from its underside to the pipes' undersides.
+  def test_e_tool_round_member_then_typed_drop
+    chord!
+    faces = chord_faces
+    view = @model.active_view
+    tool = SS::PlaceTool.new('E')
+    tool.activate
+    Sketchup::InputPoint.next_face = faces[5] # on its side, off the axis
+    Sketchup::InputPoint.next_position = PH.to_pt([CHORD_X + 30.0, 500.0, CHORD_Z + 40.0])
+    tool.onMouseMove(0, 10, 10, view)
+    assert_match(/คลิกเพื่อแขวน/, view.tooltip)
+    tool.onLButtonDown(0, 10, 10, view)
+    assert tool.enableVCB?
+    Sketchup::InputPoint.next_face = nil
+    Sketchup::InputPoint.next_position = PH.to_pt([3000.0, 0.0, 2100.0])
+    tool.onMouseMove(0, 10, 10, view)
+    plan = tool.instance_variable_get(:@plan)
+    refute plan[:error], plan[:error]
+    assert_in_delta 2100.0, plan[:origin][2], 1e-6, 'clicked level = the pipes\' undersides'
+    assert_match(/ระยะลงจากใต้ท่อกลม #{(CHORD_Z - CHORD_R - 2100).round}/, view.tooltip)
+    tool.onUserText('800', view)
+    g = supports.first
+    o = SH.get_json(g, 'origin')
+    assert_in_delta CHORD_Z - CHORD_R - 800.0, o[2], 0.01, 'typed drop'
+    assert_in_delta CHORD_X, o[0], 0.5, 'on the axis'
+    mid = SS::Vec.along(o, SH.get_json(g, 'ydir'), 400.0)
+    assert_in_delta 500.0, mid[1], 0.5, 'centred where clicked along it'
+    assert SH.get_json(g, 'info')['nominal']
+    assert_equal 2, g.entities.grep(Sketchup::ConstructionPoint).size
+    assert_empty SH.get_json(g, 'notes')
+    # too short a drop: refused, said why
+    tool.onLButtonDown(0, 10, 10, view) # nothing armed
+    tool2 = SS::PlaceTool.new('E2')
+    tool2.activate
+    Sketchup::InputPoint.next_face = faces[5]
+    Sketchup::InputPoint.next_position = PH.to_pt([CHORD_X + 30.0, 2000.0, CHORD_Z + 40.0])
+    tool2.onMouseMove(0, 10, 10, view)
+    tool2.onLButtonDown(0, 10, 10, view)
+    Sketchup::InputPoint.next_face = nil
+    UI.messages.clear
+    tool2.onUserText('300', view) # 300 < 420 + 110 for two tiers
+    assert_match(/สูงเกินไป/, UI.messages.last.to_s)
+    tool2.onUserText('1200', view)
+    e2 = supports.max_by { |q| q.get_attribute(SH::DICT, 'number') }
+    assert_equal 'E-02', e2.get_attribute(SH::DICT, 'number'), 'E 2 tiers counts with E'
+    assert_equal 4, e2.entities.grep(Sketchup::ConstructionPoint).size
+  ensure
+    Sketchup::InputPoint.next_face = nil
+  end
+
+  # The round member drawn with Plant Piping (rays pass through its
+  # pipes): no round member over it, so it is the one to hang from.
+  def test_e_from_a_round_member_drawn_with_plant_piping
+    @model.ray_hits = nil
+    pipe_run(0, 3000, '4"', 'CW', x0: 0, x1: 6000) # along x: the round member
+    view = @model.active_view
+    tool = SS::PlaceTool.new('E')
+    tool.activate
+    Sketchup::InputPoint.next_position = PH.to_pt([2500, 0, 3000 + 57.15])
+    tool.onMouseMove(0, 10, 10, view)
+    assert_match(/คลิกเพื่อแขวน/, view.tooltip)
+    tool.onLButtonDown(0, 10, 10, view)
+    tool.onUserText('700', view)
+    g = supports.first
+    o = SH.get_json(g, 'origin')
+    assert_in_delta 3000 - 57.15 - 700, o[2], 0.01
+    assert_in_delta 0.0, SS::Vec.along(o, SH.get_json(g, 'ydir'), 400.0)[1], 0.5, 'under its axis'
+    assert_in_delta 1.0, SH.get_json(g, 'ydir')[0].abs, 1e-6, 'the member along the round one'
+    assert_empty SH.get_json(g, 'notes')
+  end
+
+  # Pipes drawn onto E afterwards: on its guide lines, both tiers.
+  def test_pipes_drawn_onto_e
+    chord!
+    faces = chord_faces
+    view = @model.active_view
+    tool = SS::PlaceTool.new('E2')
+    tool.activate
+    Sketchup::InputPoint.next_face = faces[5]
+    Sketchup::InputPoint.next_position = PH.to_pt([CHORD_X, 0.0, CHORD_Z + 50.0])
+    tool.onMouseMove(0, 10, 10, view)
+    tool.onLButtonDown(0, 10, 10, view)
+    Sketchup::InputPoint.next_face = nil
+    tool.onUserText('1000', view)
+    g = supports.first
+    o = SH.get_json(g, 'origin')
+    yd = SH.get_json(g, 'ydir')
+    xd = SH.get_json(g, 'xdir')
+    at = ->(y, z) { SS::Vec.add(SS::Vec.along(SS::Vec.along(o, xd, -300.0), yd, y), [0, 0, z]) }
+    run, tip = draw_onto('6"', [g], at.call(260.0, 0.0)) # on the member near the 0.23 place, lower tier
+    assert_match(/วางบนซัพพอร์ต E-01 ที่ 0\.23/, tip)
+    PH.get_json(run, 'cl').flatten(1).each { |p| assert_in_delta o[2] + 84.15, p[2], 1e-6 }
+    run2, = draw_onto('2"', [], at.call(565.0, 420.0)) # upper tier's guide line, no instance path
+    PH.get_json(run2, 'cl').flatten(1).each { |p| assert_in_delta o[2] + 420.0 + 30.15, p[2], 1e-6 }
+    s = supports.first
+    got = SH.get_json(s, 'pipes')
+    assert_equal [230.0, 565.0], got.map { |q| q['y'] }
+    [84.15, 450.15].zip(got) { |z, q| assert_in_delta z, q['z'], 0.1 }
+    assert_in_delta o[2], SH.get_json(s, 'origin')[2], 1e-6, 'E stays where it was placed'
+    assert_empty SH.get_json(s, 'notes')
+  ensure
+    Sketchup::InputPoint.next_face = nil
+  end
+
+  # ---------- F: single rod hanger from the round member ----------
+
+  # The truss chord over the pipe, along it (the pipe turned to run with
+  # the truss), 40 off its axis.
+  def chord_along!
+    @model.ray_hits = SteelSU.rays(cyls: [{ axis: 0, c: [40.0, CHORD_Z], r: CHORD_R, range: [-1000.0, 9000.0] }])
+  end
+
+  def test_f_under_a_round_member_along_the_pipe
+    chord_along!
+    run = pipe_run(0, 2000, '4"', 'CW')
+    plan = SS::Placer.from_pipe_rod(@model, 'F', hit_at([3000, 0, 2000]), SH.settings)
+    o = plan[:origin]
+    assert_in_delta 40.0, o[1], 1.0, 'under the round member\'s axis'
+    assert_in_delta 3000.0, o[0], 1.0, 'where the pipe was clicked'
+    assert_in_delta 2000 - 57.15, o[2], 0.1, 'the pipe\'s underside'
+    res = plan[:result]
+    assert_equal '5/8', res.info[:rod], '4": MSS SP-69 rod 5/8"'
+    assert_equal 1, res.carried.size
+    assert_empty res.notes, 'a 2.5° rod is fine'
+    assert(res.bom.any? { |b| b[:cat] == 'clamp' })
+    assert(res.bom.any? { |b| b[:desc].include?('เกลียวเร่ง') })
+    g = SS::Builder.create(@model, plan)
+    assert_equal 'F-01', g.get_attribute(SH::DICT, 'number')
+    assert_equal [run.persistent_id], SH.get_json(g, 'pipes').map { |q| q['pid'] }
+    assert_equal :same, SS::Builder.refit(@model, g)
+    # the pipe moved 100 the other side of the member: the clamp follows (rod tilts, noted)
+    tr = PH.edit_transform(@model) * run.transformation
+    moves = PH.get_json(run, 'cl').flatten(1).uniq.map { |q| [q, PH.transform_mm(tr.inverse, PH.transform_mm(tr, q).then { |w| [w[0], w[1] - 100.0, w[2]] })] }
+    ArtK::PlantPipe::RunEditor.apply(@model, run, moves)
+    f = supports.first
+    assert_equal [run.persistent_id], SH.get_json(f, 'pipes').map { |q| q['pid'] }
+    assert_in_delta(-140.0, SH.get_json(f, 'pipes').first['y'], 0.5)
+    assert(SH.get_json(f, 'notes').any? { |n| n.include?('เอียง') })
+    assert_equal SH.get_json(g, 'origin'), SH.get_json(f, 'origin'), 'the cradle stays on the member'
+    # across the pipe instead: moved along the pipe to the member
+    chord!
+    across = SS::Placer.from_pipe_rod(@model, 'F', hit_at([3050, -100, 2000]), SH.settings)
+    assert_in_delta CHORD_X, across[:origin][0], 1.0
+    assert_equal 'y', across[:struct][:chord][:along]
+    @model.ray_hits = nil
+    assert_raises(RuntimeError) { SS::Placer.from_pipe_rod(@model, 'F', hit_at([3000, -100, 2000]), {}) }
+  end
+
+  # The user's sketch: a pipe turned along the truss, F at its support
+  # spacing under the chord.
+  def test_f_along_a_run_under_the_truss
+    chord_along!
+    run = pipe_run(0, 2000, '4"', 'CW', x0: 0, x1: 8000)
+    @model.selection.push(run)
+    UI.messages.clear
+    n = SS::Commands.columns('F')
+    assert_operator n, :>=, 2
+    xs = supports.map { |g| SH.get_json(g, 'origin') }
+    assert(xs.all? { |o| (o[1] - 40.0).abs < 1.0 }, 'each under the chord')
+    assert_equal n, xs.map { |o| (o[0] / 10).round }.uniq.size
+    assert_equal 0, SS::Commands.columns('F'), 'not twice'
+  end
+
+  # No pipe yet: click the round member, type the drop to the pipe's
+  # underside; the pipe drawn onto its guide after: clamp to its size.
+  def test_f_tool_then_pipe_drawn_onto_it
+    chord!
+    faces = chord_faces # the member across x here: the pipe will run along it (y)
+    view = @model.active_view
+    tool = SS::PlaceTool.new('F')
+    tool.activate
+    Sketchup::InputPoint.next_face = faces[5]
+    Sketchup::InputPoint.next_position = PH.to_pt([CHORD_X + 30.0, 600.0, CHORD_Z + 40.0])
+    tool.onMouseMove(0, 10, 10, view)
+    assert_match(/คลิกเพื่อแขวน/, view.tooltip)
+    tool.onLButtonDown(0, 10, 10, view)
+    Sketchup::InputPoint.next_face = nil
+    tool.onUserText('900', view)
+    g = supports.first
+    o = SH.get_json(g, 'origin')
+    assert_in_delta CHORD_Z - CHORD_R - 900.0, o[2], 0.01
+    assert_in_delta CHORD_X, o[0], 0.5, 'under the member\'s axis'
+    assert_in_delta 600.0, o[1], 0.5
+    assert SH.get_json(g, 'info')['nominal']
+    assert_equal 'F-01', g.get_attribute(SH::DICT, 'number')
+    xd = SH.get_json(g, 'xdir')
+    run, tip = draw_onto('2"', [g], SS::Vec.along(o, xd, -200.0), along: xd) # along the member, through F
+    assert_match(/วางบนซัพพอร์ต F-01/, tip)
+    PH.get_json(run, 'cl').flatten(1).each { |q| assert_in_delta o[2] + 30.15, q[2], 1e-6 }
+    f = supports.first
+    assert_equal [run.persistent_id], SH.get_json(f, 'pipes').map { |q| q['pid'] }
+    assert_equal '3/8', f.get_attribute(SH::DICT, 'rod'), '2": rod 3/8"'
+    assert(SH.get_json(f, 'bom').any? { |b| b['key'] == 'clamp 60 0' }, 'clamp to the 2" now')
+    assert_equal SH.get_json(g, 'origin'), SH.get_json(f, 'origin'), 'the cradle stays'
+  ensure
+    Sketchup::InputPoint.next_face = nil
   end
 
   # A faceted tube drawn without Plant Piping, as SketchUp faces.

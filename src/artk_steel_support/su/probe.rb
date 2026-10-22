@@ -111,6 +111,20 @@ module ArtK
         flat.size >= 3 ? { kind: :flat, x: 0.0, z: lo[1] } : nil
       end
 
+      # A round member over the pipe and along it: rays up from z_from at
+      # offsets across (y) up to ±range. { y:, z:, r: } (its axis) or nil.
+      def over(model, origin, y, z_from, range: 400.0, skip: [])
+        coarse = samples(model, origin, y, z_from, -range, range, 10.0, UP, skip)
+        hits = coarse.reject { |_, z| z.nil? }
+        return nil if hits.empty?
+
+        lo = hits.min_by { |s, z| [z.round, s.abs] }
+        fine = samples(model, origin, y, z_from, lo[0] - 60.0, lo[0] + 60.0, 2.0, UP, skip)
+        g = groups(fine, 12.0).find { |gg| gg.any? { |s, _| (s - lo[0]).abs < 2.5 } }
+        c = g && g.size >= 4 && circle(g)
+        c && { y: c[:s], z: c[:z], r: c[:r] }
+      end
+
       # Round chords along the pipes below them: rays down from z_from at
       # offsets across (y) from y0 to y1. [{ y:, z:, r: }] of the top level.
       def below(model, origin, y, z_from, y0, y1, skip: [])

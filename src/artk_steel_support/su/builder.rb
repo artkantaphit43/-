@@ -34,7 +34,7 @@ module ArtK
 
       def title(plan)
         t = plan[:detail]
-        return Std.type(t)[:th] if Placer.std?(t)
+        return plan[:result].info[:title] || Std.type(t)[:th] if Placer.std?(t)
 
         "#{Details::TYPES[t][:th]} #{Steel.get(plan[:result].info[:section])[:inch]}"
       end
@@ -76,9 +76,9 @@ module ArtK
         ly = Vec.dot(v, f[:y])
         return nil if lx.abs > (loose ? 503.0 : 600.0)
 
-        r = Std.rest(f[:t], ly, v[2], pipe, f[:taken])
+        r = Std.rest(f[:t], ly, v[2], pipe, f[:taken], geo: f[:geo])
         return nil unless r
-        return nil if loose && lx.abs > r[:half] + 5.0 && Std.nominal(f[:t]).none? { |q| (q[:y] - ly).abs <= 3.0 }
+        return nil if loose && lx.abs > r[:half] + 5.0 && Std.nominal(f[:t], f[:geo]).none? { |q| (q[:y] - ly).abs <= 3.0 }
 
         along = lx.abs <= r[:half] + 5.0 ? 0.0 : lx
         on = Vec.add(Vec.along(Vec.along(f[:o], f[:x], along), f[:y], r[:y]), [0.0, 0.0, v[2]])
@@ -90,7 +90,7 @@ module ArtK
       def frame(g)
         taken = H.get_json(g, 'info', {})['nominal'] ? [] : H.get_json(g, 'pipes', []).map { |p| taken_pipe(p) }
         { t: g.get_attribute(H::DICT, 'detail'), number: g.get_attribute(H::DICT, 'number'), o: H.get_json(g, 'origin'),
-          x: H.get_json(g, 'xdir'), y: H.get_json(g, 'ydir'), taken: taken }
+          x: H.get_json(g, 'xdir'), y: H.get_json(g, 'ydir'), taken: taken, geo: H.get_json(g, 'struct', {}) }
       end
 
       # The A–D supports of +model+ (read again after a second / a change).
@@ -142,10 +142,11 @@ module ArtK
       end
 
       def next_number(model, detail)
-        key = "seq_#{detail}"
+        series = Placer.std?(detail) ? Std.type(detail)[:series] || detail : detail # E2 counts with E
+        key = "seq_#{series}"
         n = model.get_attribute(H::DICT, key).to_i + 1
         model.set_attribute(H::DICT, key, n)
-        format('%<d>s-%<n>02d', d: detail.upcase, n: n)
+        format('%<d>s-%<n>02d', d: series.upcase, n: n)
       end
 
       # Plant Piping's own single hangers where these pipes are now carried.

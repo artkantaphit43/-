@@ -12,8 +12,54 @@ module ArtK
 
       # Support +t+ at every column the selected Plant Piping runs pass
       # (within the support's reach), centred on each.
+      # F along the selected Plant Piping runs, at their support spacing,
+      # wherever a round member is over the pipe.
+      def along(t)
+        model = Sketchup.active_model
+        Link.register
+        runs = Link.available? ? Link.selected_runs(model) : []
+        if runs.empty?
+          UI.messagebox("เลือกแนวท่อ (Plant Piping) ก่อน (select pipe runs first)\n#{Link.status}")
+          return 0
+        end
+        placed = 0
+        notes = []
+        model.start_operation("Steel Supports: ซัพพอร์ต #{t} ตามแนวท่อ", true)
+        runs.each do |run|
+          Builder.forget
+          Link.support_points(model, run).each do |sp|
+            pp = Link.pipe_at(model, sp[:at])
+            next unless pp
+
+            hit = { point: pp[:point], dir: pp[:dir], src: 'pp', pipe: Builder.pipe_record(pp) }
+            plan = Placer.from_pipe_rod(model, t, hit, H.settings)
+            next if taken?(model, plan[:origin])
+
+            Builder.create(model, plan, op: false)
+            placed += 1
+            notes.concat(plan[:result].notes.map { |n| "#{run.name}: #{n}" })
+          rescue StandardError => e
+            notes << "#{run.name}: #{e.message}"
+          end
+        end
+        model.commit_operation
+        Builder.forget
+        UI.messagebox("วางซัพพอร์ต #{t} #{placed} จุด#{notes.empty? ? '' : "\n\n#{notes.uniq.first(12).join("\n")}"}")
+        placed
+      rescue StandardError => e
+        model.abort_operation
+        UI.messagebox("ซัพพอร์ตเหล็ก: วางไม่สำเร็จ\n#{e.message}")
+        0
+      end
+
       def columns(t = H.settings['detail'])
         model = Sketchup.active_model
+        if Std.hanger?(t)
+          UI.messagebox('แบบ E วางทีละจุด: ชี้ท่อใต้ท่อกลม หรือคลิกท่อกลมที่จะแขวน')
+          return 0
+        end
+        return along(t) if Std.hung?(t)
+
         Link.register
         unless Link.available?
           UI.messagebox("วางตามแนวท่อใช้กับท่อของ Plant Piping TH\n#{Link.status}")

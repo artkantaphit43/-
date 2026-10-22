@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.8**
-(`dist/artk_steel_support-2.0.8.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (284 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.1.0**
+(`dist/artk_steel_support-2.1.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (295 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -165,6 +165,17 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **Steel Supports 2.0.8** (ภาพ D กรอบแดงที่มุมในล่าง: "เปลี่ยนจุดวางซัพพอร์ตใช้ล็อกเป็นตรงนี้แทน รอบก่อนทักผิด"): คลิกหน้าเสา
   = ระดับท้องท่อ (บนเหล็กรับท่อ: บนแขน A/B, บนคานล่าง C/D) แทนบนสุดของซัพพอร์ต (2.0.2) · `Std.top` ลบ, `Placer.from_face`
   origin = จุดคลิก · PlaceTool วาด ✕ ที่มุมใน (`lock_point` = origin + y·`Std.bearing[0]`) · ไฟล์เก่าไม่กระทบ (origin เก็บเป็นระดับรับท่ออยู่แล้ว)
+- **Steel Supports 2.1.0 – แบบ E, E2, F** (แบบ CAD ไม่มีตัวเลข): **E** trapeze แขวนท่อกลม – ผู้ใช้ตอบ "ไม่รู้" เรื่องขนาด/rod →
+  วัดจากรูป (คานล่าง C100 → ท่อซ้าย 6" พอดี): คาน 800, rod 2 เส้นที่ 50/750, ท่อตามแบบ 230 (6") / 565 (4" ฉนวน 50), หัวบนตัวยึด C
+  เพลทพับ 6 มม. + U-bolt คร่อมท่อกลม (เหมือนรูป), rod ตามแรง (`Hardware.size_for`) · 2 ชั้น "ห่างเท่า C" = 420 (หลังคาน–หลังคาน) ·
+  `Std.hanger_geo` (struct `chord` {z, r}, `gap`), `levels`, `level_of`, `fit_hanger`, `hanger`, `clip` · วางจากท่อ
+  (`Placer.from_pipe_hanger`: `Probe.above` เข้าแกนท่อกลมเอง, `stacks` แบ่งชั้นท่อ → 2 ชั้นอัตโนมัติ, `window` เลื่อนคานให้ท่ออยู่ระหว่าง
+  rod, `rods_hung` ตรวจท่อกลมอยู่เหนือ rod) หรือคลิกท่อกลม (`Generic.cylinder`) แล้วพิมพ์ระยะลง/คลิกระดับ (`from_chord`) ·
+  **F** (ผู้ใช้: ท่อเลี้ยวให้ขนานโครงทรัส ใช้แฮงเกอร์ยึดทรัส, ระยะอ้างอิงจาก A–D): ตัวรับ U มีปีก + U-bolt บนท่อกลม, เกลียวเร่ง
+  (MSS 13), rod 1 เส้น (แรง ≥ MSS SP-69 ตามขนาดท่อ), แคลมป์ 2 สลัก (MSS 4) `Std.strap` (แถบพับ), `cradle`, `pipe_clamp`,
+  `turnbuckle`; `Probe.over` (ท่อกลมตามแนวท่อ) / `Probe.above` (ขวางท่อ); แคลมป์ตามท่อจริง rod เอียง > 4° แจ้ง; วางตามแนวท่อ
+  (`Commands.along`: `Link.support_points`) · ท่อกลมที่วาดด้วย Plant Piping → ใช้เป็นท่อกลมได้ (คลิก + พิมพ์) · PlaceTool:
+  `Std.hung?` สองขั้น (`@cand` → `@chord` → VCB) · เลขที่ E2 นับรวม E (`series`)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

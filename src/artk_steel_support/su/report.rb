@@ -5,8 +5,8 @@ module ArtK
     # Bill of materials and check summary of the supports (selection, or
     # all in the active context): HTML window + CSV.
     module Report
-      CATS = [['steel', 'เหล็กรูปพรรณ (Steel sections)'], ['plate', 'แผ่นรอง (Packers / shims)'],
-              ['ubolt', 'U-bolt'], ['rod', 'เหล็กเส้นเกลียว (Threaded rod)'], ['anchor', 'พุก (Anchors)'],
+      CATS = [['steel', 'เหล็กรูปพรรณ (Steel sections)'], ['plate', 'แผ่นเหล็ก (Packers / clips)'],
+              ['ubolt', 'U-bolt'], ['clamp', 'แคลมป์รัดท่อ (Pipe clamps)'], ['rod', 'เหล็กเส้นเกลียว (Threaded rod)'], ['anchor', 'พุก (Anchors)'],
               ['nut', 'น็อต + แหวน (Nuts + washers)']].freeze
       CUT = 1.05 # steel bought: +5 % cutting allowance
 
