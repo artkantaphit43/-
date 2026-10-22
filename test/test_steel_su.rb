@@ -26,6 +26,11 @@ class TestSteelSU < Minitest::Test
     SS::Link.register
   end
 
+  # Plant Piping's settings are global: leave its defaults for the next test.
+  def teardown
+    PH.save_settings(ArtK::PlantPipe::Settings.sanitize({}))
+  end
+
   def pipe_run(y, z, size, svc, ins = 0, x0: 0, x1: 6000)
     st = ArtK::PlantPipe::Settings.sanitize('service' => svc, 'catalog' => 'CS_B36_10', 'size' => size,
                                             'lod' => 'light', 'insulation_mm' => ins)
@@ -616,7 +621,7 @@ class TestSteelSU < Minitest::Test
     SH.forget_settings
     assert_equal 'A', SH.settings['detail'], '1.0 types are no longer offered'
     d = SS::Dialog.payload
-    assert_equal %w[A B C D E E2 F], d[:types].map { |t| t[:key] }
+    assert_equal %w[A B C D E E2 F G], d[:types].map { |t| t[:key] }
     assert_match(/เหล็กเส้น/, d[:types].last[:info])
     assert_equal true, d[:linked]
     JSON.generate(d)
@@ -896,6 +901,78 @@ class TestSteelSU < Minitest::Test
     assert_equal SH.get_json(g, 'origin'), SH.get_json(f, 'origin'), 'the cradle stays'
   ensure
     Sketchup::InputPoint.next_face = nil
+  end
+
+  # ---------- G: angle bracket on a wall / beam + hanger ----------
+
+  # The user's sketch: a pipe along a deep beam, 0.30 out from its side
+  # face, the beam's underside 0.60 over the pipe – nothing beside the pipe.
+  BEAM = [[-1000.0, -600.0, 2600.0], [9000.0, -300.0, 3200.0]].freeze
+
+  def test_g_from_a_pipe_along_a_beam
+    @model.ray_hits = SteelSU.rays(boxes: [BEAM])
+    run = pipe_run(0, 2000, '4"', 'CW')
+    plan = SS::Placer.from_pipe_angle(@model, 'G', hit_at([3000, 0, 2000]), SH.settings)
+    o = plan[:origin]
+    assert_in_delta 0.0, o[1], 1e-6, 'the rod over the pipe'
+    assert_in_delta 2000 - 57.15, o[2], 0.1, 'the pipe\'s underside'
+    m = plan[:struct][:mount]
+    assert_in_delta(-300.0, m[:face], 0.5, 'the beam face 0.30 from the pipe')
+    arm_top = o[2] + m[:z]
+    assert_operator arm_top, :>=, 2600.0, 'the post on the beam'
+    assert_operator arm_top, :<=, 2630.0, 'at its underside – as low as the beam allows'
+    assert_operator SS::Vec.dot(plan[:y], [0, 1.0, 0]), :>, 0.99, 'y out of the face, toward the pipe'
+    res = plan[:result]
+    assert_equal 'L50', res.info[:section]
+    assert_equal '3/8', res.info[:anchor]
+    assert_equal '5/8', res.info[:rod]
+    assert_empty res.notes
+    assert_equal 2, res.bom.count { |b| b[:cat] == 'steel' }
+    g = SS::Builder.create(@model, plan)
+    assert_equal 'G-01', g.get_attribute(SH::DICT, 'number')
+    assert_equal 'L50', g.get_attribute(SH::DICT, 'section')
+    assert_equal [run.persistent_id], SH.get_json(g, 'pipes').map { |q| q['pid'] }
+    assert_equal :same, SS::Builder.refit(@model, g)
+    # the lock point shown: the arm's top at the face
+    tool = SS::PlaceTool.new('G')
+    tool.instance_variable_set(:@plan, plan)
+    lp = tool.send(:lock_point)
+    assert_equal [3000.0, -300.0, arm_top.round(6)], lp.map { |v| v.round(6) }
+    @model.ray_hits = nil
+    err = assert_raises(RuntimeError) { SS::Placer.from_pipe_angle(@model, 'G', hit_at([3000, 0, 2000]), {}) }
+    assert_match(/ผนัง/, err.message)
+  end
+
+  # Click the beam face at the arm's level: the pipe under it; none – a
+  # 4" 0.25 out and 0.40 under, the pipe drawn after onto its guide.
+  def test_g_from_the_face
+    @model.ray_hits = SteelSU.rays(boxes: [BEAM])
+    pipe_run(-150, 2000, '2"', 'CW')
+    pl = SS::Placer.from_face_angle(@model, 'G', [3000.0, -300.0, 2700.0], [0, 1.0, 0], [3000.0, 5000.0, 2700.0])
+    assert_in_delta(-150.0, pl[:origin][1], 0.5)
+    assert_in_delta 2000 - 30.15, pl[:origin][2], 0.1
+    assert_in_delta 2700.0, pl[:origin][2] + pl[:struct][:mount][:z], 1e-6, 'the clicked point is the arm\'s top'
+    assert_equal '3/8', pl[:result].info[:rod]
+    none = SS::Placer.from_face_angle(@model, 'G', [7500.0, -300.0, 3000.0], [0, 1.0, 0], [7500.0, 5000.0, 3000.0])
+    assert none[:result].info[:nominal]
+    assert_in_delta(-50.0, none[:origin][1], 0.5, '0.25 out from the face')
+    assert_in_delta 2600.0, none[:origin][2], 1e-6, '0.40 under the arm'
+    g = SS::Builder.create(@model, none)
+    run, tip = draw_onto('3"', [g], [7300.0, -50.0, 2600.0])
+    assert_match(/วางบนซัพพอร์ต G-01/, tip)
+    f = supports.first
+    assert_equal [run.persistent_id], SH.get_json(f, 'pipes').map { |q| q['pid'] }
+    assert(SH.get_json(f, 'bom').any? { |b| b['key'] == 'clamp 89 0' }, 'clamp to the 3" drawn')
+  end
+
+  def test_g_along_a_run_by_the_beam
+    @model.ray_hits = SteelSU.rays(boxes: [BEAM])
+    run = pipe_run(0, 2000, '2"', 'CW', x0: 0, x1: 8000)
+    @model.selection.push(run)
+    UI.messages.clear
+    n = SS::Commands.columns('G')
+    assert_operator n, :>=, 2
+    assert(supports.all? { |g| (SH.get_json(g, 'origin')[1]).abs < 1.0 })
   end
 
   # A faceted tube drawn without Plant Piping, as SketchUp faces.

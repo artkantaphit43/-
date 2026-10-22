@@ -114,6 +114,12 @@
       <path class="ub" d="M60 26v40"/><rect class="ub" x="56" y="31" width="8" height="14"/>
       <circle class="pp" cx="60" cy="72" r="8"/><path class="st" d="M57 60v4M63 60v4M57 80v3M63 80v3"/>
     </svg><b>F</b><small>แขวนเดี่ยว · เกลียวเร่ง + แคลมป์ · ท่อตามแนวทรัส</small></button>
+    <button class="card" data-d="G"><svg viewBox="0 0 120 84">
+      <rect class="wl" x="4" y="4" width="22" height="50"/>
+      <path class="st" d="M27 10h6v30h40v6H27z"/><path class="ub" d="M20 18h10M20 32h10"/>
+      <path class="ub" d="M64 46v24"/><rect class="ub" x="61" y="50" width="6" height="11"/>
+      <circle class="pp" cx="64" cy="75" r="6"/>
+    </svg><b>G</b><small>เหล็กฉากยึดผนัง/คาน + แขวน · ท่อวิ่งตามผนัง</small></button>
   </div>
 
   <div class="grid2" style="margin-bottom:12px">
@@ -155,7 +161,8 @@
     var t = (D.types || []).filter(function (x) { return x.key === S.detail; })[0];
     if (t) { $('tname').textContent = t.th; $('tinfo').textContent = t.info; }
     var hang = /^E/.test(S.detail || '');
-    $('autotxt').textContent = S.detail === 'F' ? 'ทุกระยะซัพพอร์ตใต้ท่อกลม · แนวท่อ Plant Piping ที่เลือก' : 'แนวท่อ Plant Piping ที่เลือก';
+    $('autotxt').textContent = S.detail === 'F' ? 'ทุกระยะซัพพอร์ตใต้ท่อกลม · แนวท่อ Plant Piping ที่เลือก'
+      : S.detail === 'G' ? 'ทุกระยะซัพพอร์ตตามผนัง/คาน · แนวท่อ Plant Piping ที่เลือก' : 'แนวท่อ Plant Piping ที่เลือก';
     $('autobtn').disabled = !D.linked || hang; $('autobtn').style.opacity = (!D.linked || hang) ? 0.5 : 1;
   }
   window.SS = {

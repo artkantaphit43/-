@@ -34,10 +34,15 @@ module ArtK
           types: Std::TYPES.map do |k, v|
             fix = case v[:form]
                   when :hanger then 'แขวนท่อกลมด้วยเหล็กเส้น 2 เส้น (3/8"–5/8" ตามน้ำหนัก) · U-bolt คร่อมท่อกลม + ตัวยึด C'
-                  when :rod then 'เหล็กเส้น 1 เส้น (ตามน้ำหนัก ≥ MSS SP-69) + เกลียวเร่ง + แคลมป์รัดท่อ 2 สลัก · ตัวรับ U + U-bolt บนท่อกลม'
+                  when :rod
+                    top = v[:mount] ? 'เหล็กฉาก L50–L100 ตามน้ำหนัก ยึดผนัง/คาน (พุก 2 ตัว)' : 'ตัวรับ U + U-bolt บนท่อกลม'
+                    "เหล็กเส้น 1 เส้น (ตามน้ำหนัก ≥ MSS SP-69) + เกลียวเร่ง + แคลมป์รัดท่อ 2 สลัก · #{top}"
                   else "พุก Expansion bolt #{Hardware.label(v[:anchor])} × #{v[:bolts].size}"
                   end
-            sec = v[:sec] ? Steel.get(v[:sec])[:name] : 'แขวนเดี่ยว'
+            sec = if v[:sec] then Steel.get(v[:sec])[:name]
+                  elsif v[:mount] then 'เหล็กฉาก + แขวน'
+                  else 'แขวนเดี่ยว'
+                  end
             { key: k, th: v[:th], section: sec, anchor: v[:anchor] && Hardware.label(v[:anchor]),
               anchors: v[:bolts].to_a.size, info: "#{sec} · #{fix}" }
           end

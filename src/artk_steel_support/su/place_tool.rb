@@ -5,7 +5,7 @@ module ArtK
     # Point at a pipe beside a column – or at the column face, at the
     # level the pipes sit on (lock point, marked): the support (A–D) is worked out at the
     # column's centre and outlined (orange; red = a check fails / cannot
-    # be placed); click places it. Tab cycles A → B → C → D → E → E2 → F.
+    # be placed); click places it. Tab cycles A → B → C → D → E → E2 → F → G.
     #
     # E, F (hung from a round member): point at a Plant Piping pipe under it,
     # or click the round member itself (centred on its axis by the
@@ -148,6 +148,10 @@ module ArtK
       # E: the middle of its bottom member's top.
       def lock_point
         s = Std.type(@plan[:detail])
+        if s[:mount] # G: the arm's top at the face
+          m = Std.mount_geo(@plan[:struct])
+          return Vec.add(Vec.along(@plan[:origin], @plan[:y], m[:face]), [0.0, 0.0, m[:z]])
+        end
         inner = case s[:form]
                 when :hanger then s[:length] / 2.0
                 when :rod then 0.0
@@ -321,7 +325,13 @@ module ArtK
         @cache.clear if @cache.size > 200
         @cache[key] ||= begin
           model = Sketchup.active_model
-          if Std.type(@detail)[:form] == :rod
+          if Std.type(@detail)[:mount]
+            if hit[:face]
+              Placer.from_face_angle(model, @detail, hit[:point], hit[:normal], hit[:eye], H.settings, face: hit[:obj])
+            else
+              Placer.from_pipe_angle(model, @detail, hit, H.settings)
+            end
+          elsif Std.type(@detail)[:form] == :rod
             Placer.from_pipe_rod(model, @detail, hit, H.settings)
           elsif Std.hung?(@detail)
             Placer.from_pipe_hanger(model, @detail, hit, H.settings, right: @right)
@@ -346,11 +356,9 @@ module ArtK
         res = @plan[:result]
         info = res.info
         txt = info[:title] || Std.type(@detail)[:th]
-        txt += if info[:rod]
-                 " · เหล็กเส้น #{Hardware.label(info[:rod])} ×#{info[:rods] || 2}"
-               else
-                 " · พุก #{Hardware.label(info[:anchor])} ×#{info[:anchors]}"
-               end
+        txt += " · #{Steel.get(info[:section])[:name]}" if Std.type(@detail)[:mount] && info[:section]
+        txt += " · เหล็กเส้น #{Hardware.label(info[:rod])} ×#{info[:rods] || 2}" if info[:rod]
+        txt += " · พุก #{Hardware.label(info[:anchor])} ×#{info[:anchors]}" if info[:anchor]
         txt += info[:nominal] ? ' · ยังไม่มีท่อ: U-bolt ตามแบบ + จุดไกด์' : " · รัด #{res.carried.size} ท่อ"
         if Std.hung?(@detail)
           txt += ' · กลางท่อกลมด้านบน'
@@ -368,10 +376,12 @@ module ArtK
           if @chord
             "ซัพพอร์ต #{@detail}: พิมพ์ระยะจากใต้ท่อกลมลงถึงท้องท่อ (มม.) หรือคลิกจุดที่ระดับท้องท่อ | Esc = เลือกท่อกลมใหม่"
           elsif Std.hung?(@detail)
-            "ซัพพอร์ต #{@detail}: ชี้ท่อ (Plant Piping) ใต้ท่อกลม หรือคลิกท่อกลมที่จะแขวน | Tab = A–F"
+            "ซัพพอร์ต #{@detail}: ชี้ท่อ (Plant Piping) ใต้ท่อกลม หรือคลิกท่อกลมที่จะแขวน | Tab = A–G"
+          elsif Std.type(@detail)[:mount]
+            "ซัพพอร์ต #{@detail}: ชี้ท่อที่วิ่งตามผนัง/คาน หรือหน้าผนัง/คานที่ระดับหลังแขนเหล็กฉาก แล้วคลิก | Tab = A–G"
           else
             "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือหน้าเสาที่ระดับท้องท่อ (มุมในบนเหล็กรับท่อ) แล้วคลิก | " \
-              'Tab = A–F'
+              'Tab = A–G'
           end
       end
     end

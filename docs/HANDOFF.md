@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.1.0**
-(`dist/artk_steel_support-2.1.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (295 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.2.0**
+(`dist/artk_steel_support-2.2.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (298 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -176,6 +176,11 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `turnbuckle`; `Probe.over` (ท่อกลมตามแนวท่อ) / `Probe.above` (ขวางท่อ); แคลมป์ตามท่อจริง rod เอียง > 4° แจ้ง; วางตามแนวท่อ
   (`Commands.along`: `Link.support_points`) · ท่อกลมที่วาดด้วย Plant Piping → ใช้เป็นท่อกลมได้ (คลิก + พิมพ์) · PlaceTool:
   `Std.hung?` สองขั้น (`@cand` → `@chord` → VCB) · เลขที่ E2 นับรวม E (`series`)
+- **Steel Supports 2.2.0 – แบบ G** ("อยากได้เหล็กฉาก + แฮงเกอร์", ร่าง L ข้างคาน + rod ลงท่อ): `TYPES['G']` form `:rod` + `mount: :angle`
+  (ใช้ `rod_hanger` ของ F: rod/เกลียวเร่ง/แคลมป์; หัวบน `angle_mount`: ขายึด + แขน เหล็กฉาก L50–L100 ตัวเล็กสุดที่ผ่านแรงดัด/แอ่น L/180/พุก,
+  พุก 2 ตัว `D.anchor_size`) · struct `mount` {z, face} · `Placer.from_pipe_angle` (สแกนรังสีขวางท่อทีละ 25 มม. หาผิวที่ขายึดวางได้ทั้งท่อน,
+  กึ่งกลางเสาแคบ), `from_face_angle` (จุดล็อก = หลังแขนที่ผิว) · `Commands.along` รองรับ G · เทสต์: teardown คืนค่า Plant Piping
+  (test เก่าตั้ง `support_group_mm` 0 ทำให้ test trapeze ของ Plant Piping พังตามลำดับสุ่ม)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

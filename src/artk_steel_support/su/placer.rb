@@ -243,6 +243,71 @@ module ArtK
         plan(t, origin, x, y, pipes, opts, { src: 'chord', dir: x }, geo)
       end
 
+      # G from a pipe along a wall / beam: the face beside it above it (the
+      # lowest height over the pipe where the face takes the post – rays
+      # across), centred on a column; the arm out to the rod over the pipe.
+      def from_pipe_angle(model, t, hit, opts)
+        raise 'ท่อแนวตั้ง – ใช้ riser clamp ที่ระดับพื้น' if hit[:dir][2].abs > 0.5
+
+        x = Vec.horizontal(hit[:dir])
+        y = Vec.cross(UP, x)
+        o = hit[:point]
+        skip = hit[:cyl] ? [hit[:cyl]] : []
+        me = hit[:pipe] || { r: 0.0, od: 0.0 }
+        r = me[:r].to_f
+        start = r + Std.clamp_ear(me.merge(od: me[:od].to_f)) + 200.0
+        w = nil
+        dz = start
+        while dz <= start + 2500.0
+          a = Probe.wall(model, Vec.add(o, [0.0, 0.0, dz + 20.0]), y, skip: skip)
+          b = a && a[:dist] <= Std::ARM_MAX + 300.0 && Probe.wall(model, Vec.add(o, [0.0, 0.0, dz + 230.0]), y, skip: skip)
+          if b && b[:side] == a[:side] && (b[:dist] - a[:dist]).abs <= 15.0
+            w = a.merge(dz: dz)
+            break
+          end
+          dz += 25.0
+        end
+        raise 'ไม่พบผนัง/คานข้างท่อด้านบน (ภายใน 1 ม. จากท่อ)' unless w
+
+        if w[:side].positive? # y out of the face
+          x = Vec.scale(x, -1.0)
+          y = Vec.scale(y, -1.0)
+        end
+        face = Vec.add(Vec.along(o, y, -w[:dist]), [0.0, 0.0, w[:dz]])
+        col = extent(model, face, x, y, Generic.face_of(w[:path]), skip: skip)
+        origin = Vec.add(Vec.along(o, x, centre(col)), [0.0, 0.0, -r])
+        pipes = section(model, origin, x, y, hit, min_y: -Float::INFINITY)
+        geo = { mount: { z: w[:dz] + r, face: -w[:dist] }, face: w[:dist].round(1), column: column(col) }
+        pl = plan(t, origin, x, y, pipes, opts, hit, geo)
+        mine = pl[:result].carried.first
+        raise "ท่อ #{me[:label]} ไม่อยู่ใต้แขนเหล็กฉาก" unless mine && mine[:y].abs < 1.0 && (mine[:z] - r).abs < 1.0
+
+        pl
+      end
+
+      # G by a click on the face at the level of the arm's top (the lock
+      # point): centred on a column; the pipe under it (the nearest below
+      # the arm, out from the face) or, none yet, a 4" 0.25 out and 0.40
+      # under the arm (pipes drawn later go there: its guide).
+      def from_face_angle(model, t, point, normal, eye, opts = {}, face: nil)
+        raise 'คลิกที่ผิวด้านข้างของผนัง/คาน/เสา (vertical face)' if normal[2].abs > 0.3
+
+        y = Vec.horizontal(normal)
+        y = Vec.scale(y, -1.0) if eye && Vec.dot(y, Vec.sub(eye, point)).negative?
+        x = Vec.cross(y, UP)
+        col = extent(model, point, x, y, face)
+        at = Vec.along(point, x, centre(col))
+        under = section(model, at, x, y, nil).select do |p|
+          p[:y].between?(p[:r] + 20.0, Std::ARM_MAX) && p[:z] + p[:r] < -Steel.get(Std::ANGLES.last)[:a] - 60.0
+        end
+        me = under.max_by { |p| [p[:z] + p[:r], -p[:y]] }
+        yf, bop = me ? [me[:y], Pipes.bottom(me)] : [250.0, -400.0]
+        origin = Vec.add(Vec.along(at, y, yf), [0.0, 0.0, bop])
+        pipes = section(model, origin, x, y, nil, min_y: -Float::INFINITY)
+        plan(t, origin, x, y, pipes, opts, { src: 'face', dir: x },
+             { mount: { z: -bop, face: -yf }, face: 0.0, column: column(col) })
+      end
+
       # E hung from the round member +chord+ the user clicked ({ point:,
       # axis:, radius: } – read from its faces), centred on its axis at the
       # point clicked (+at+), the bottom member's top (the pipes'

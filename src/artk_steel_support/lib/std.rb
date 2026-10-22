@@ -37,6 +37,10 @@ module ArtK
     #      type 4 / 13). Rod by load, at least MSS SP-69's for the pipe.
     #      Its coordinates: x along the pipe, y across (0 = under the
     #      member's axis), z up (0 = the pipe's underside as placed).
+    #   G  angle bracket on a wall / beam face (post anchored, arm out over
+    #      the pipe; L50–L100 by load) with F's rod hanger under the arm.
+    #      x along the pipe, y out of the face (0 = the rod), z up (0 = the
+    #      pipe's underside as placed).
     module Std
       D = Details
       TYPES = {
@@ -60,8 +64,12 @@ module ArtK
                   pipes: [{ y: 230.0, od: 168.3, label: '6"' }, { y: 565.0, od: 114.3, ins: 50.0, label: '4" หุ้มฉนวน 50' }],
                   th: 'ซัพพอร์ต E 2 ชั้น – แขวนท่อกลม C 4"' },
         'F' => { form: :rod, pipes: [{ y: 0.0, od: 114.3, label: '4"' }], swing: 4.0,
-                 th: 'ซัพพอร์ต F – แขวนเดี่ยวจากท่อกลม (เหล็กเส้น + เกลียวเร่ง + แคลมป์)' }
+                 th: 'ซัพพอร์ต F – แขวนเดี่ยวจากท่อกลม (เหล็กเส้น + เกลียวเร่ง + แคลมป์)' },
+        'G' => { form: :rod, mount: :angle, pipes: [{ y: 0.0, od: 114.3, label: '4"' }], swing: 4.0,
+                 th: 'ซัพพอร์ต G – เหล็กฉากยึดผนัง/คาน + แขวน (เหล็กเส้น + แคลมป์)' }
       }.freeze
+      ANGLES = %w[L50 L65 L75 L100].freeze # G's bracket, smallest that passes
+      ARM_MAX = 700.0 # G: face to the rod
       # F's cradle on the round member: 6 mm plate bent to a U with lips, w long.
       CRADLE = { t: 6.0, w: 60.0 }.freeze
       TURNBUCKLE = 150.0 # body length (MSS SP-58 type 13, 6")
@@ -603,15 +611,22 @@ module ArtK
         end
       end
 
-      # F carries one pipe: the one under its round member (nearest the
-      # axis), with room for the cradle, turnbuckle and clamp above it.
-      def fit_rod(t, _s, pipes, notes, geo)
+      # G's bracket: { z: (its arm's top), face: (the face's y, < 0) }.
+      def mount_geo(geo)
+        g = (geo || {}).transform_keys(&:to_sym)
+        m = g[:mount]&.transform_keys(&:to_sym)
+        m ? { z: m[:z].to_f, face: m[:face].to_f } : { z: 114.3 + 400.0, face: -250.0 }
+      end
+
+      # F / G carry one pipe: the one under the round member / the arm
+      # (nearest the rod), with room for the top, turnbuckle and clamp.
+      def fit_rod(t, s, pipes, notes, geo)
         c = rod_geo(geo)
-        roof = c[:z] - c[:r] - 60.0
+        roof = s[:mount] ? mount_geo(geo)[:z] - Steel.get(ANGLES.last)[:a] - 60.0 : c[:z] - c[:r] - 60.0
         ok = pipes.select { |p| p[:y].abs <= 250.0 && p[:z] + p[:r] + clamp_ear(p) <= roof }
         me = ok.min_by { |p| p[:y].abs + 0.25 * Pipes.bottom(p).abs }
         pipes.each do |p|
-          next if p.equal?(me) || p[:y].abs > 400.0 || p[:z] - p[:r] > c[:z]
+          next if p.equal?(me) || p[:y].abs > 400.0 || p[:z] - p[:r] > roof
 
           notes << "ท่อ #{p[:label]} ไม่อยู่ใต้ซัพพอร์ต #{t} (แขวนเดี่ยว 1 ท่อ) – ไม่ได้รัด"
         end
@@ -634,7 +649,7 @@ module ArtK
           carried, = fit_rod(t, s, nominal(t), [], geo)
           given = false
         end
-        raise ArgumentError, 'ท่อกลมด้านบนต่ำเกินไปสำหรับซัพพอร์ต F' if carried.empty?
+        raise ArgumentError, "ระยะแขวนสั้นเกินไปสำหรับซัพพอร์ต #{t}" if carried.empty?
 
         p = carried.first
         c = rod_geo(geo)
@@ -646,7 +661,10 @@ module ArtK
         rsz = [Hardware.size_for(kn, :rod_kn), min_rod(p[:od])].max_by { |z| Hardware::ORDER.index(z) }
         rs = Hardware.get(rsz)
         D.check(checks, "เหล็กเส้นเกลียว #{Hardware.label(rsz)}: แรงดึง (MSS SP-58)", kn, rs[:rod_kn], 'kN', kind: :rod)
-        top = cradle(part, bom, lines, c, rsz)
+        mount = if s[:mount] then angle_mount(part, bom, lines, checks, notes, mount_geo(geo), p, rsz, opts)
+                else { top: cradle(part, bom, lines, c, rsz) }
+                end
+        top = mount[:top]
         low = pipe_clamp(part, bom, lines, p, rsz)
         dir = Vec.unit(Vec.sub(top, low))
         tilt = Math.acos(dir[2].clamp(-1.0, 1.0)) * 180.0 / Math::PI
@@ -670,9 +688,63 @@ module ArtK
           notes << "#{ck[:item]} เกินค่าที่ยอมให้ (#{ck[:value]} > #{ck[:limit]} #{ck[:unit]}) – ลดระยะห่างซัพพอร์ต" unless ck[:ok]
         end
         D::Result.new(part: part, bom: bom, checks: checks, notes: notes, carried: carried, lines: lines,
-                      info: { type: t, section: nil, anchor: nil, anchors: 0, rod: rsz, rods: 1, nominal: !given,
+                      info: { type: t, section: mount[:angle], anchor: mount[:anchor], anchors: mount[:anchor] ? 2 : 0,
+                              rod: rsz, rods: 1, nominal: !given,
                               guides: given ? [] : [[p[:y], p[:z]]], rests: given ? [] : [[p[:y], Pipes.bottom(p)]],
-                              size: [CRADLE[:w], c[:z]], h: 0.0, tiers: 1, title: s[:th] })
+                              size: s[:mount] ? [-mount_geo(geo)[:face] + 50.0, mount_geo(geo)[:z]] : [CRADLE[:w], c[:z]],
+                              h: 0.0, tiers: 1, title: s[:th] })
+      end
+
+      # G's angle bracket on the face (y = m[:face], its arm's top at
+      # m[:z]): a post anchored to the face (2 expansion anchors, the pivot
+      # at its foot) and an arm out over the pipe, the rod through the
+      # arm's top leg (nut + washer on it, lock nut under). The smallest
+      # angle whose arm (bending, deflection ≤ L/180) and anchors pass.
+      # Returns { top: (the rod's top end), angle:, anchor: }.
+      def angle_mount(part, bom, lines, checks, notes, m, p, rsz, opts)
+        yf = -m[:face]
+        za = m[:z]
+        pn = Pipes.load_n(p, D.spacing(p, opts))
+        mom = pn * yf
+        pick = nil
+        ANGLES.each do |k|
+          a = Steel.get(k)[:a]
+          h = [250.0, 3.5 * a].max.round
+          hs = [60.0, h - 50.0]
+          pr = Steel.props(k)
+          t_kn = Beam.anchor_tension(mom, hs) / 1000.0
+          v_kn = pn / 2.0 / 1000.0
+          asz = D.anchor_size({}, '3/8', t_kn, v_kn)
+          an = Hardware.get(asz)
+          pick = { key: k, a: a, h: h, hs: hs, t_kn: t_kn, v_kn: v_kn, asz: asz, sig: mom / pr[:z_flat],
+                   defl: pn * yf**3 / (3.0 * Steel::E * pr[:i_flat]) }
+          break if pick[:sig] <= Steel::FB && pick[:defl] <= yf / 180.0 && t_kn / an[:anc_t] + v_kn / an[:anc_v] <= 1.0
+        end
+        k = pick[:key]
+        a = pick[:a]
+        h = pick[:h]
+        t = Steel.get(k)[:t]
+        xa = -a / 2.0
+        part.add(:steel, Steel.angle(k, [xa, -yf, za], [xa, 50.0, za], [1.0, 0, 0], [0, 0, -1.0]))
+        part.add(:steel, Steel.angle(k, [xa, -yf, za], [xa, -yf, za + h], [1.0, 0, 0], [0, 1.0, 0]))
+        D.box_lines(lines, [xa, -yf, za - a], [-xa, 50.0, za])
+        D.box_lines(lines, [xa, -yf, za], [-xa, -yf + a, za + h])
+        pick[:hs].each { |hz| Hardware.anchor(part, [t / 2.0, -yf, za + hz], [0, 1.0, 0], t, pick[:asz]) }
+        name = Steel.get(k)[:name]
+        D.bom_steel(bom, k, yf + 50.0, 'แขนเหล็กฉาก')
+        D.bom_steel(bom, k, h, 'ขายึดผนัง/คาน')
+        D.bom_item(bom, 'anchor', "พุก Expansion bolt #{Hardware.label(pick[:asz])}", 2, key: "anc #{pick[:asz]}")
+        D.check(checks, "แขน #{name}: หน่วยแรงดัด (bending)", pick[:sig], Steel::FB, 'MPa')
+        D.check(checks, "แขน #{name}: การแอ่นตัว (deflection)", pick[:defl], yf / 180.0, 'mm')
+        D.anchor_checks(checks, notes, pick[:asz], pick[:t_kn], pick[:v_kn])
+        if yf > ARM_MAX
+          notes << "ท่อห่างผนัง #{yf.round} มม. – แขนเหล็กฉากเกิน #{ARM_MAX.round} มม. ควรใช้ขาค้ำ (ซัพพอร์ต A/B)"
+        end
+        rs = Hardware.get(rsz)
+        Hardware.fastening(part, [0.0, 0.0, za - t], [0, 0, -1.0], rsz)
+        top = Hardware.fastening(part, [0.0, 0.0, za], [0, 0, 1.0], rsz)
+        D.nuts(bom, rsz, 2)
+        { top: [0.0, 0.0, top[2] + 0.6 * rs[:d]], angle: k, anchor: pick[:asz] }
       end
 
       # A flat bar w wide (along x), t thick, bent along +path+ ([y, z]

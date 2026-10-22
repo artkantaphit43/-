@@ -12,8 +12,9 @@ module ArtK
 
       # Support +t+ at every column the selected Plant Piping runs pass
       # (within the support's reach), centred on each.
-      # F along the selected Plant Piping runs, at their support spacing,
-      # wherever a round member is over the pipe.
+      # F / G along the selected Plant Piping runs, at their support
+      # spacing, wherever a round member is over the pipe / a wall or beam
+      # face beside it.
       def along(t)
         model = Sketchup.active_model
         Link.register
@@ -32,7 +33,9 @@ module ArtK
             next unless pp
 
             hit = { point: pp[:point], dir: pp[:dir], src: 'pp', pipe: Builder.pipe_record(pp) }
-            plan = Placer.from_pipe_rod(model, t, hit, H.settings)
+            plan = if Std.type(t)[:mount] then Placer.from_pipe_angle(model, t, hit, H.settings)
+                   else Placer.from_pipe_rod(model, t, hit, H.settings)
+                   end
             next if taken?(model, plan[:origin])
 
             Builder.create(model, plan, op: false)
