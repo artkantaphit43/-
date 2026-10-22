@@ -8,6 +8,8 @@ module ArtK
     # are the 1.0 details, still refitted in files drawn with 1.0.
     module Builder
       FORMAT = 1
+      GUIDES = 2   # guide points mid + at both ends of each line (2.2.1)
+      GUIDE = 500.0 # guide lines reach this far each way along the pipes
       NEAR = 2500.0 # mm, pipes changed this close to a support refit it
 
       module_function
@@ -39,14 +41,16 @@ module ArtK
         "#{Details::TYPES[t][:th]} #{Steel.get(plan[:result].info[:section])[:inch]}"
       end
 
-      # The drawing's places no pipe takes yet: a guide point / line on the
-      # steel where that line rests, to draw the pipe onto (Plant Piping's
-      # pipe tool lays it there, on the steel).
+      # The drawing's places no pipe takes yet: a guide line on the steel
+      # where that line rests, with points to snap to mid and at both ends,
+      # to draw the pipe onto (Plant Piping's pipe tool lays it there, on
+      # the steel).
       def guides(g, res)
         res.info[:rests].to_a.each do |y, z|
-          g.entities.add_cpoint(H.to_pt([0.0, y, z]))
-          g.entities.add_cline(H.to_pt([-500.0, y, z]), H.to_pt([500.0, y, z])) if g.entities.respond_to?(:add_cline)
+          [0.0, -GUIDE, GUIDE].each { |x| g.entities.add_cpoint(H.to_pt([x, y, z])) }
+          g.entities.add_cline(H.to_pt([-GUIDE, y, z]), H.to_pt([GUIDE, y, z])) if g.entities.respond_to?(:add_cline)
         end
+        g.set_attribute(H::DICT, 'guides_v', GUIDES)
       end
 
       # A point picked on our support in +path+ (Plant Piping's pipe tool)
@@ -213,7 +217,7 @@ module ArtK
                plan[:result].info[:section] == g.get_attribute(H::DICT, 'section') &&
                H.get_json(g, 'origin') == plan[:origin].map { |c| c.round(2) } &&
                plan[:result].notes == H.get_json(g, 'notes', []) &&
-               (!Placer.std?(plan[:detail]) || H.get_json(g, 'info', {}).key?('rests')) # 2.0.4: guides off the steel
+               (!Placer.std?(plan[:detail]) || g.get_attribute(H::DICT, 'guides_v').to_i >= GUIDES) # older guides: redone
         return :same if same
 
         model.start_operation('Steel Supports: ปรับตามท่อ', true, false, op == :transparent) if op

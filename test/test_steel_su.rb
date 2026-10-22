@@ -272,7 +272,7 @@ class TestSteelSU < Minitest::Test
     assert_in_delta(-100.0, pts.map { |q| q[2] }.min, 1e-6)
     g = SS::Builder.create(@model, plan)
     assert SH.get_json(g, 'info')['nominal']
-    assert_equal 3, g.entities.grep(Sketchup::ConstructionPoint).size, 'guide points at the drawn pipe centres'
+    assert_equal 3 * 3, g.entities.grep(Sketchup::ConstructionPoint).size, 'guide points: mid and both ends of each line'
     assert_equal :same, SS::Builder.refit(@model, g)
     run6 = pipe_run(-120, 1500 + 84.15, '6"', 'CW')
     ArtK::PlantPipe::SupportBuilder.notify_changed(@model, [run6]) # as after drawing it
@@ -366,7 +366,7 @@ class TestSteelSU < Minitest::Test
   def guide_points(g)
     g.entities.grep(Sketchup::ConstructionPoint).map do |c|
       PH.from_pt(c.position).values_at(1, 2).map { |v| v.round(6) }
-    end
+    end.uniq
   end
 
   # Draw a Plant Piping pipe of +size+ from a point picked on +path+
@@ -453,6 +453,36 @@ class TestSteelSU < Minitest::Test
     assert_equal [200.0, 430.0], SH.get_json(supports.first, 'pipes').map { |q| q['y'] }
     off, = draw_onto('2"', [], [2700.0, -450.0 + 330.0, 1600.0]) # above the arm: as picked
     PH.get_json(off, 'cl').flatten(1).each { |p| assert_in_delta 1600.0, p[2], 1e-6 }
+  end
+
+  # The user (2.2.0): the guide lines had no snap point at their ends.
+  # Each line: a point mid and one at each end (±0.5 m along the pipes);
+  # a pipe started on an end lies on the steel through the support.
+  def test_guide_lines_have_snap_points_at_both_ends
+    column!
+    g = b_at_1500
+    pts = g.entities.grep(Sketchup::ConstructionPoint).map { |c| PH.from_pt(c.position).map { |v| v.round(6) } }
+    [200.0, 430.0].each do |y|
+      assert_equal [-500.0, 0.0, 500.0], pts.select { |q| q[1] == y }.map(&:first).sort, "line at #{y}"
+    end
+    endpoint = g.entities.grep(Sketchup::ConstructionPoint).find { |c| PH.from_pt(c.position).values_at(0, 1) == [-500.0, 200.0] }
+    start = SS::Vec.along(SS::Vec.along(SH.get_json(g, 'origin'), SH.get_json(g, 'xdir'), -500.0), SH.get_json(g, 'ydir'), 200.0)
+    run, = draw_onto('4"', [g, endpoint], start, along: SH.get_json(g, 'xdir'))
+    cl = PH.get_json(run, 'cl').flatten(1)
+    assert_in_delta start[0], cl.first[0], 1e-6, 'from the line\'s end'
+    cl.each { |q| assert_in_delta 1500.0 + 57.15, q[2], 1e-6 }
+    assert_equal [200.0], SH.get_json(supports.first, 'pipes').map { |q| q['y'] }
+  end
+
+  # Supports placed before 2.2.1 get the end points at their next refit.
+  def test_older_guides_redone_on_refit
+    column!
+    g = b_at_1500
+    g.entities.grep(Sketchup::ConstructionPoint).each { |c| g.entities.erase_entities(c) unless PH.from_pt(c.position)[0].zero? }
+    g.set_attribute(SH::DICT, 'guides_v', nil)
+    assert_equal :done, SS::Builder.refit(@model, g)
+    assert_equal 6, supports.first.entities.grep(Sketchup::ConstructionPoint).size
+    assert_equal :same, SS::Builder.refit(@model, supports.first)
   end
 
   # Clicking the arm's top puts the pipe on it too, at the nearest drawn
@@ -733,7 +763,7 @@ class TestSteelSU < Minitest::Test
     mid = SS::Vec.along(o, SH.get_json(g, 'ydir'), 400.0)
     assert_in_delta 500.0, mid[1], 0.5, 'centred where clicked along it'
     assert SH.get_json(g, 'info')['nominal']
-    assert_equal 2, g.entities.grep(Sketchup::ConstructionPoint).size
+    assert_equal 2, guide_points(g).size
     assert_empty SH.get_json(g, 'notes')
     # too short a drop: refused, said why
     tool.onLButtonDown(0, 10, 10, view) # nothing armed
@@ -750,7 +780,7 @@ class TestSteelSU < Minitest::Test
     tool2.onUserText('1200', view)
     e2 = supports.max_by { |q| q.get_attribute(SH::DICT, 'number') }
     assert_equal 'E-02', e2.get_attribute(SH::DICT, 'number'), 'E 2 tiers counts with E'
-    assert_equal 4, e2.entities.grep(Sketchup::ConstructionPoint).size
+    assert_equal 4, guide_points(e2).size
   ensure
     Sketchup::InputPoint.next_face = nil
   end
