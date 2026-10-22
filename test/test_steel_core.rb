@@ -301,23 +301,41 @@ class TestSteelStd < Minitest::Test
   # A point picked on a support (Plant Piping's pipe tool): where the
   # underside of the pipe drawn there goes.
   def test_where_a_pipe_drawn_onto_the_steel_rests
-    assert_equal({ z: 0.0, bare: false, half: 25.0 }, SS::Std.rest('B', 250.0, 0.4), 'on the arm')
-    assert_equal({ z: 0.0, bare: false, half: 20.0 }, SS::Std.rest('A', 100.0, 0.0))
-    assert_equal({ z: 0.0, bare: false, half: 25.0 }, SS::Std.rest('D', 600.0, 0.0), 'on the bottom member')
+    at = ->(*a) { SS::Std.rest(*a)&.slice(:z, :bare, :half) }
+    assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('B', 250.0, 0.4), 'on the arm')
+    assert_equal({ z: 0.0, bare: false, half: 20.0 }, at.call('A', 100.0, 0.0))
+    assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('D', 600.0, 0.0), 'on the bottom member')
     assert_nil SS::Std.rest('D', 50.0, 0.0), 'inside the back post'
     assert_nil SS::Std.rest('B', 250.0, -50.0)
-    assert_equal({ z: 525.0, bare: true, half: 100.0 }, SS::Std.rest('C', 435.0, 425.0), 'on the seat: onto the shoe')
-    assert_equal({ z: 0.0, bare: false, half: 25.0 }, SS::Std.rest('B', 200.0, 30.15), "2.0.4's guide at the 2\" centre")
+    assert_equal({ z: 525.0, bare: true, half: 100.0 }, at.call('C', 435.0, 425.0), 'on the seat: onto the shoe')
+    assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('B', 200.0, 30.15), "2.0.4's guide at the 2\" centre")
     assert_equal 525.0, SS::Std.rest('C', 435.0, 525.0 + 57.15)[:z]
   end
 
-  # A pipe drawn into the steel the pipes sit on takes it down under it.
-  def test_a_pipe_drawn_into_the_steel_takes_it_down
-    assert_in_delta 54.0, SS::Std.sink('B', [P.call(200, 30.15, 168.3)]), 1e-6
-    assert_equal 0.0, SS::Std.sink('B', [P.call(200, 84.15, 168.3), P.call(430, 300, 48.3)])
-    assert_equal 0.0, SS::Std.sink('B', [P.call(200, -300, 60.3)]), 'well below: not on this support'
-    assert_equal 0.0, SS::Std.sink('D', [P.call(330, 84.15, 168.3), P.call(435, 600, 114.3)])
-    assert_in_delta 20.0, SS::Std.sink('D', [P.call(330, 64.15, 168.3), P.call(540, 30.15, 60.3)]), 1e-6
+  # A pipe drawn into the steel the pipes sit on: the steel stays as
+  # placed, the pipe is noted.
+  def test_a_pipe_drawn_into_the_steel_is_noted
+    r = SS::Std.build('B', [P.call(200, 30.15, 168.3, 0, '6"'), P.call(430, 24.15, 48.3, 0, '1½"')])
+    assert_equal [430.0], r.carried.map { |p| p[:y] }
+    assert(r.notes.any? { |n| n.include?('6"') && n.include?('จมในเหล็ก 54 มม.') })
+    deep = SS::Std.build('D', [P.call(330, -300, 168.3, 0, 'low')])
+    refute(deep.notes.any? { |n| n.include?('จม') }, 'well below the frame: not in its steel')
+  end
+
+  # Picked on a support: the pipe goes to the nearest of the drawing's
+  # places it fits that no pipe takes (within 120 mm), else where picked.
+  def test_pipes_drawn_onto_a_support_go_to_the_drawn_places
+    six = { od: 168.3, ins: 0.0 }
+    one = { od: 48.3, ins: 0.0 }
+    assert_equal 200.0, SS::Std.rest('B', 110.0, 0.0, six)[:y], 'by the column: 0.20'
+    assert_equal 430.0, SS::Std.rest('B', 465.0, 0.0, one)[:y], 'by the arm end: 0.43'
+    assert_equal 465.0, SS::Std.rest('B', 465.0, 0.0, six)[:y], 'a 6" does not fit at 0.43: where picked'
+    taken = [P.call(200, 84.15, 168.3)]
+    assert_equal 430.0, SS::Std.rest('B', 330.0, 0.0, one, taken)[:y], 'the next free place'
+    assert_equal 330.0, SS::Std.rest('B', 330.0, 0.0, six, taken)[:y], 'none free for a 6": where picked'
+    assert_equal 540.0, SS::Std.rest('D', 600.0, 0.0, six)[:y], '0.69 is no place for a 6"'
+    assert_equal 435.0, SS::Std.rest('C', 380.0, 425.0, { od: 114.3, ins: 50.0 })[:y], 'steam on its shoe'
+    assert_equal 200.0, SS::Std.rest('B', 250.0, 0.0)[:y], 'size not known (Plant Piping 1.16.2)'
   end
 
   def test_steam_shoe_fits_the_steam_line

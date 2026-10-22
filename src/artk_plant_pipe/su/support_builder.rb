@@ -392,14 +392,14 @@ module ArtK
       end
 
       # Other extensions' supports a pipe drawn onto lies on: name =>
-      # block(model, path, point) → { z: (world, the pipe's underside),
-      # bare: (under the insulation), name:, point: } or nil
-      # (API.register_rests).
+      # block(model, path, point, pipe { od:, ins: }) → { z: (world, the
+      # pipe's underside), bare: (under the insulation), name:, point: } or
+      # nil (API.register_rests).
       RESTS = {}
 
-      def rest_at(model, path, point)
+      def rest_at(model, path, point, pipe = nil)
         RESTS.each_value do |b|
-          r = b.call(model, path, point)
+          r = b.call(model, path, point, pipe)
           return r if r
         rescue StandardError => e
           puts "Plant Piping: support rest not read – #{e.message}"

@@ -415,16 +415,19 @@ class TestSteelSU < Minitest::Test
     assert_empty g3.entities.grep(Sketchup::ConstructionPoint)
   end
 
-  # Clicking the arm's top anywhere puts the pipe on it too; a point not
-  # on the steel the pipes sit on is left as picked.
+  # Clicking the arm's top puts the pipe on it too, at the nearest drawn
+  # place; with none free near, where picked; a point not on the steel the
+  # pipes sit on is left as picked.
   def test_pipe_picked_on_the_arm_top_lies_on_it
     column!
     g = b_at_1500
     run, = draw_onto('4"', [g], [2600.0, -150.0, 1500.0]) # 300 out on the arm
     PH.get_json(run, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 57.15, p[2], 1e-6 }
     q = SH.get_json(supports.first, 'pipes')
-    assert_equal [300.0], q.map { |p| p['y'] }
+    assert_equal [200.0], q.map { |p| p['y'] }, 'the nearest drawn place'
     assert_in_delta 57.15, q[0]['z'], 0.1
+    draw_onto('1"', [supports.first], [2600.0, -390.0, 1500.0]) # 60 out: 0.20 taken, 0.43 far
+    assert_equal [60.0, 200.0], SH.get_json(supports.first, 'pipes').map { |p| p['y'] }
     free, = draw_onto('2"', [], [2600.0, 1000.0, 1500.0])
     PH.get_json(free, 'cl').flatten(1).each { |p| assert_in_delta 1500.0, p[2], 1e-6 }
   end
@@ -466,33 +469,57 @@ class TestSteelSU < Minitest::Test
     Sketchup::InputPoint.next_dof = nil
   end
 
-  # A pipe moved down after (Plant Piping's stretch / move): the support
-  # follows it; moved up, it rides on a packer.
-  def test_support_follows_a_pipe_moved_into_it
+  # The user's case (2.0.5): the 6" picked on the arm by the column and
+  # the 1½" by its end lay where picked – off the drawing's places – and
+  # each pipe took B down. They go to the drawn places (0.20, 0.43) and B
+  # stays at the level it was placed at.
+  def test_pipes_picked_on_the_arm_go_to_the_drawn_places
+    column!
+    g = b_at_1500
+    run, tip = draw_onto('6"', [g], [3010.0, -450.0 + 110.0, 1500.0]) # on the arm, by the column
+    assert_match(/B-01 ที่ 0\.20/, tip)
+    PH.get_json(run, 'cl').flatten(1).each do |p|
+      assert_in_delta(-250.0, p[1], 1e-6, '0.20 from the face')
+      assert_in_delta 1584.15, p[2], 1e-6
+    end
+    run2, = draw_onto('1-1/2"', [supports.first], [2990.0, -450.0 + 465.0, 1500.0]) # by the arm's end
+    PH.get_json(run2, 'cl').flatten(1).each { |p| assert_in_delta(-20.0, p[1], 1e-6, '0.43 from the face') }
+    s = supports.first
+    assert_equal [1500.0, -450.0], SH.get_json(s, 'origin').values_at(2, 1), 'B where it was placed'
+    assert_equal [200.0, 430.0], SH.get_json(s, 'pipes').map { |q| q['y'] }
+    assert_empty SH.get_json(s, 'notes')
+  end
+
+  # A pipe moved after (Plant Piping's stretch / move): up – it rides on a
+  # packer; down into the steel – the support stays where it was placed
+  # and says so.
+  def test_support_stays_when_a_pipe_is_moved
     column!
     g = b_at_1500
     run, = draw_onto('2"', [g, g.entities.grep(Sketchup::ConstructionPoint).first], [2600.0, -250.0, 1500.0])
-    down = PH.get_json(run, 'cl').flatten(1).uniq.map { |p| [p, [p[0], p[1], p[2] - 100.0]] }
-    ArtK::PlantPipe::RunEditor.apply(@model, run, down)
-    assert_in_delta 1400.0, SH.get_json(supports.first, 'origin')[2], 0.1
     up = PH.get_json(run, 'cl').flatten(1).uniq.map { |p| [p, [p[0], p[1], p[2] + 150.0]] }
     ArtK::PlantPipe::RunEditor.apply(@model, run, up)
     s = supports.first
-    assert_in_delta 1400.0, SH.get_json(s, 'origin')[2], 0.1, 'stays; the pipe rides on a packer'
-    assert(SH.get_json(s, 'bom').any? { |b| b['cat'] == 'plate' })
+    assert_in_delta 1500.0, SH.get_json(s, 'origin')[2], 1e-6
+    assert(SH.get_json(s, 'bom').any? { |b| b['cat'] == 'plate' }, 'on a packer')
+    down = PH.get_json(run, 'cl').flatten(1).uniq.map { |p| [p, [p[0], p[1], p[2] - 250.0]] }
+    ArtK::PlantPipe::RunEditor.apply(@model, run, down)
+    s = supports.first
+    assert_in_delta 1500.0, SH.get_json(s, 'origin')[2], 1e-6, 'never moves'
+    assert(SH.get_json(s, 'notes').any? { |n| n.include?('จมในเหล็ก') })
   end
 
-  # Drawn some other way into the steel (or on 2.0.4's guide at the 2"
-  # centre): the support goes down under the pipe and takes it.
-  def test_a_pipe_drawn_into_the_steel_brings_the_support_down
+  # Drawn some other way into the steel: the support stays and says so.
+  def test_a_pipe_drawn_into_the_steel_leaves_the_support_where_it_is
     column!
     b_at_1500
     run = pipe_run(-250, 1530.15, '6"', 'CW')
     ArtK::PlantPipe::SupportBuilder.notify_changed(@model, [run]) # as after drawing it
     g = supports.first
-    assert_in_delta 1530.15 - 84.15, SH.get_json(g, 'origin')[2], 0.1
-    assert_equal [run.persistent_id], SH.get_json(g, 'pipes').map { |q| q['pid'] }
-    assert_equal :same, SS::Builder.refit(@model, g)
+    assert_in_delta 1500.0, SH.get_json(g, 'origin')[2], 1e-6
+    assert(SH.get_json(g, 'notes').any? { |n| n.include?('6"') && n.include?('จมในเหล็ก 54 มม.') })
+    assert_equal ['ub 3/8 48'], SH.get_json(g, 'bom').select { |b| b['cat'] == 'ubolt' }.map { |b| b['key'] },
+                 "no drawing's U-bolt through the 6\""
   end
 
   # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.

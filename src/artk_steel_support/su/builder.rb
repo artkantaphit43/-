@@ -49,26 +49,36 @@ module ArtK
         end
       end
 
-      # A point picked on our support in +path+ (Plant Piping's pipe tool):
-      # world z of the underside of a pipe drawn from there (Std.rest) –
-      # { z:, bare:, name:, point: } or nil. Picked on the steel itself, the
-      # point goes onto the support's centre line (as its guide point), so
-      # a pipe started there crosses the support.
-      def rest_at(path, point)
+      # A point picked on our support in +path+ (Plant Piping's pipe tool)
+      # for a pipe { od:, ins: } (nil: not known): where it goes (Std.rest)
+      # – { z: (world, its underside), bare:, name:, point: } or nil. The
+      # point moves out to the drawing's place it takes and, picked on the
+      # steel itself, onto the support's centre line (as its guide point),
+      # so a pipe started there crosses the support.
+      def rest_at(path, point, pipe = nil)
         g = path.to_a.find { |e| H.ours?(e) }
         return nil unless g && Placer.std?(t = g.get_attribute(H::DICT, 'detail'))
 
         o = H.get_json(g, 'origin')
+        x = H.get_json(g, 'xdir')
+        y = H.get_json(g, 'ydir')
         v = Vec.sub(point, o)
-        lx = Vec.dot(v, H.get_json(g, 'xdir'))
+        lx = Vec.dot(v, x)
         return nil if lx.abs > 600.0
 
-        y = H.get_json(g, 'ydir')
-        r = Std.rest(t, Vec.dot(v, y), v[2])
+        taken = H.get_json(g, 'info', {})['nominal'] ? [] : H.get_json(g, 'pipes', []).map { |p| taken_pipe(p) }
+        r = Std.rest(t, Vec.dot(v, y), v[2], pipe, taken)
         return nil unless r
 
-        on = lx.abs <= r[:half] + 5.0 ? Vec.add(Vec.along(o, y, Vec.dot(v, y)), [0.0, 0.0, v[2]]) : point
-        { z: o[2] + r[:z], bare: r[:bare], name: g.get_attribute(H::DICT, 'number'), point: on }
+        along = lx.abs <= r[:half] + 5.0 ? 0.0 : lx
+        on = Vec.add(Vec.along(Vec.along(o, x, along), y, r[:y]), [0.0, 0.0, v[2]])
+        name = "#{g.get_attribute(H::DICT, 'number')} ที่ #{format('%.2f', r[:y] / 1000.0)} ม. จากหน้าเสา"
+        { z: o[2] + r[:z], bare: r[:bare], name: name, point: on }
+      end
+
+      def taken_pipe(p)
+        od = p['od'].to_f
+        { y: p['y'].to_f, z: p['z'].to_f, od: od, ins: p['ins'].to_f, r: od / 2.0 + p['ins'].to_f, label: p['label'] }
       end
 
       def write(g, plan, number)
@@ -174,6 +184,7 @@ module ArtK
         same = Pipes.signature(plan[:result].carried) == stored_signature(g) &&
                plan[:result].info[:section] == g.get_attribute(H::DICT, 'section') &&
                H.get_json(g, 'origin') == plan[:origin].map { |c| c.round(2) } &&
+               plan[:result].notes == H.get_json(g, 'notes', []) &&
                (!Placer.std?(plan[:detail]) || H.get_json(g, 'info', {}).key?('rests')) # 2.0.4: guides off the steel
         return :same if same
 

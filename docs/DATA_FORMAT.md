@@ -121,7 +121,8 @@ butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends`
 **Model:** `fmt` – the format the file was last upgraded to.
 
 **Other extensions (1.16.1):** `ArtK::PlantPipe::API` (LEVEL 1, `su/api.rb`; LEVEL 2 in 1.16.2 adds
-`register_rests` – the pipe tool lays a pipe picked on another extension's support on it) is the stable surface other
+`register_rests` – the pipe tool lays a pipe picked on another extension's support on it; 1.16.3 passes the pipe
+being drawn `{ od:, ins: }` as a 4th argument) is the stable surface other
 extensions call; Steel Supports TH keeps its own groups in the `ArtK_SteelSupport` dictionary
 (docs/STEEL_SUPPORTS.md) and never writes Plant Piping data except through `API.drop_hangers` (the
 same removal of single supports Plant Piping does itself). `SupportBuilder.drop_covered(model, point,

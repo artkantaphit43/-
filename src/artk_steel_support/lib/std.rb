@@ -40,6 +40,7 @@ module ArtK
                  th: 'ซัพพอร์ต D – โครงกล่อง C 4"' }
       }.freeze
       RISE = 300.0 # a pipe up to this above the steel rides on a packer
+      SNAP = 120.0 # a pipe drawn onto a support this near one of the drawing's places goes there
 
       module_function
 
@@ -86,37 +87,57 @@ module ArtK
       end
 
       # A point picked on support +t+ (y, z its support coordinates) to draw
-      # a pipe from – Plant Piping's pipe tool: where that pipe's underside
-      # goes, { z:, bare: (on the bare pipe – C's steam shoe), half: (the
-      # steel there along the pipe, ±) } or nil.
+      # a pipe from – Plant Piping's pipe tool: where that pipe goes,
+      # { y:, z: (its underside), bare: (on the bare pipe – C's steam
+      # shoe), half: (the steel there along the pipe, ±) } or nil.
       # On the steel the pipes sit on or its guide → on it; on C's top /
       # seat / shoe → on the shoe as drawn; on a guide point of 2.0.4 and
-      # before (the drawn line's centre) → where that line rests.
-      def rest(t, y, z)
+      # before (the drawn line's centre) → where that line rests. y: the
+      # nearest of the drawing's places within SNAP that no pipe there
+      # (+taken+) holds and – +pipe+ { od:, ins: } given – it fits, else
+      # where picked.
+      def rest(t, y, z, pipe = nil, taken = [])
         s = type(t)
         lo, hi = bearing(s)
         b = Steel.width(s[:sec]) / 2.0
-        return { z: 0.0, bare: false, half: b } if z.abs <= 3.0 && y.between?(lo - 3.0, hi + 3.0)
-        if s[:top] && y.between?(lo, hi) && z.between?(top_level(s) - 3.0, shoe_top(s) + 3.0)
-          return { z: shoe_top(s), bare: true, half: s[:top][:shoe_len] / 2.0 }
-        end
-
         q = nominal(t).find { |p| (p[:y] - y).abs <= 3.0 && (p[:z] - z).abs <= 3.0 }
-        q && { z: q[:z] - q[:r], bare: q[:top] == true, half: b }
+        r = if z.abs <= 3.0 && y.between?(lo - 3.0, hi + 3.0)
+              { z: 0.0, bare: false, half: b }
+            elsif s[:top] && y.between?(lo, hi) && z.between?(top_level(s) - 3.0, shoe_top(s) + 3.0)
+              { z: shoe_top(s), bare: true, half: s[:top][:shoe_len] / 2.0 }
+            elsif q
+              { z: q[:z] - q[:r], bare: q[:top] == true, half: b }
+            end
+        r && r.merge(y: place(t, s, y, r, pipe, taken))
       end
 
-      # Pipes drawn into the steel the pipes sit on (through the arm / the
-      # frame's bottom member): how far the support goes down for the
-      # lowest of them to lie on it (0: none).
-      def sink(t, pipes)
-        s = type(t)
-        h = Steel.depth(s[:sec])
-        lo, hi = bearing(s)
-        deep = pipes.select do |p|
-          b = Pipes.bottom(p)
-          b < -1.0 && b + 2.0 * p[:r] > -h && p[:y] + p[:r] > lo && p[:y] - p[:r] < hi
+      # Rest.y: the drawing's place for a pipe +drawn+ there (or y).
+      def place(t, s, y, rest, drawn, taken)
+        mine = taken.select { |p| on_top?(s, p) == rest[:bare] }
+        near = nominal(t).select { |q| (q[:top] == true) == rest[:bare] && (q[:y] - y).abs <= SNAP }
+        best = near.sort_by { |q| (q[:y] - y).abs }.find do |q|
+          if drawn
+            r = drawn[:od] / 2.0 + drawn[:ins].to_f
+            lift = rest[:bare] ? drawn[:od] / 2.0 : r
+            p = pipe(q[:y], rest[:z] + lift, drawn[:od], 'new').merge(ins: drawn[:ins].to_f, r: r)
+            carried, top = fit(t, s, mine + [p], [])
+            (carried.include?(p) || top.equal?(p)) && mine.none? { |o| (o[:y] - p[:y]).abs < side(o) + side(p) }
+          else
+            mine.none? { |o| (o[:y] - q[:y]).abs < o[:r] + q[:r] + 25.0 }
+          end
         end
-        deep.empty? ? 0.0 : -deep.map { |p| Pipes.bottom(p) }.min
+        best ? best[:y] : y
+      end
+
+      # A pipe on C's steam shoe (above the top member), not on the bottom.
+      def on_top?(s, p)
+        !s[:top].nil? && Pipes.bare_bottom(p) >= top_level(s) + 30.0
+      end
+
+      # From the pipe's centre out to its U-bolt's washer edge.
+      def side(p)
+        u = Hardware.get(D.u_size(p))
+        p[:r] + 1.0 + u[:d] / 2.0 + u[:wod] / 2.0
       end
 
       # Top of the steel above the level the pipes sit on: the point
@@ -144,7 +165,11 @@ module ArtK
         carried, top_pipe = fit(t, s, pipes, notes)
         if carried.empty? && top_pipe.nil? && given
           notes << 'ไม่มีท่ออยู่ในตำแหน่งของซัพพอร์ต – ใส่ U-bolt ตามแบบ'
-          carried, top_pipe = fit(t, s, nominal(t), [])
+          # not where a pipe there (in the steel / off its places) is
+          clear = nominal(t).reject do |q|
+            pipes.any? { |p| (p[:y] - q[:y]).abs < p[:r] + q[:r] && (p[:z] - q[:z]).abs < p[:r] + q[:r] }
+          end
+          carried, top_pipe = fit(t, s, clear, [])
           given = false
         end
         part = Mesh::Part.new
@@ -198,17 +223,23 @@ module ArtK
         rest = []
         pipes.each do |p|
           u = Hardware.get(D.u_size(p))
-          side = p[:r] + 1.0 + u[:d] / 2.0 + u[:wod] / 2.0
           bottom = Pipes.bottom(p)
-          if bottom.between?(-1.0, RISE) && p[:y] - side >= lo && p[:y] + side <= hi && p[:z] + p[:r] + u[:d] <= room
+          if bottom.between?(-1.0, RISE) && p[:y] - side(p) >= lo && p[:y] + side(p) <= hi && p[:z] + p[:r] + u[:d] <= room
             carried << p
-          elsif s[:top] && Pipes.bare_bottom(p) >= top_level(s) + 30.0 && p[:y].between?(0.0, s[:width])
+          elsif on_top?(s, p) && p[:y].between?(0.0, s[:width])
             top = p if top.nil? || (p[:y] - s[:top][:y]).abs < (top[:y] - s[:top][:y]).abs
           else
             rest << p
           end
         end
+        b0, b1 = bearing(s)
         rest.each do |p|
+          b = Pipes.bottom(p)
+          if b < -1.0 && b + 2.0 * p[:r] > -h && p[:y] + p[:r] > b0 && p[:y] - p[:r] < b1
+            notes << "ท่อ #{p[:label]} จมในเหล็ก #{(-b).round} มม. – ซัพพอร์ตอยู่ระดับที่วางไว้: " \
+                     'ยกท่อขึ้น หรือวาดท่อใหม่ลงจุดไกด์/บนเหล็ก'
+            next
+          end
           near = p[:y] + p[:r] > 0 && p[:y] - p[:r] < hi + 150.0 && Pipes.bottom(p) < (s[:height] || s[:post]) + 300.0
           notes << "ท่อ #{p[:label]} ไม่อยู่ในตำแหน่งที่ซัพพอร์ต #{t} รับได้ – ไม่ได้รัด" if near
         end

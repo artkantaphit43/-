@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.2**
-(`dist/artk_plant_pipe-1.16.2.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.5**
-(`dist/artk_steel_support-2.0.5.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (281 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.3**
+(`dist/artk_plant_pipe-1.16.3.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.6**
+(`dist/artk_steel_support-2.0.6.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (283 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -149,6 +149,13 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `Std.rest`, `Std.sink` (ท่อจมในเหล็กรับท่อ → ซัพพอร์ตเลื่อนลง), A/B ระยะแหวนรองฝั่งเสา = ปีกหลัง + 2 (เดิม h + 2 เข้มเกิน
   จริง – ปีกหน้าเสาตัดเฉียงจบใต้แขน) → 6" ลง A/B ได้ · แจ้งเปลี่ยนท่อเพิ่ม: แปลงเส้น (convert_selection), ยืด/ย้าย
   (RunEditor.apply) · refit ตรวจ origin + กลุ่ม 2.0.4 (ไม่มี `rests`) สร้างใหม่ · กันวนซ้ำใน refit_near
+- **Steel Supports 2.0.6 + Plant Piping 1.16.3** ("วางไปแล้วระยะเคลื่อน พอวางอีกท่อเคลื่อนกว่าเดิม", ภาพ B + 6" ชิดเสา + 1½"
+  ปลายแขน): (1) 2.0.5 ให้ซัพพอร์ตเลื่อนลงเมื่อท่อจมในเหล็ก (`Std.sink`) → ทุกท่อที่วาดไม่ได้ยกขึ้นพา B ลงต่อ ขัดกับที่ผู้ใช้ต้องการ
+  ("วางซัพพอร์ตที่ระดับที่ต้องการ") → **ยกเลิก: ซัพพอร์ตไม่เลื่อนเอง** ท่อจมในเหล็กแจ้ง "จมในเหล็ก N มม." และ U-bolt ตามแบบ
+  (fallback) ไม่ใส่ทับท่อนั้น · (2) ท่อวางตรงจุดที่คลิกบนแขน (ชิดเสา / ปลายแขน) ไม่ใช่ตำแหน่งตามแบบ → `Std.rest` เลือก
+  ตำแหน่งตามแบบที่ใกล้สุดภายใน `SNAP` 120 มม. ที่ยังว่างและท่อขนาดนั้นลงได้ (`fit` + ไม่ชนแหวนรองของท่อข้าง ๆ),
+  ไม่มี = ตรงที่ชี้ · PP ส่ง `{ od:, ins: }` ให้ rest block (อาร์กิวเมนต์ที่ 4) · tooltip "วางบนซัพพอร์ต B-01 ที่ 0.20 ม. จากหน้าเสา" ·
+  refit เทียบ notes ด้วย (หมายเหตุใหม่ถูกเขียน) · **บทเรียน: "วางซัพพอร์ตที่ระดับที่ต้องการ" = ห้ามขยับซัพพอร์ตเอง**
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

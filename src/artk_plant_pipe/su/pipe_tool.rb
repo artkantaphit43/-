@@ -305,7 +305,9 @@ module ArtK
         return nil if SupportBuilder::RESTS.empty? || !ip.respond_to?(:instance_path)
 
         path = ip.instance_path.to_a
-        path.empty? ? nil : SupportBuilder.rest_at(@model, path, raw)
+        return nil if path.empty?
+
+        SupportBuilder.rest_at(@model, path, raw, { od: @spec.od, ins: @settings['insulation_mm'].to_f })
       rescue StandardError
         nil
       end
