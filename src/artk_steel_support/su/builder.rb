@@ -55,25 +55,51 @@ module ArtK
       # point moves out to the drawing's place it takes and, picked on the
       # steel itself, onto the support's centre line (as its guide point),
       # so a pipe started there crosses the support.
-      def rest_at(path, point, pipe = nil)
-        g = path.to_a.find { |e| H.ours?(e) }
-        return nil unless g && Placer.std?(t = g.get_attribute(H::DICT, 'detail'))
+      #
+      # SketchUp may give no instance path for a point snapped to a guide
+      # line / point (inference), so without our support in +path+ the
+      # point is looked for on the guide lines and the steel of the
+      # supports in +model+.
+      def rest_at(path, point, pipe = nil, model: nil)
+        if (g = path.to_a.find { |e| H.ours?(e) })
+          return Placer.std?(g.get_attribute(H::DICT, 'detail')) ? rest_on(frame(g), point, pipe) : nil
+        end
+        return nil unless model
 
-        o = H.get_json(g, 'origin')
-        x = H.get_json(g, 'xdir')
-        y = H.get_json(g, 'ydir')
-        v = Vec.sub(point, o)
-        lx = Vec.dot(v, x)
-        return nil if lx.abs > 600.0
+        frames(model).filter_map { |f| rest_on(f, point, pipe, loose: true) }.min_by { |r| r[:lx].abs }
+      end
 
-        taken = H.get_json(g, 'info', {})['nominal'] ? [] : H.get_json(g, 'pipes', []).map { |p| taken_pipe(p) }
-        r = Std.rest(t, Vec.dot(v, y), v[2], pipe, taken)
+      # loose: only on a guide line (the drawing's places) or the steel.
+      def rest_on(f, point, pipe, loose: false)
+        v = Vec.sub(point, f[:o])
+        lx = Vec.dot(v, f[:x])
+        ly = Vec.dot(v, f[:y])
+        return nil if lx.abs > (loose ? 503.0 : 600.0)
+
+        r = Std.rest(f[:t], ly, v[2], pipe, f[:taken])
         return nil unless r
+        return nil if loose && lx.abs > r[:half] + 5.0 && Std.nominal(f[:t]).none? { |q| (q[:y] - ly).abs <= 3.0 }
 
         along = lx.abs <= r[:half] + 5.0 ? 0.0 : lx
-        on = Vec.add(Vec.along(Vec.along(o, x, along), y, r[:y]), [0.0, 0.0, v[2]])
-        name = "#{g.get_attribute(H::DICT, 'number')} ที่ #{format('%.2f', r[:y] / 1000.0)} ม. จากหน้าเสา"
-        { z: o[2] + r[:z], bare: r[:bare], name: name, point: on }
+        on = Vec.add(Vec.along(Vec.along(f[:o], f[:x], along), f[:y], r[:y]), [0.0, 0.0, v[2]])
+        name = "#{f[:number]} ที่ #{format('%.2f', r[:y] / 1000.0)} ม. จากหน้าเสา"
+        { z: f[:o][2] + r[:z], bare: r[:bare], name: name, point: on, lx: lx }
+      end
+
+      # What rest_on needs of support +g+.
+      def frame(g)
+        taken = H.get_json(g, 'info', {})['nominal'] ? [] : H.get_json(g, 'pipes', []).map { |p| taken_pipe(p) }
+        { t: g.get_attribute(H::DICT, 'detail'), number: g.get_attribute(H::DICT, 'number'), o: H.get_json(g, 'origin'),
+          x: H.get_json(g, 'xdir'), y: H.get_json(g, 'ydir'), taken: taken }
+      end
+
+      # The A–D supports of +model+ (read again after a second / a change).
+      def frames(model)
+        if @frames.nil? || @frames[:model] != model || Time.now - @frames[:t] > 1.0
+          list = H.supports(model).filter_map { |g, _| frame(g) if Placer.std?(g.get_attribute(H::DICT, 'detail')) }
+          @frames = { model: model, t: Time.now, list: list }
+        end
+        @frames[:list]
       end
 
       def taken_pipe(p)
@@ -143,6 +169,7 @@ module ArtK
 
       def forget
         @cache = nil
+        @frames = nil
       end
 
       # ---------- refit ----------

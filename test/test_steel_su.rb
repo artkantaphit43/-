@@ -415,6 +415,29 @@ class TestSteelSU < Minitest::Test
     assert_empty g3.entities.grep(Sketchup::ConstructionPoint)
   end
 
+  # The user's case (2.0.6 screenshot): the 6" snapped onto B's guide line
+  # in front of the support stayed with its centre on the line – SketchUp
+  # gave no instance path for the guide. The guide line is the pipe's
+  # underside wherever SketchUp says the point is from.
+  def test_guide_line_is_the_pipe_bottom_without_an_instance_path
+    column!
+    b_at_1500
+    run, tip = draw_onto('6"', [], [2700.0, -250.0, 1500.0]) # on the guide line, 300 in front
+    assert_match(/วางบนซัพพอร์ต B-01 ที่ 0\.20/, tip)
+    PH.get_json(run, 'cl').flatten(1).each do |p|
+      assert_in_delta(-250.0, p[1], 1e-6)
+      assert_in_delta 1584.15, p[2], 1e-6, 'its underside on the guide line'
+    end
+    s = supports.first
+    assert_equal [[200.0, run.persistent_id]], SH.get_json(s, 'pipes').map { |q| [q['y'], q['pid']] }
+    assert_empty SH.get_json(s, 'notes')
+    run2, = draw_onto('1-1/2"', [], [2650.0, -20.0, 1500.0]) # the other guide line
+    PH.get_json(run2, 'cl').flatten(1).each { |p| assert_in_delta 1524.15, p[2], 1e-6 }
+    assert_equal [200.0, 430.0], SH.get_json(supports.first, 'pipes').map { |q| q['y'] }
+    off, = draw_onto('2"', [], [2700.0, -450.0 + 330.0, 1600.0]) # above the arm: as picked
+    PH.get_json(off, 'cl').flatten(1).each { |p| assert_in_delta 1600.0, p[2], 1e-6 }
+  end
+
   # Clicking the arm's top puts the pipe on it too, at the nearest drawn
   # place; with none free near, where picked; a point not on the steel the
   # pipes sit on is left as picked.

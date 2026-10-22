@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.3**
-(`dist/artk_plant_pipe-1.16.3.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.6**
-(`dist/artk_steel_support-2.0.6.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (283 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.7**
+(`dist/artk_steel_support-2.0.7.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (284 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -156,6 +156,12 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   ตำแหน่งตามแบบที่ใกล้สุดภายใน `SNAP` 120 มม. ที่ยังว่างและท่อขนาดนั้นลงได้ (`fit` + ไม่ชนแหวนรองของท่อข้าง ๆ),
   ไม่มี = ตรงที่ชี้ · PP ส่ง `{ od:, ins: }` ให้ rest block (อาร์กิวเมนต์ที่ 4) · tooltip "วางบนซัพพอร์ต B-01 ที่ 0.20 ม. จากหน้าเสา" ·
   refit เทียบ notes ด้วย (หมายเหตุใหม่ถูกเขียน) · **บทเรียน: "วางซัพพอร์ตที่ระดับที่ต้องการ" = ห้ามขยับซัพพอร์ตเอง**
+- **Steel Supports 2.0.7 + Plant Piping 1.16.4** (ภาพ: 6" สแนปเส้นไกด์ด้านหน้าซัพพอร์ต แต่กึ่งกลางท่ออยู่บนเส้น = จมในแขน;
+  ผู้ใช้เสนอ "จุดเส้นวางท่อใช้เป็นท้องท่อแทน" = ที่ออกแบบไว้แล้ว แต่ไม่ทำงานในโปรแกรมจริง): สแนปเส้น/จุดไกด์ด้วย inference
+  SketchUp อาจไม่ให้ `InputPoint#instance_path` (ฟอรัม: path ว่างได้) → 1.16.3 ข้าม (`return nil if path.empty?`) ·
+  แก้: PP เรียก rest hook แม้ path ว่าง · Steel `Builder.rest_at(..., model:)` ไม่มีซัพพอร์ตใน path → หาจากตำแหน่ง
+  (`frames` แคช 1 วิ, `rest_on(loose: true)`: |lx| ≤ 503 และอยู่บนเส้นไกด์ (y = ตำแหน่งตามแบบ ±3) หรือบนเหล็ก) ·
+  **บทเรียน: อย่าพึ่ง instance_path อย่างเดียว – ภาพผู้ใช้ปลายท่ออยู่หน้าซัพพอร์ต = คลิกบนเส้นไกด์**
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

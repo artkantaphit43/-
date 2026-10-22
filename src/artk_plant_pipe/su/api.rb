@@ -105,7 +105,8 @@ module ArtK
 
       # Another extension's supports pipes are drawn onto: block(model,
       # path, point, pipe) → { z:, bare:, name:, point: } when +point+
-      # (world, picked on instance path +path+) is on one, for the pipe
+      # (world, picked on instance path +path+ – may be empty: a guide
+      # snapped by inference; 1.16.4) is on one, for the pipe
       # being drawn { od:, ins: } (1.16.3; nil before) – z: where its
       # underside goes (bare: the bare pipe's, under its insulation),
       # point: (optional) the place on the support to draw through. The

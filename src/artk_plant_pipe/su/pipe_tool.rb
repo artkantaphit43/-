@@ -301,12 +301,12 @@ module ArtK
 
       # Picked on another extension's support (Steel Supports TH – its
       # steel or guide): the pipe lies on it ({ z:, bare:, name: } or nil).
+      # The path may be empty (a guide snapped by inference): the hook
+      # then goes by the point.
       def support_rest(ip, raw)
-        return nil if SupportBuilder::RESTS.empty? || !ip.respond_to?(:instance_path)
+        return nil if SupportBuilder::RESTS.empty?
 
-        path = ip.instance_path.to_a
-        return nil if path.empty?
-
+        path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
         SupportBuilder.rest_at(@model, path, raw, { od: @spec.od, ins: @settings['insulation_mm'].to_f })
       rescue StandardError
         nil
