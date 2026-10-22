@@ -66,6 +66,7 @@ module ArtK
         warnings += Builder.render(model, run, Builder.run_settings(run))
         warnings += branch_warnings(model, run)
         model.commit_operation
+        SupportBuilder.notify_changed(model, [run]) # other extensions' supports follow the pipe
         [true, warnings.uniq]
       rescue StandardError
         model.abort_operation

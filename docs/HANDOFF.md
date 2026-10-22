@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.1**
-(`dist/artk_plant_pipe-1.16.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.4**
-(`dist/artk_steel_support-2.0.4.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (272 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.2**
+(`dist/artk_plant_pipe-1.16.2.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.0.5**
+(`dist/artk_steel_support-2.0.5.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (281 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -141,6 +141,14 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   แก้: ใช้หน้าใต้เคอร์เซอร์จาก PickHelper#picked_face (หน้าที่ผู้ใช้เห็น) ตรวจว่าจุดอยู่บนระนาบหน้านั้น, สำรอง = หน้าของ edge
   ที่หันหากล้อง (dot > 0 ไม่ใช้ abs) · เทสต์จำลองกล้องมองเฉียงจากซ้าย (fail บน 2.0.3) + ตรวจเหล็กไม่อยู่ในเสา · stub: picked_face,
   leaf_at, transformation_at, View#camera, InputPoint.next_face/next_edge · **บทเรียน: จำลองเคสจากภาพผู้ใช้ให้ fail ก่อนแก้**
+- **Steel Supports 2.0.5 + Plant Piping 1.16.2** ("วางซัพพอร์ตก่อนที่ระดับที่ต้องการ แล้ววาดท่อ ให้สแนปร่วมกัน ซัพพอร์ตตรวจจับแล้ว
+  ขยาย/หดทันที ท่อถึง 6"): ภาพผู้ใช้ = ท่อ 6" วาดลงจุดไกด์ของ B (จุดไกด์เดิมอยู่ที่กึ่งกลางท่อ 2") → ท่อจมในแขน, fit ไม่รับ →
+  กลับเป็น U-bolt ตามแบบ (:same) · แก้: จุดไกด์/เส้นไกด์อยู่บนผิวเหล็ก (`info.rests`, ใต้ท่อ) เฉพาะตำแหน่งตามแบบที่ยังว่าง ·
+  PP `API.register_rests` (LEVEL 2) + `SupportBuilder.rest_at`: เครื่องมือวาดท่อชี้บนซัพพอร์ต (instance_path) → ยกท่อขึ้น
+  OD/2 + ฉนวน (สตีม C: OD/2 บน shoe) และจุดบนเหล็กย้ายเข้าแนวกึ่งกลางซัพพอร์ต (ท่อเริ่มที่เหล็กต้องตัดระนาบซัพพอร์ต) ·
+  `Std.rest`, `Std.sink` (ท่อจมในเหล็กรับท่อ → ซัพพอร์ตเลื่อนลง), A/B ระยะแหวนรองฝั่งเสา = ปีกหลัง + 2 (เดิม h + 2 เข้มเกิน
+  จริง – ปีกหน้าเสาตัดเฉียงจบใต้แขน) → 6" ลง A/B ได้ · แจ้งเปลี่ยนท่อเพิ่ม: แปลงเส้น (convert_selection), ยืด/ย้าย
+  (RunEditor.apply) · refit ตรวจ origin + กลุ่ม 2.0.4 (ไม่มี `rests`) สร้างใหม่ · กันวนซ้ำใน refit_near
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

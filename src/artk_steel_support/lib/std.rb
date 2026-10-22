@@ -57,8 +57,7 @@ module ArtK
         s = type(t)
         list = s[:pipes].map { |q| pipe(q[:y], q[:od] / 2.0, q[:od], q[:label]) }
         if (tp = s[:top])
-          a = Steel.get(tp[:shoe])[:a]
-          list << pipe(tp[:y], top_level(s) + Steel.get(tp[:seat])[:t] + a + tp[:od] / 2.0, tp[:od], tp[:label])
+          list << pipe(tp[:y], shoe_top(s) + tp[:od] / 2.0, tp[:od], tp[:label]).merge(top: true)
         end
         list
       end
@@ -73,6 +72,53 @@ module ArtK
         s[:height] - Steel.depth(s[:sec])
       end
 
+      # Top of C's steam shoe as drawn (2" angle seat + 4" angle).
+      def shoe_top(s)
+        tp = s[:top]
+        top_level(s) + Steel.get(tp[:seat])[:t] + Steel.get(tp[:shoe])[:a]
+      end
+
+      # Across the steel the pipes sit on (a bracket's arm / between a
+      # frame's posts): [from, to] out from the column face.
+      def bearing(s)
+        h = Steel.depth(s[:sec])
+        s[:form] == :bracket ? [0.0, s[:arm]] : [h, s[:width] - h]
+      end
+
+      # A point picked on support +t+ (y, z its support coordinates) to draw
+      # a pipe from – Plant Piping's pipe tool: where that pipe's underside
+      # goes, { z:, bare: (on the bare pipe – C's steam shoe), half: (the
+      # steel there along the pipe, ±) } or nil.
+      # On the steel the pipes sit on or its guide → on it; on C's top /
+      # seat / shoe → on the shoe as drawn; on a guide point of 2.0.4 and
+      # before (the drawn line's centre) → where that line rests.
+      def rest(t, y, z)
+        s = type(t)
+        lo, hi = bearing(s)
+        b = Steel.width(s[:sec]) / 2.0
+        return { z: 0.0, bare: false, half: b } if z.abs <= 3.0 && y.between?(lo - 3.0, hi + 3.0)
+        if s[:top] && y.between?(lo, hi) && z.between?(top_level(s) - 3.0, shoe_top(s) + 3.0)
+          return { z: shoe_top(s), bare: true, half: s[:top][:shoe_len] / 2.0 }
+        end
+
+        q = nominal(t).find { |p| (p[:y] - y).abs <= 3.0 && (p[:z] - z).abs <= 3.0 }
+        q && { z: q[:z] - q[:r], bare: q[:top] == true, half: b }
+      end
+
+      # Pipes drawn into the steel the pipes sit on (through the arm / the
+      # frame's bottom member): how far the support goes down for the
+      # lowest of them to lie on it (0: none).
+      def sink(t, pipes)
+        s = type(t)
+        h = Steel.depth(s[:sec])
+        lo, hi = bearing(s)
+        deep = pipes.select do |p|
+          b = Pipes.bottom(p)
+          b < -1.0 && b + 2.0 * p[:r] > -h && p[:y] + p[:r] > lo && p[:y] - p[:r] < hi
+        end
+        deep.empty? ? 0.0 : -deep.map { |p| Pipes.bottom(p) }.min
+      end
+
       # Top of the steel above the level the pipes sit on: the point
       # picked on a column face is the support's top (arm / frame top).
       def top(t)
@@ -81,7 +127,9 @@ module ArtK
       end
 
       # Support +t+ for the pipes there (support coordinates; nil / empty:
-      # the drawing's own lines, with guide points at their centres).
+      # the drawing's own lines). The drawing's places no pipe takes get
+      # guide points where those lines rest (info rests: [y, z] of their
+      # underside; guides: their centres).
       def build(t, pipes = nil, opts = {})
         s = type(t)
         key = s[:sec]
@@ -119,17 +167,30 @@ module ArtK
           notes << "#{c[:item]} เกินค่าที่ยอมให้ (#{c[:value]} > #{c[:limit]} #{c[:unit]}) – ลดระยะห่างซัพพอร์ต"
         end
         size = s[:form] == :bracket ? [s[:arm], s[:post]] : [s[:width], s[:height]]
-        guides = given ? [] : (carried + [top_pipe].compact).map { |p| [p[:y], p[:z]] }
+        free = given ? free_places(t, carried, top_pipe) : carried + [top_pipe].compact
         D::Result.new(part: part, bom: bom, checks: checks, notes: notes, carried: carried + [top_pipe].compact,
                       lines: lines, info: { type: t, section: key, anchor: s[:anchor], anchors: s[:bolts].size,
-                                            nominal: !given, guides: guides, size: size, h: h })
+                                            nominal: !given, guides: free.map { |p| [p[:y], p[:z]] },
+                                            rests: free.map { |p| [p[:y], p[:top] ? shoe_top(s) : Pipes.bottom(p)] },
+                                            size: size, h: h })
+      end
+
+      # The drawing's lines whose place no pipe there takes.
+      def free_places(t, carried, top_pipe)
+        nominal(t).reject do |q|
+          next !top_pipe.nil? if q[:top]
+
+          carried.any? { |p| (p[:y] - q[:y]).abs < p[:r] + q[:r] + 25.0 }
+        end
       end
 
       # Pipes on the bearing steel (and the steam line on a frame's top);
-      # the rest are noted.
+      # the rest are noted. The washers under the flange stay clear of a
+      # bracket's back flange on the column (the post's front flange stops
+      # at the mitre, below the nuts) / of a frame's back post.
       def fit(t, s, pipes, notes)
         h = Steel.depth(s[:sec])
-        lo = h + 2.0 # clear of the post (washers under the flange)
+        lo = (s[:form] == :bracket ? Steel.get(s[:sec])[:t2] : h) + 2.0
         hi = s[:form] == :bracket ? s[:arm] : s[:width] - h - 2.0
         room = s[:form] == :frame ? top_level(s) - h - 10.0 : Float::INFINITY
         carried = []

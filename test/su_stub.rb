@@ -258,7 +258,9 @@ module Sketchup
   end
 
   class Text < Entity; end
-  class ConstructionPoint < Entity; end
+  class ConstructionPoint < Entity
+    attr_accessor :position
+  end
 
   class Entities
     include Enumerable
@@ -321,8 +323,10 @@ module Sketchup
       self << Text.new
     end
 
-    def add_cpoint(_p)
-      self << ConstructionPoint.new
+    def add_cpoint(p)
+      c = ConstructionPoint.new
+      c.position = p
+      self << c
     end
 
     def clear!
@@ -606,7 +610,7 @@ module Sketchup
   # InputPoint whose pick position is set by the test.
   class InputPoint
     class << self
-      attr_accessor :next_position, :next_vertex, :next_dof, :next_face, :next_edge
+      attr_accessor :next_position, :next_vertex, :next_dof, :next_face, :next_edge, :next_path
     end
     attr_reader :position
 
@@ -643,6 +647,11 @@ module Sketchup
 
     def edge
       InputPoint.next_edge
+    end
+
+    # what the point is on, from the model down (groups …, the leaf)
+    def instance_path
+      InputPoint.next_path || []
     end
 
     def tooltip

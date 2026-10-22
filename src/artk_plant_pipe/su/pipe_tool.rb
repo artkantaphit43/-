@@ -237,6 +237,7 @@ module ArtK
         @end_link = nil
         @warn_end = nil
         @hover = nil
+        @rest = nil
         @ip.clear
         @anchor.clear
         load_settings
@@ -274,7 +275,12 @@ module ArtK
 
       def constrain(ip)
         raw = H.from_pt(ip.position)
-        raw[2] += @spec.od / 2.0 if bop_offset?(ip)
+        if (@rest = support_rest(ip, raw))
+          lift = @spec.od / 2.0 + (@rest[:bare] ? 0.0 : @settings['insulation_mm'].to_f)
+          raw = [*(@rest[:point] || raw)[0, 2], @rest[:z] + lift]
+        elsif bop_offset?(ip)
+          raw[2] += @spec.od / 2.0
+        end
         return raw if @points.empty?
 
         last = @points.last
@@ -291,6 +297,17 @@ module ArtK
       # drain fall only tidy free cursor positions.
       def hard_snap?(ip)
         !ip.vertex.nil? || ip.degrees_of_freedom <= 1
+      end
+
+      # Picked on another extension's support (Steel Supports TH – its
+      # steel or guide): the pipe lies on it ({ z:, bare:, name: } or nil).
+      def support_rest(ip, raw)
+        return nil if SupportBuilder::RESTS.empty? || !ip.respond_to?(:instance_path)
+
+        path = ip.instance_path.to_a
+        path.empty? ? nil : SupportBuilder.rest_at(@model, path, raw)
+      rescue StandardError
+        nil
       end
 
       def bop_offset?(ip)
@@ -353,6 +370,7 @@ module ArtK
       end
 
       def hover_tip
+        return "วางบนซัพพอร์ต #{@rest[:name]} (on the support)" if @rest && !@hover && @cursor
         return nil unless @hover
 
         if @hover[:kind] == :end

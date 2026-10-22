@@ -39,13 +39,36 @@ module ArtK
         "#{Details::TYPES[t][:th]} #{Steel.get(plan[:result].info[:section])[:inch]}"
       end
 
-      # Placed without pipes: guide points / lines on the drawing's pipe
-      # centres to draw the pipes to.
+      # The drawing's places no pipe takes yet: a guide point / line on the
+      # steel where that line rests, to draw the pipe onto (Plant Piping's
+      # pipe tool lays it there, on the steel).
       def guides(g, res)
-        res.info[:guides].to_a.each do |y, z|
+        res.info[:rests].to_a.each do |y, z|
           g.entities.add_cpoint(H.to_pt([0.0, y, z]))
           g.entities.add_cline(H.to_pt([-500.0, y, z]), H.to_pt([500.0, y, z])) if g.entities.respond_to?(:add_cline)
         end
+      end
+
+      # A point picked on our support in +path+ (Plant Piping's pipe tool):
+      # world z of the underside of a pipe drawn from there (Std.rest) –
+      # { z:, bare:, name:, point: } or nil. Picked on the steel itself, the
+      # point goes onto the support's centre line (as its guide point), so
+      # a pipe started there crosses the support.
+      def rest_at(path, point)
+        g = path.to_a.find { |e| H.ours?(e) }
+        return nil unless g && Placer.std?(t = g.get_attribute(H::DICT, 'detail'))
+
+        o = H.get_json(g, 'origin')
+        v = Vec.sub(point, o)
+        lx = Vec.dot(v, H.get_json(g, 'xdir'))
+        return nil if lx.abs > 600.0
+
+        y = H.get_json(g, 'ydir')
+        r = Std.rest(t, Vec.dot(v, y), v[2])
+        return nil unless r
+
+        on = lx.abs <= r[:half] + 5.0 ? Vec.add(Vec.along(o, y, Vec.dot(v, y)), [0.0, 0.0, v[2]]) : point
+        { z: o[2] + r[:z], bare: r[:bare], name: g.get_attribute(H::DICT, 'number'), point: on }
       end
 
       def write(g, plan, number)
@@ -149,7 +172,9 @@ module ArtK
           plan = Planner.plan(model, g.get_attribute(H::DICT, 'detail'), hit, H.get_json(g, 'opts', {}))
         end
         same = Pipes.signature(plan[:result].carried) == stored_signature(g) &&
-               plan[:result].info[:section] == g.get_attribute(H::DICT, 'section')
+               plan[:result].info[:section] == g.get_attribute(H::DICT, 'section') &&
+               H.get_json(g, 'origin') == plan[:origin].map { |c| c.round(2) } &&
+               (!Placer.std?(plan[:detail]) || H.get_json(g, 'info', {}).key?('rests')) # 2.0.4: guides off the steel
         return :same if same
 
         model.start_operation('Steel Supports: ปรับตามท่อ', true, false, op == :transparent) if op
@@ -196,9 +221,10 @@ module ArtK
           x = H.get_json(g, 'xdir')
           Link.pipes_across(model, o, x, reach: Pipes::WIDTH, rise: 1500.0).any? { |p| pids.include?(p[:pid]) }
         end
-        return 0 if list.empty?
+        return 0 if list.empty? || @refitting
 
         n = 0
+        @refitting = true # what we do to Plant Piping's hangers does not come back here
         model.start_operation('Steel Supports: ปรับตามท่อ', true, false, true)
         list.each do |g, _|
           n += 1 if refit(model, g, op: false) == :done
@@ -207,6 +233,8 @@ module ArtK
         end
         model.commit_operation
         n
+      ensure
+        @refitting = false
       end
     end
   end

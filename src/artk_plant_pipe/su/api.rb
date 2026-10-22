@@ -7,7 +7,7 @@ module ArtK
     # inside without breaking them. LEVEL rises when something is added;
     # nothing here changes meaning. World millimetres throughout.
     module API
-      LEVEL = 1
+      LEVEL = 2 # 2: register_rests
       H = ModelHelpers
       INS_RHO = 60.0 # kg/m³ insulation + jacket
 
@@ -100,6 +100,17 @@ module ArtK
       # Told after Plant Piping drew / rebuilt runs: block(model, runs).
       def on_runs_changed(name, &block)
         SupportBuilder::CHANGED[name.to_s] = block
+        true
+      end
+
+      # Another extension's supports pipes are drawn onto: block(model,
+      # path, point) → { z:, bare:, name:, point: } when +point+ (world,
+      # picked on instance path +path+) is on one – z: where the pipe's
+      # underside goes (bare: the bare pipe's, under its insulation),
+      # point: (optional) the place on the support to draw through. The
+      # pipe tool lays the pipe there.
+      def register_rests(name, &block)
+        SupportBuilder::RESTS[name.to_s] = block
         true
       end
 

@@ -88,11 +88,13 @@ module ArtK
                       .map { |c| c.vertices.map { |v| H.from_pt(v.position) } }
         smooth = Network.curve_points(segs, curves)
         warnings = []
+        made = []
         model.start_operation('Plant Piping: Convert Edges', true)
         comps.each do |c|
           pts = c.flatten(1)
           own = smooth.select { |p| pts.any? { |q| Vec.dist(p, q) <= 1.0 } }
-          _run, w = Builder.create_run(model, c, settings, op: false, smooth: own)
+          run, w = Builder.create_run(model, c, settings, op: false, smooth: own)
+          made << run if run
           warnings.concat(w)
         end
         free = edges.select { |e| e.valid? && e.faces.empty? }
@@ -101,6 +103,7 @@ module ArtK
           model.active_entities.erase_entities(free)
         end
         model.commit_operation
+        SupportBuilder.notify_changed(model, made) unless made.empty?
         summary = "สร้าง #{comps.size} แนวท่อ (created #{comps.size} run(s))"
         show_warnings(warnings, summary)
       rescue StandardError => e

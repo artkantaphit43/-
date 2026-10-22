@@ -340,6 +340,161 @@ class TestSteelSU < Minitest::Test
     view.camera = nil
   end
 
+  # ---------- supports first, pipes after (2.0.5) ----------
+
+  def b_at_1500
+    SS::Builder.create(@model, SS::Placer.from_face(@model, 'B', [3150.0, -450.0, 1500.0], [0, 1.0, 0],
+                                                    [3150.0, 5000.0, 1500.0]))
+  end
+
+  # Guide points of support +g+: [y, z] in its own coordinates.
+  def guide_points(g)
+    g.entities.grep(Sketchup::ConstructionPoint).map do |c|
+      PH.from_pt(c.position).values_at(1, 2).map { |v| v.round(6) }
+    end
+  end
+
+  # Draw a Plant Piping pipe of +size+ from a point picked on +path+
+  # (a support / its guide) along +x.
+  def draw_onto(size, path, start)
+    PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => size,
+                                                       'lod' => 'light', 'snap45' => false))
+    tool = ArtK::PlantPipe::PipeTool.new
+    tool.activate
+    view = @model.active_view
+    Sketchup::InputPoint.next_path = path
+    Sketchup::InputPoint.next_dof = 0
+    Sketchup::InputPoint.next_position = PH.to_pt(start)
+    tool.onMouseMove(0, 0, 0, view)
+    tip = view.tooltip
+    tool.onLButtonDown(0, 0, 0, view)
+    Sketchup::InputPoint.next_path = nil
+    Sketchup::InputPoint.next_dof = nil
+    tool.onKeyDown(VK_RIGHT, 0, 0, view)
+    Sketchup::InputPoint.next_position = PH.to_pt([start[0] + 4000, start[1] + 300, 0])
+    tool.onMouseMove(0, 0, 0, view)
+    tool.onLButtonDown(0, 0, 0, view)
+    tool.onReturn(view)
+    [ArtK::PlantPipe::Collector.all_runs(@model).map(&:first).max_by(&:persistent_id), tip]
+  ensure
+    Sketchup::InputPoint.next_path = nil
+    Sketchup::InputPoint.next_dof = nil
+  end
+
+  # The user's case: B placed on the column first at the level wanted, a
+  # 6" pipe drawn onto its guide – it lies on the arm, B takes it with a
+  # 1/2" U-bolt at once and keeps the other drawn place's guide.
+  def test_pipes_drawn_onto_a_support_placed_first
+    column!
+    g = b_at_1500
+    cps = g.entities.grep(Sketchup::ConstructionPoint)
+    assert_equal [[200.0, 0.0], [430.0, 0.0]], guide_points(g), 'guide points on the arm where the drawn lines rest'
+    run, tip = draw_onto('6"', [g, cps.first], [2600.0, -250.0, 1500.0])
+    assert_match(/วางบนซัพพอร์ต B-01/, tip)
+    cl = PH.get_json(run, 'cl').flatten(1)
+    cl.each { |p| assert_in_delta 1500.0 + 84.15, p[2], 1e-6, 'the 6" lies on the arm' }
+    g2 = supports.first
+    refute g.valid?
+    assert_equal 'B-01', g2.get_attribute(SH::DICT, 'number')
+    assert_in_delta 1500.0, SH.get_json(g2, 'origin')[2], 1e-6, 'the steel stays where it was placed'
+    pipes = SH.get_json(g2, 'pipes')
+    assert_equal [[200.0, run.persistent_id]], pipes.map { |q| [q['y'], q['pid']] }
+    assert_in_delta 84.15, pipes[0]['z'], 0.1
+    assert(SH.get_json(g2, 'bom').any? { |b| b['key'] == 'ub 1/2 168' }, 'U-bolt 1/2" round the 6"')
+    refute(SH.get_json(g2, 'bom').any? { |b| b['cat'] == 'plate' }, 'no packer')
+    assert_empty SH.get_json(g2, 'notes')
+    left = g2.entities.grep(Sketchup::ConstructionPoint)
+    assert_equal [[430.0, 0.0]], guide_points(g2)
+    # the second line, 1½", onto the guide left: both carried, each its own U-bolt
+    run2, = draw_onto('1-1/2"', [g2, left.first], [2600.0, -20.0, 1500.0])
+    PH.get_json(run2, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 24.15, p[2], 1e-6 }
+    g3 = supports.first
+    assert_equal [200.0, 430.0], SH.get_json(g3, 'pipes').map { |q| q['y'] }
+    ubolts = SH.get_json(g3, 'bom').select { |b| b['cat'] == 'ubolt' }
+    assert_equal ['ub 1/2 168', 'ub 3/8 48'], ubolts.map { |b| b['key'] }
+    assert_empty g3.entities.grep(Sketchup::ConstructionPoint)
+  end
+
+  # Clicking the arm's top anywhere puts the pipe on it too; a point not
+  # on the steel the pipes sit on is left as picked.
+  def test_pipe_picked_on_the_arm_top_lies_on_it
+    column!
+    g = b_at_1500
+    run, = draw_onto('4"', [g], [2600.0, -150.0, 1500.0]) # 300 out on the arm
+    PH.get_json(run, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 57.15, p[2], 1e-6 }
+    q = SH.get_json(supports.first, 'pipes')
+    assert_equal [300.0], q.map { |p| p['y'] }
+    assert_in_delta 57.15, q[0]['z'], 0.1
+    free, = draw_onto('2"', [], [2600.0, 1000.0, 1500.0])
+    PH.get_json(free, 'cl').flatten(1).each { |p| assert_in_delta 1500.0, p[2], 1e-6 }
+  end
+
+  # C: the steam line drawn onto the top lies on its shoe as drawn (the
+  # shoe welds to the bare pipe – insulation round it); the 6" below on
+  # its guide.
+  def test_steam_line_drawn_onto_c_lies_on_its_shoe
+    column!
+    g = SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1920.0], [0, 1.0, 0],
+                                                        [3000.0, 5000.0, 1920.0]))
+    assert_equal [[330.0, 0.0], [600.0, 0.0], [435.0, 525.0]], guide_points(g)
+    PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'STM', 'catalog' => 'CS_B36_10', 'size' => '4"',
+                                                       'lod' => 'light', 'insulation_mm' => 50))
+    tool = ArtK::PlantPipe::PipeTool.new
+    tool.activate
+    view = @model.active_view
+    Sketchup::InputPoint.next_path = [g]
+    Sketchup::InputPoint.next_dof = 2
+    Sketchup::InputPoint.next_position = PH.to_pt([3010.0, -450.0 + 435.0, 1500.0 + 425.0]) # on the 2" seat
+    tool.onMouseMove(0, 0, 0, view)
+    tool.onLButtonDown(0, 0, 0, view)
+    Sketchup::InputPoint.next_path = nil
+    tool.onKeyDown(VK_RIGHT, 0, 0, view)
+    Sketchup::InputPoint.next_position = PH.to_pt([7000.0, 0, 0])
+    tool.onMouseMove(0, 0, 0, view)
+    tool.onLButtonDown(0, 0, 0, view)
+    tool.onReturn(view)
+    stm = ArtK::PlantPipe::Collector.all_runs(@model).map(&:first).last
+    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 525.0 + 57.15, p[2], 1e-6 }
+    six, = draw_onto('6"', [supports.first], [2600.0, -450.0 + 330.0, 1500.0])
+    c = supports.first
+    assert_equal [six.persistent_id, stm.persistent_id].sort, SH.get_json(c, 'pipes').map { |q| q['pid'] }.sort
+    assert_in_delta 1500.0, SH.get_json(c, 'origin')[2], 1e-6
+    refute(SH.get_json(c, 'bom').any? { |b| b['cat'] == 'plate' }, 'shoe as drawn, no packing')
+    assert_equal [[600.0, 0.0]], guide_points(c)
+  ensure
+    Sketchup::InputPoint.next_path = nil
+    Sketchup::InputPoint.next_dof = nil
+  end
+
+  # A pipe moved down after (Plant Piping's stretch / move): the support
+  # follows it; moved up, it rides on a packer.
+  def test_support_follows_a_pipe_moved_into_it
+    column!
+    g = b_at_1500
+    run, = draw_onto('2"', [g, g.entities.grep(Sketchup::ConstructionPoint).first], [2600.0, -250.0, 1500.0])
+    down = PH.get_json(run, 'cl').flatten(1).uniq.map { |p| [p, [p[0], p[1], p[2] - 100.0]] }
+    ArtK::PlantPipe::RunEditor.apply(@model, run, down)
+    assert_in_delta 1400.0, SH.get_json(supports.first, 'origin')[2], 0.1
+    up = PH.get_json(run, 'cl').flatten(1).uniq.map { |p| [p, [p[0], p[1], p[2] + 150.0]] }
+    ArtK::PlantPipe::RunEditor.apply(@model, run, up)
+    s = supports.first
+    assert_in_delta 1400.0, SH.get_json(s, 'origin')[2], 0.1, 'stays; the pipe rides on a packer'
+    assert(SH.get_json(s, 'bom').any? { |b| b['cat'] == 'plate' })
+  end
+
+  # Drawn some other way into the steel (or on 2.0.4's guide at the 2"
+  # centre): the support goes down under the pipe and takes it.
+  def test_a_pipe_drawn_into_the_steel_brings_the_support_down
+    column!
+    b_at_1500
+    run = pipe_run(-250, 1530.15, '6"', 'CW')
+    ArtK::PlantPipe::SupportBuilder.notify_changed(@model, [run]) # as after drawing it
+    g = supports.first
+    assert_in_delta 1530.15 - 84.15, SH.get_json(g, 'origin')[2], 0.1
+    assert_equal [run.persistent_id], SH.get_json(g, 'pipes').map { |q| q['pid'] }
+    assert_equal :same, SS::Builder.refit(@model, g)
+  end
+
   # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.
   def test_any_number_of_pipes_passing
     column!

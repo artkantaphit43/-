@@ -27,8 +27,9 @@ module ArtK
       end
 
       def status
-        if available? then "เชื่อมกับ Plant Piping TH #{api.version} แล้ว"
-        elsif outdated? then 'Plant Piping TH เวอร์ชันเก่า – อัปเดตเป็น 1.16.1 ขึ้นไปเพื่อใช้ร่วมกัน'
+        if rests? then "เชื่อมกับ Plant Piping TH #{api.version} แล้ว"
+        elsif available? then "เชื่อมกับ Plant Piping TH #{api.version} แล้ว – อัปเดตเป็น 1.16.2 ให้ท่อที่วาดลงซัพพอร์ตวางบนเหล็กเอง"
+        elsif outdated? then 'Plant Piping TH เวอร์ชันเก่า – อัปเดตเป็น 1.16.2 ขึ้นไปเพื่อใช้ร่วมกัน'
         else 'ไม่พบ Plant Piping TH – ใช้กับท่อทั่วไป (ทรงกระบอก) ได้'
         end
       end
@@ -64,14 +65,22 @@ module ArtK
         puts "Steel Supports: Plant Piping hangers not removed – #{e.message}"
       end
 
+      # Plant Piping's pipe tool lays pipes drawn onto our supports on the
+      # steel (1.16.2 and later).
+      def rests?
+        available? && api.respond_to?(:register_rests)
+      end
+
       # Hooks into Plant Piping (once): Auto Supports counts our supports,
-      # pipes redrawn next to them refit them.
+      # pipes redrawn next to them refit them, pipes drawn onto them lie
+      # on the steel.
       def register
         return false unless available?
         return true if @registered
 
         api.register_supports(NAME) { |model, pid| Builder.points_for(model, pid) }
         api.on_runs_changed(NAME) { |model, runs| Builder.refit_near(model, runs) }
+        api.register_rests(NAME) { |_model, path, point| Builder.rest_at(path, point) } if rests?
         @registered = true
       end
     end

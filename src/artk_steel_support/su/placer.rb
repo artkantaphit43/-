@@ -73,7 +73,8 @@ module ArtK
         plan(t, origin, x, y, pipes, opts, nil, { face: 0.0, column: column(col) })
       end
 
-      # Rebuild a placed support where it is, for the pipes there now.
+      # Rebuild a placed support where it is, for the pipes there now; a
+      # pipe drawn into the steel the pipes sit on takes it down under it.
       def refit_plan(model, g)
         t = g.get_attribute(H::DICT, 'detail')
         origin = H.get_json(g, 'origin')
@@ -82,6 +83,10 @@ module ArtK
         ref = H.get_json(g, 'ref', {})
         hit = ref['src'] == 'generic' ? { src: 'generic' } : nil
         pipes = section(model, origin, x, y, hit)
+        if (d = Std.sink(t, pipes)).positive?
+          origin = Vec.add(origin, [0.0, 0.0, -d])
+          pipes = pipes.map { |p| p.merge(z: p[:z] + d) }
+        end
         plan(t, origin, x, y, pipes, H.get_json(g, 'opts', {}), hit, H.get_json(g, 'struct', {}))
       end
 
