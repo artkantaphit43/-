@@ -63,6 +63,19 @@ module ArtK
                          { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                  th: 'ซัพพอร์ต D – โครงกล่อง C 4"' },
+        # C / D on an Iso wall (nothing may be fixed to it, 2.4): the same
+        # frame hung from the round member over it by two pipe shoes –
+        # types of their own, so C / D never look for one.
+        'CH' => { form: :frame, hang: true, sec: 'C100', width: 870.0, height: 520.0, bolts: [], series: 'CH',
+                  pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
+                          { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
+                  th: 'ซัพพอร์ต C แขวน – โครงกล่อง C 4" แขวนท่อกลม (ไม่ยึดผนัง)' },
+        'DH' => { form: :frame, hang: true, sec: 'C100', width: 870.0, height: 520.0, bolts: [], series: 'DH',
+                  pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
+                          { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
+                  th: 'ซัพพอร์ต D แขวน – โครงกล่อง C 4" แขวนท่อกลม (ไม่ยึดผนัง)' },
         'E' => { form: :hanger, sec: 'C100', length: 800.0, rods: [50.0, 750.0], gap: 420.0, tiers: 1,
                  pipes: [{ y: 230.0, od: 168.3, label: '6"' }, { y: 565.0, od: 114.3, ins: 50.0, label: '4" หุ้มฉนวน 50' }],
                  th: 'ซัพพอร์ต E – แขวนท่อกลม C 4"' },
@@ -88,7 +101,7 @@ module ArtK
       # Hot line's shoe on a frame's bottom member (h: to the bare pipe),
       # base b × len × t, its web t; between two angle guides.
       SHOE = { h: 50.0, b: 110.0, len: 200.0, t: 6.0, guide: 'L50', guide_len: 100.0, gap: 3.0 }.freeze
-      # C / D hung from a round member (Iso wall – nothing fixed to it, 2.4):
+      # CH / DH hung from a round member (Iso wall – nothing fixed to it, 2.4):
       # two pipe-shoe clamps (the user's picture, upside down) on the top
       # member, +at+ in from each end; base plate base × flange × t, post bar,
       # sleeve; min / max clear height under the round member.
@@ -354,7 +367,7 @@ module ArtK
             D.pipe_u_bolt(part, bom, p, v, tf, x: xu)
           end
         end
-        hang = s[:form] == :frame ? hang_geo(geo) : nil
+        hang = s[:hang] ? hang_geo(geo) || { z: top_level(s) + PSHOE[:t] + 150.0 + 50.8, r: 50.8 } : nil
         if hang
           frame_shoes(part, bom, lines, checks, notes, s, key, carried, top_pipe, hang, opts)
         elsif s[:anchor]
@@ -373,7 +386,6 @@ module ArtK
         free = given ? free_places(t, carried, top_pipe, geo) : carried + [top_pipe].compact
         tiers = levels(t, geo).size
         title = s[:form] == :hanger && tiers == 2 ? TYPES['E2'][:th] : s[:th]
-        title = "#{title} – แขวนท่อกลม (ไม่ยึดผนัง)" if hang
         D::Result.new(part: part, bom: bom, checks: checks, notes: notes, carried: carried + [top_pipe].compact,
                       lines: lines, info: { type: t, section: key, anchor: hang ? nil : s[:anchor],
                                             anchors: hang ? 0 : s[:bolts].to_a.size,
@@ -521,8 +533,8 @@ module ArtK
         beam(checks, "คานบน #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(upper, opts))
       end
 
-      # C / D hung from a round member: its { z: (axis over the bottom
-      # member's top), r: } or nil (fixed to the wall / column).
+      # CH / DH's round member: { z: (its axis over the bottom member's
+      # top), r: } as placed, or nil.
       def hang_geo(geo)
         h = (geo || {}).transform_keys(&:to_sym)[:hang]
         return nil unless h

@@ -93,14 +93,6 @@ module ArtK
       end
 
       def onKeyDown(key, _repeat, _flags, view)
-        if defined?(ALT_MODIFIER_KEY) && key == ALT_MODIFIER_KEY && Std.type(@detail)[:form] == :frame
-          H.save_settings(H.settings.merge('hang_cd' => !H.settings['hang_cd'])) # Iso wall: hung, nothing fixed to it
-          @cache.clear
-          @plan = @hit && plan_for(@hit)
-          status
-          view.invalidate
-          return true
-        end
         return false unless key == 9 # Tab
 
         @detail = DETAILS[(DETAILS.index(@detail) + 1) % DETAILS.size]
@@ -390,9 +382,8 @@ module ArtK
             "ซัพพอร์ต #{@detail}: ชี้ท่อ (Plant Piping) ใต้ท่อกลม หรือคลิกท่อกลมที่จะแขวน | Tab = A–G"
           elsif Std.type(@detail)[:mount]
             "ซัพพอร์ต #{@detail}: ชี้ท่อที่วิ่งตามผนัง/คาน หรือหน้าผนัง/คานที่ระดับหลังแขนเหล็กฉาก แล้วคลิก | Tab = A–G"
-          elsif Std.type(@detail)[:form] == :frame
-            mode = H.settings['hang_cd'] ? 'แขวนท่อกลมด้านบน (ไม่ยึดผนัง)' : 'ยึดเสา/ผนังด้วยพุก'
-            "ซัพพอร์ต #{@detail} [#{mode} – Alt สลับ]: ชี้ที่ท่อข้างเสา หรือหน้าเสาที่ระดับท้องท่อ แล้วคลิก | Tab = A–G"
+          elsif Std.type(@detail)[:hang]
+            "ซัพพอร์ต #{@detail} (แขวนท่อกลมด้านบน ไม่ยึดผนัง): ชี้ท่อข้างผนัง หรือหน้าผนังที่ระดับท้องท่อ แล้วคลิก | Tab = A–G"
           else
             "ซัพพอร์ต #{@detail}: ชี้ที่ท่อข้างเสา หรือหน้าเสาที่ระดับท้องท่อ (มุมในบนเหล็กรับท่อ) แล้วคลิก | " \
               'Tab = A–G'

@@ -37,7 +37,8 @@ module ArtK
                   when :rod
                     top = v[:mount] ? 'เหล็กฉาก L50–L100 ตามน้ำหนัก ยึดผนัง/คาน (พุก 2 ตัว)' : 'ตัวรับ U + U-bolt บนท่อกลม'
                     "เหล็กเส้น 1 เส้น (ตามน้ำหนัก ≥ MSS SP-69) + เกลียวเร่ง + แคลมป์รัดท่อ 2 สลัก · #{top}"
-                  else "พุก Expansion bolt #{Hardware.label(v[:anchor])} × #{v[:bolts].size}"
+                  else
+                    v[:hang] ? 'แขวนจากท่อกลมด้านบนด้วย pipe shoe 2 ตัว – ไม่มีพุก ไม่ยึดผนัง (Iso wall)' : "พุก Expansion bolt #{Hardware.label(v[:anchor])} × #{v[:bolts].size}"
                   end
             sec = if v[:sec] then Steel.get(v[:sec])[:name]
                   elsif v[:mount] then 'เหล็กฉาก + แขวน'

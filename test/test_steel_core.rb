@@ -438,7 +438,7 @@ class TestSteelStd < Minitest::Test
   # adjustable post, base plate bolted on the top member) – no anchors.
   def test_c_and_d_hung_from_a_round_member
     zc = 420.0 + 8.0 + 150.0 + 50.8
-    %w[C D].each do |t|
+    %w[CH DH].each do |t|
       r = SS::Std.build(t, nil, {}, { hang: { z: zc, r: 50.8 } })
       r.part.solids.each { |role, sol| assert SS::Mesh.closed?(sol), "#{t} #{role}" }
       refute(r.bom.any? { |b| b[:cat] == 'anchor' }, "#{t}: no anchors")
@@ -451,7 +451,10 @@ class TestSteelStd < Minitest::Test
       assert_in_delta zc + 50.8 + 6.0, top, 1e-6, "#{t}: the clamp ring round the round member"
       assert r.ok?, r.checks.reject { |c| c[:ok] }.inspect
     end
-    assert_raises(ArgumentError) { SS::Std.build('C', nil, {}, { hang: { z: 470.0, r: 40.0 } }) }
+    assert_raises(ArgumentError) { SS::Std.build('CH', nil, {}, { hang: { z: 470.0, r: 40.0 } }) }
+    c = SS::Std.build('C', nil, {}, { hang: { z: zc, r: 50.8 } })
+    assert(c.bom.any? { |b| b[:cat] == 'anchor' }, 'C stays anchored – hanging is CH / DH only')
+    refute(c.bom.any? { |b| b[:key].to_s.start_with?('pshoe') })
   end
 
   def test_steam_shoe_fits_the_steam_line

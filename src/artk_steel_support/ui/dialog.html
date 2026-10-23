@@ -93,6 +93,26 @@
       <circle class="pp" cx="87" cy="54" r="5.5"/><circle class="pp" cx="87" cy="54" r="2.5"/>
       <path class="st" d="M82 64h10M87 64v-4.5M79 64v-2.5M95 64v-2.5"/>
     </svg><b>D</b><small>C 4" · พุก 1/2" ×3 · 6" + ลม 2" แขวน + สตีม 2" บน shoe</small></button>
+    <button class="card" data-d="CH"><svg viewBox="0 0 120 84">
+      <rect class="wl" x="2" y="22" width="5" height="58"/>
+      <rect class="wl" x="6" y="3" width="110" height="8" rx="4"/>
+      <path class="st" d="M27 22h8M31 22v-6M91 22h8M95 22v-6"/><circle class="ub" cx="31" cy="7" r="6"/><circle class="ub" cx="95" cy="7" r="6"/>
+      <rect class="st" x="15" y="24" width="96" height="42"/><rect class="st" x="25" y="32" width="76" height="26"/>
+      <circle class="pp" cx="47" cy="49" r="9"/><path class="ub" d="M37 58v-9a10 10 0 0 1 20 0v9"/>
+      <circle class="pp" cx="70" cy="36" r="3.5"/><path class="ub" d="M65.5 32v4a4.5 4.5 0 0 0 9 0v-4"/>
+      <circle class="pp" cx="87" cy="48" r="5.5"/><circle class="pp" cx="87" cy="48" r="2.5"/>
+      <path class="st" d="M82 58h10M87 58v-4.5"/>
+    </svg><b>C แขวน</b><small>แขวนท่อกลมด้วย pipe shoe 2 ตัว · ไม่ยึดผนัง (Iso wall)</small></button>
+    <button class="card" data-d="DH"><svg viewBox="0 0 120 84">
+      <rect class="wl" x="2" y="22" width="5" height="58"/>
+      <rect class="wl" x="6" y="3" width="110" height="8" rx="4"/>
+      <path class="st" d="M27 22h8M31 22v-6M91 22h8M95 22v-6"/><circle class="ub" cx="31" cy="7" r="6"/><circle class="ub" cx="95" cy="7" r="6"/>
+      <rect class="st" x="15" y="24" width="96" height="42"/><rect class="st" x="25" y="32" width="76" height="26"/>
+      <circle class="pp" cx="47" cy="49" r="9"/><path class="ub" d="M37 58v-9a10 10 0 0 1 20 0v9"/>
+      <circle class="pp" cx="70" cy="36" r="3.5"/><path class="ub" d="M65.5 32v4a4.5 4.5 0 0 0 9 0v-4"/>
+      <circle class="pp" cx="87" cy="48" r="5.5"/><circle class="pp" cx="87" cy="48" r="2.5"/>
+      <path class="st" d="M82 58h10M87 58v-4.5"/>
+    </svg><b>D แขวน</b><small>แขวนท่อกลมด้วย pipe shoe 2 ตัว · ไม่ยึดผนัง (Iso wall)</small></button>
     <button class="card" data-d="E"><svg viewBox="0 0 120 84">
       <rect class="wl" x="6" y="4" width="108" height="10" rx="5"/>
       <path class="ub" d="M24 18V8M30 18V8M90 18V8M96 18V8"/>
@@ -144,7 +164,6 @@
     <label>ระยะห่างซัพพอร์ต (ม.)<input type="number" id="spacing_m" min="0" max="12" step="0.1"></label>
     <div class="info">ใช้คิดน้ำหนักที่ซัพพอร์ตรับในรายงานตรวจกำลัง (0 = ระยะสูงสุดตามขนาดท่อ) – ไม่เปลี่ยนขนาดเหล็ก</div>
     <label class="chk"><input type="checkbox" id="drop_hangers"><span>ลบซัพพอร์ตแขวนของ Plant Piping ที่ตำแหน่งเดียวกัน</span></label>
-    <label class="chk"><input type="checkbox" id="hang_cd"><span>C / D แขวนจากท่อกลมด้านบนด้วย pipe shoe 2 ตัว – ไม่เจาะ/ไม่ยึดผนัง (Iso wall) · Alt ในเครื่องมือวางสลับได้</span></label>
   </fieldset>
 
   <div class="grid2">
@@ -175,7 +194,7 @@
       $('ver').textContent = 'v' + d.version;
       $('link').textContent = d.link; $('link').className = 'link ' + (d.linked ? 'on' : 'off');
       $('autobtn').disabled = !d.linked; $('autobtn').style.opacity = d.linked ? 1 : 0.5;
-      $('spacing_m').value = S.spacing_m; $('drop_hangers').checked = !!S.drop_hangers; $('hang_cd').checked = !!S.hang_cd;
+      $('spacing_m').value = S.spacing_m; $('drop_hangers').checked = !!S.drop_hangers;
       showType();
     }
   };
@@ -184,7 +203,6 @@
   });
   $('spacing_m').addEventListener('change', function () { S.spacing_m = Number(this.value) || 0; save(); });
   $('drop_hangers').addEventListener('change', function () { S.drop_hangers = this.checked; save(); });
-  $('hang_cd').addEventListener('change', function () { S.hang_cd = this.checked; save(); });
   document.querySelectorAll('[data-cmd]').forEach(function (b) {
     b.addEventListener('click', function () { call('command', b.dataset.cmd); });
   });

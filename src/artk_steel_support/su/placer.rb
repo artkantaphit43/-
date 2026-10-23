@@ -58,10 +58,10 @@ module ArtK
 
       ISO_GAP = 20.0 # C / D hung: off the (Iso) wall
 
-      # C / D hung from the round member above (setting hang_cd: an Iso wall
-      # nothing may be fixed to)?
-      def hang?(t, opts)
-        Std.type(t)[:form] == :frame && (opts['hang_cd'] || opts[:hang_cd]) ? true : false
+      # CH / DH: hung from the round member above (an Iso wall nothing may
+      # be fixed to); C / D never look for one.
+      def hang?(t, _opts = nil)
+        Std.type(t)[:hang] == true
       end
 
       # The frame as placed, hung from the round member over it (across
@@ -76,7 +76,7 @@ module ArtK
         mid = Vec.along(pl[:origin], y, s[:width] / 2.0)
         c = Probe.above(model, mid, x, zt + 10.0)
         unless c && c[:kind] == :round
-          raise 'ไม่พบท่อกลมเหนือซัพพอร์ตที่จะแขวน (โหมดแขวนท่อกลม) – ปิดโหมดนี้ (Alt) เพื่อยึดเสา/ผนังด้วยพุก'
+          raise "ไม่พบท่อกลมเหนือซัพพอร์ตที่จะแขวน – ซัพพอร์ต #{t} แขวนจากท่อกลมเท่านั้น (ยึดเสา/ผนังด้วยพุก: ใช้ C / D)"
         end
 
         origin = Vec.along(Vec.along(pl[:origin], x, c[:x]), y, ISO_GAP)

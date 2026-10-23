@@ -594,8 +594,8 @@ class TestSteelSU < Minitest::Test
 
   def test_c_on_an_iso_wall_hangs_from_the_round_member
     iso!
-    opts = SH.settings.merge('hang_cd' => true)
-    pl = SS::Placer.from_face(@model, 'C', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
+    opts = SH.settings
+    pl = SS::Placer.from_face(@model, 'CH', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
     o = pl[:origin]
     assert_in_delta 3120.0, o[0], 1.0, 'on the round member\'s axis'
     assert_in_delta WALL + 20.0, o[1], 1e-6, 'not touching the Iso wall'
@@ -605,32 +605,36 @@ class TestSteelSU < Minitest::Test
     assert_equal 2, res.bom.select { |b| b[:key].to_s.start_with?('pshoe') }.sum { |b| b[:qty] }
     assert_empty res.notes
     g = SS::Builder.create(@model, pl)
+    assert_equal 'CH-01', g.get_attribute(SH::DICT, 'number')
     assert_nil g.get_attribute(SH::DICT, 'anchor')
     assert_equal :same, SS::Builder.refit(@model, g)
+    # C / D are their own: anchored to the wall where clicked, even under
+    # the round member – never snapping to it
+    plain = SS::Placer.from_face(@model, 'C', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
+    assert_in_delta 3000.0, plain[:origin][0], 1e-6
+    assert_in_delta WALL, plain[:origin][1], 1e-6
+    assert(plain[:result].bom.any? { |b| b[:cat] == 'anchor' })
+    refute(plain[:result].bom.any? { |b| b[:key].to_s.start_with?('pshoe') })
     # none over it: said so
     wall!
     err = assert_raises(RuntimeError) do
-      SS::Placer.from_face(@model, 'D', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
+      SS::Placer.from_face(@model, 'DH', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
     end
     assert_match(/ท่อกลม/, err.message)
-    # the switch: off – anchors to the wall as before
-    plain = SS::Placer.from_face(@model, 'D', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], SH.settings)
-    assert(plain[:result].bom.any? { |b| b[:cat] == 'anchor' })
   end
 
-  def test_place_tool_switches_c_d_to_hanging
+  def test_place_tool_has_c_and_d_hung_after_d
     iso!
-    tool = SS::PlaceTool.new('C')
+    tool = SS::PlaceTool.new('D')
     tool.activate
     view = @model.active_view
-    refute SH.settings['hang_cd']
-    tool.onKeyDown(ALT_MODIFIER_KEY, false, 0, view)
-    assert SH.settings['hang_cd']
+    tool.onKeyDown(9, false, 0, view)
+    assert_equal 'CH', tool.instance_variable_get(:@detail)
     assert_match(/แขวนท่อกลม/, Sketchup.status_text.to_s)
-    tool.onKeyDown(ALT_MODIFIER_KEY, false, 0, view)
-    refute SH.settings['hang_cd']
+    tool.onKeyDown(9, false, 0, view)
+    assert_equal 'DH', tool.instance_variable_get(:@detail)
     d = SS::Dialog.payload
-    assert_equal false, d[:settings]['hang_cd']
+    assert_match(/ไม่มีพุก/, d[:types].find { |q| q[:key] == 'CH' }[:info])
   end
 
   # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.
@@ -692,7 +696,7 @@ class TestSteelSU < Minitest::Test
     SH.forget_settings
     assert_equal 'A', SH.settings['detail'], '1.0 types are no longer offered'
     d = SS::Dialog.payload
-    assert_equal %w[A B C D E E2 F G], d[:types].map { |t| t[:key] }
+    assert_equal %w[A B C D CH DH E E2 F G], d[:types].map { |t| t[:key] }
     assert_match(/เหล็กเส้น/, d[:types].last[:info])
     assert_equal true, d[:linked]
     JSON.generate(d)
