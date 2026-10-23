@@ -509,11 +509,11 @@ class TestSteelSU < Minitest::Test
     column!
     g = SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
                                                         [3000.0, 5000.0, 1500.0]))
-    assert_equal [[290.0, 0.0], [500.0, 320.0], [650.0, 50.0]], guide_points(g).sort
+    assert_equal [[290.0, 0.0], [500.0, 320.0], [650.0, 75.0]], guide_points(g).sort
     six, = draw_onto('6"', [g], [2600.0, -450.0 + 300.0, 1500.0])
-    stm, tip = draw_onto('2"', [supports.first], [2600.0, -450.0 + 640.0, 1500.0], service: 'STM', ins: 25)
+    stm, tip = draw_onto('2"', [supports.first], [2600.0, -450.0 + 640.0, 1500.0], service: 'STM', ins: 70)
     assert_match(/ที่ 0\.65/, tip)
-    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 50.0 + 30.15, p[2], 1e-6, 'bare on the shoe' }
+    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 30.15, p[2], 1e-6, 'bare on the shoe' }
     air, = draw_onto('2"', [supports.first], [2600.0, -450.0 + 510.0, 1500.0 + 320.0], service: 'CA')
     PH.get_json(air, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 320.0 - 30.15, p[2], 1e-6, 'hung: top at the member' }
     c = supports.first
@@ -521,7 +521,7 @@ class TestSteelSU < Minitest::Test
     assert_equal [290.0, 500.0, 650.0], pipes.map { |q| q['y'] }
     assert_equal [six, air, stm].map(&:persistent_id), pipes.map { |q| q['pid'] }
     bom = SH.get_json(c, 'bom')
-    assert(bom.any? { |b| b['key'] == 'shoe' }, 'the steam on its shoe')
+    assert(bom.any? { |b| b['cat'] == 'steel' && b['key'] == 'L75' }, 'the steam on its 3" angle shoe')
     assert_equal ['ub 1/2 168', 'ub 3/8 60'], bom.select { |b| b['cat'] == 'ubolt' }.map { |b| b['key'] }.sort,
                  'no U-bolt on the steam'
     refute(bom.any? { |b| b['key'] == 'pad' }, 'no packers')

@@ -38,8 +38,8 @@ module ArtK
         settings: command('Steel Supports / ซัพพอร์ตเหล็ก', 'เลือกแบบ A–G และคำสั่งทั้งหมด', 'settings') { Commands.settings },
         a: command('Support A / ซัพพอร์ต A', 'ขาค้ำ C 3" 0.31×0.30 – ชี้ท่อข้างเสา หรือหน้าเสา แล้วคลิก', 'a') { Commands.place('A') },
         b: command('Support B / ซัพพอร์ต B', 'ขาค้ำ C 4" 0.48×0.40 – ชี้ท่อข้างเสา หรือหน้าเสา แล้วคลิก', 'b') { Commands.place('B') },
-        c: command('Support C / ซัพพอร์ต C', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe', 'c') { Commands.place('C') },
-        d: command('Support D / ซัพพอร์ต D', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe', 'd') { Commands.place('D') },
+        c: command('Support C / ซัพพอร์ต C', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe เหล็กฉาก 3"', 'c') { Commands.place('C') },
+        d: command('Support D / ซัพพอร์ต D', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe เหล็กฉาก 3"', 'd') { Commands.place('D') },
         ch: command('Support C hung / ซัพพอร์ต C แขวน', 'โครง C แขวนท่อกลมด้านบนด้วย pipe shoe 2 ตัว – ไม่ยึดผนัง (Iso wall)', 'ch') do
           Commands.place('CH')
         end,

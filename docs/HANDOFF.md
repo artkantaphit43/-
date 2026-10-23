@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.0**
-(`dist/artk_steel_support-2.4.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (305 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.1**
+(`dist/artk_steel_support-2.4.1.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (306 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -197,6 +197,11 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `Placer.hang?(t)`/`hang_frame` (Probe.above เหนือคานบนที่กึ่งกลางโครง, เลื่อนตามแนวท่อเข้าแกน, ห่างผนัง `ISO_GAP` 20, รังสีตรวจท่อกลมถึง shoe) ·
   struct `hang` {z, r} · `Std.hang_geo`, `frame_shoes` (ไม่มีพุก, คานบนรับแรงจากเสาโครงถึง shoe 2 จุดที่ `PSHOE[:at]` 150, สลักฐาน 1/2" ×2),
   `chord_shoe` (แคลมป์ 2 สลักรอบท่อกลมในระนาบ x–z: `strap` + `turned`, ปลอก + เสาแบน, ฐานบนปีกคานบน)
+- **Steel Supports 2.4.1 – shoe สตีมเป็นเหล็กฉาก 3" + เช็กท่อเข้าโครง** (ผู้ใช้: ฉนวนจริง 2 ชั้น ชั้นละ 2" ท่อเหล็กดำ,
+  ช่องในโครง 31.83 × 67 ซม., "เหล็กฉาก 3 นิ้ว 75 mm + เส้นผ่านศูนย์กลาง 20 เซนนิดๆ"): `SHOE` {h 75, key L75, len 200, bar 10×30×100, gap 3} ·
+  `pipe_shoe` = `Steel.angle` ขาตั้งกึ่งกลางใต้ท่อ (heel y + t/2, ขานอนไป −y) ตัดถึงท่อเปล่า/แผ่นรองถ้าสูงกว่า, ไกด์เหล็กแบน (bom plate key `guide`) ·
+  `on_shoe?` (ท่อเปล่าสูงพอให้ขาตัดสั้นสุด t+r1+r2) · `shoe_span` (ขานอน + ไกด์ ต้องอยู่ระหว่างเสา) · สตีมในแบบ ฉนวน 70 (rest [650, 75]) ·
+  `clashes` (ฉนวนจมใต้ shoe, `frame_hits` ชนเสาหลัง/หน้า/คานบน, ท่อชนกัน > 1 มม.) note มีคำว่า "ชน"/"ฉนวน" · ท่อเดิมที่ระดับ 50 ยังได้ shoe (ขาตัด 50)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

@@ -53,14 +53,14 @@ module ArtK
                  th: 'ซัพพอร์ต B – ขาค้ำ C 4"' },
         'C' => { form: :frame, sec: 'C100', width: 870.0, height: 520.0, anchor: '1/2', bolts: [80.0, 260.0, 440.0],
                  pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
-                         { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                         { y: 650.0, od: 60.3, ins: 70.0, shoe: true, label: '2" สตีม + ฉนวน 70' }],
                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                  top: { y: 435.0, od: 114.3, label: '4" สตีม', seat: 'L50', seat_len: 250.0, shoe: 'L100', shoe_len: 200.0,
                         nominal: false },
                  th: 'ซัพพอร์ต C – โครงกล่อง C 4"' },
         'D' => { form: :frame, sec: 'C100', width: 870.0, height: 520.0, anchor: '1/2', bolts: [80.0, 260.0, 440.0],
                  pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
-                         { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                         { y: 650.0, od: 60.3, ins: 70.0, shoe: true, label: '2" สตีม + ฉนวน 70' }],
                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                  th: 'ซัพพอร์ต D – โครงกล่อง C 4"' },
         # C / D on an Iso wall (nothing may be fixed to it, 2.4): the same
@@ -68,12 +68,12 @@ module ArtK
         # types of their own, so C / D never look for one.
         'CH' => { form: :frame, hang: true, sec: 'C100', width: 870.0, height: 520.0, bolts: [], series: 'CH',
                   pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
-                          { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                          { y: 650.0, od: 60.3, ins: 70.0, shoe: true, label: '2" สตีม + ฉนวน 70' }],
                   hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                   th: 'ซัพพอร์ต C แขวน – โครงกล่อง C 4" แขวนท่อกลม (ไม่ยึดผนัง)' },
         'DH' => { form: :frame, hang: true, sec: 'C100', width: 870.0, height: 520.0, bolts: [], series: 'DH',
                   pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
-                          { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                          { y: 650.0, od: 60.3, ins: 70.0, shoe: true, label: '2" สตีม + ฉนวน 70' }],
                   hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                   th: 'ซัพพอร์ต D แขวน – โครงกล่อง C 4" แขวนท่อกลม (ไม่ยึดผนัง)' },
         'E' => { form: :hanger, sec: 'C100', length: 800.0, rods: [50.0, 750.0], gap: 420.0, tiers: 1,
@@ -98,9 +98,10 @@ module ArtK
       DROP = 600.0 # E without a placement: round member this far over the top tier
       RISE = 300.0 # a pipe up to this above the steel rides on a packer
       HANG = 30.0  # a pipe whose top is this near a frame's top member hangs from it
-      # Hot line's shoe on a frame's bottom member (h: to the bare pipe),
-      # base b × len × t, its web t; between two angle guides.
-      SHOE = { h: 50.0, b: 110.0, len: 200.0, t: 6.0, guide: 'L50', guide_len: 100.0, gap: 3.0 }.freeze
+      # Hot line's shoe on a frame's bottom member (2.4.1, the user's 3"):
+      # an angle +len+ long, its upright leg (h) to the bare pipe; between
+      # two flat-bar guides w × h × len, +gap+ off its lying leg.
+      SHOE = { h: 75.0, key: 'L75', len: 200.0, bar: [10.0, 30.0, 100.0], gap: 3.0 }.freeze
       # CH / DH hung from a round member (Iso wall – nothing fixed to it, 2.4):
       # two pipe-shoe clamps (the user's picture, upside down) on the top
       # member, +at+ in from each end; base plate base × flange × t, post bar,
@@ -170,6 +171,20 @@ module ArtK
       # A hot line (or the drawing's steam): on a shoe, no U-bolt.
       def shoe?(p)
         p[:shoe] == true || p[:hot] == true
+      end
+
+      # One on a frame high enough for its shoe (the bare pipe at least
+      # the angle's shortest cut leg over the steel).
+      def on_shoe?(s, p)
+        a = Steel.get(SHOE[:key])
+        s[:form] == :frame && shoe?(p) && Pipes.bare_bottom(p) >= a[:t] + a[:r1] + a[:r2] + 1.0
+      end
+
+      # Across the steel under a shoe at +y+ (its lying leg, the guides).
+      def shoe_span(y)
+        a = Steel.get(SHOE[:key])
+        out = SHOE[:gap] + SHOE[:bar][0]
+        [y + a[:t] / 2.0 - a[:a] - out, y + a[:t] / 2.0 + out]
       end
 
       # E's placement (a support's struct): chord { z:, r: } – the round
@@ -359,7 +374,7 @@ module ArtK
         carried.each do |p|
           if s[:form] == :frame && hangs?(s, p)
             hung_u_bolt(part, bom, p, s, key, xu)
-          elsif s[:form] == :frame && shoe?(p)
+          elsif on_shoe?(s, p)
             pipe_shoe(part, bom, lines, p)
           else
             v = level_of(t, p, geo)
@@ -426,10 +441,10 @@ module ArtK
           across = p[:y] - side(p) >= lo && p[:y] + side(p) <= hi
           if s[:form] == :frame && hangs?(s, p) && across
             carried << p
-          elsif bottom.between?(-1.0, RISE) && across && p[:z] + p[:r] + u[:d] <= room
+          elsif on_shoe?(s, p) && Pipes.bare_bottom(p) <= RISE && p[:z] + p[:r] <= room &&
+                shoe_span(p[:y]).first >= lo && shoe_span(p[:y]).last <= hi
             carried << p
-          elsif shoe?(p) && Pipes.bare_bottom(p).between?(SHOE[:t] - 1.0, RISE) && across && p[:z] + p[:r] <= room
-            notes << "ท่อ #{p[:label]}: shoe ต่ำกว่าฉนวน – ยกท่อขึ้นให้ shoe สูงกว่าฉนวน (≥ #{SHOE[:h].round} มม.)"
+          elsif bottom.between?(-1.0, RISE) && across && p[:z] + p[:r] + u[:d] <= room
             carried << p
           elsif on_top?(s, p) && p[:y].between?(0.0, s[:width])
             top = p if top.nil? || (p[:y] - s[:top][:y]).abs < (top[:y] - s[:top][:y]).abs
@@ -446,9 +461,52 @@ module ArtK
             next
           end
           near = p[:y] + p[:r] > 0 && p[:y] - p[:r] < hi + 150.0 && Pipes.bottom(p) < (s[:height] || s[:post]) + 300.0
-          notes << "ท่อ #{p[:label]} ไม่อยู่ในตำแหน่งที่ซัพพอร์ต #{t} รับได้ – ไม่ได้รัด" if near
+          next unless near
+
+          hit = s[:form] == :frame ? frame_hits(s, p) : []
+          notes << if hit.empty?
+                     "ท่อ #{p[:label]} ไม่อยู่ในตำแหน่งที่ซัพพอร์ต #{t} รับได้ – ไม่ได้รัด"
+                   else
+                     "ท่อ #{p[:label]} ชน#{hit.map(&:first).join(' / ')} – ไม่ได้รัด: ขยับท่อ หรือลดขนาด/ฉนวน"
+                   end
         end
+        clashes(s, carried, notes) if s[:form] == :frame
         [carried.sort_by { |p| p[:y] }, top]
+      end
+
+      # What of a frame's steel a pipe's outline (insulation and all)
+      # runs into: [[name, mm], ...] – the posts, the top member (but a
+      # line hung under it).
+      def frame_hits(s, p)
+        h = Steel.depth(s[:sec])
+        under = under(s)
+        return [] if Pipes.bottom(p) > top_level(s) || Pipes.top(p) < -h
+
+        out = []
+        out << ['เสาหลัง', h - (p[:y] - p[:r])] if p[:y] - p[:r] < h - 1.0 && p[:y] + p[:r] > 0.0
+        out << ['เสาหน้า', p[:y] + p[:r] - (s[:width] - h)] if p[:y] + p[:r] > s[:width] - h + 1.0 && p[:y] - p[:r] < s[:width]
+        out << ['คานบน', Pipes.top(p) - under] if Pipes.top(p) > under + 1.0 && !hangs?(s, p)
+        out.map { |n, mm| [n, mm.round] }
+      end
+
+      # The user's frames are tight (2.4.1, 0.67 × 0.32 inside): a shoe
+      # lower than the line's insulation, a line into a post, lines into
+      # each other – said.
+      def clashes(s, carried, notes)
+        carried.each do |p|
+          if shoe?(p) && Pipes.bottom(p) < -1.0
+            ins = (p[:r] - p[:od] / 2.0).round
+            notes << "ท่อ #{p[:label]}: ฉนวน #{ins} มม. หนากว่า shoe (สูง #{Pipes.bare_bottom(p).round}) – " \
+                     "ฉนวนจมในเหล็ก #{(-Pipes.bottom(p)).round} มม.: ใช้ shoe สูง ≥ #{ins} มม. หรือลดฉนวน"
+          end
+          frame_hits(s, p).each do |n, mm|
+            notes << "ท่อ #{p[:label]} ชน#{n} #{mm} มม. – ขยับท่อเข้า หรือลดขนาด/ฉนวน"
+          end
+        end
+        carried.combination(2).each do |p, q|
+          over = p[:r] + q[:r] - Math.hypot(p[:y] - q[:y], p[:z] - q[:z])
+          notes << "ท่อ #{p[:label]} ชนท่อ #{q[:label]} #{over.round} มม. – ขยับท่อ หรือลดฉนวน" if over > 1.0
+        end
       end
 
       # Channel standing in the support plane along the centre line p → q
@@ -655,28 +713,37 @@ module ArtK
         D.nuts(bom, size, 2)
       end
 
-      # Hot line's shoe on the bottom member: base plate between two angle
-      # guides, a web up to the bare pipe (welded to it; the insulation
-      # round it) – free to slide along the pipe.
+      # Hot line's shoe on the bottom member: a 3" angle under the pipe,
+      # its upright leg welded to the bare pipe (cut / packed to its
+      # height; the insulation round it), the other leg lying on the member
+      # between two flat-bar guides – free to slide along the pipe.
       def pipe_shoe(part, bom, lines, p)
         sh = SHOE
-        t = sh[:t]
+        a = Steel.get(sh[:key])
         y = p[:y]
-        top = Pipes.bare_bottom(p)
-        part.add(:steel, Mesh.box([-sh[:len] / 2.0, y - sh[:b] / 2.0, 0.0], [sh[:len] / 2.0, y + sh[:b] / 2.0, t]))
-        if top > t + 1.0
-          part.add(:steel, Mesh.box([-sh[:len] / 2.0, y - t / 2.0, t], [sh[:len] / 2.0, y + t / 2.0, top]))
+        y0 = y + a[:t] / 2.0 # the upright leg's back, the lying leg in from it
+        gap = Pipes.bare_bottom(p)
+        leg = a[:a]
+        base = 0.0
+        if gap > a[:a] + 1.0 # packed up under the shoe
+          base = gap - a[:a]
+          part.add(:steel, Mesh.box([-sh[:len] / 2.0, y0 - a[:a], 0.0], [sh[:len] / 2.0, y0, base]))
+          D.bom_pad(bom, sh[:len] * a[:a] * base * Steel::RHO)
+        else
+          leg = gap
         end
-        lines << [[0.0, y, 0.0], [0.0, y, top]]
-        bom << { cat: 'plate', key: 'shoe', desc: "Shoe ท่อร้อน (เพลท #{t.round} มม. สูง #{top.round} มม.)", qty: 1,
-                 kg: (sh[:len] * (sh[:b] + [top - t, 0.0].max) * t * Steel::RHO).round(2) }
-        g = Steel.get(sh[:guide])
-        [-1, 1].each do |k|
-          heel = [-sh[:guide_len] / 2.0, y + k * (sh[:b] / 2.0 + sh[:gap]), 0.0]
-          part.add(:steel, Steel.angle(sh[:guide], heel, Vec.add(heel, [sh[:guide_len], 0, 0]), [0, k.to_f, 0], [0, 0, 1.0]))
-          D.box_lines(lines, [-sh[:guide_len] / 2.0, [heel[1], heel[1] + k * g[:a]].min, 0.0],
-                      [sh[:guide_len] / 2.0, [heel[1], heel[1] + k * g[:a]].max, g[:a]])
-          D.bom_steel(bom, sh[:guide], sh[:guide_len], 'ไกด์ shoe')
+        heel = [-sh[:len] / 2.0, y0, base]
+        part.add(:steel, Steel.angle(sh[:key], heel, Vec.add(heel, [sh[:len], 0, 0]), [0, -1.0, 0], [0, 0, 1.0],
+                                     leg2_len: leg))
+        D.bom_steel(bom, sh[:key], sh[:len], 'shoe ท่อร้อน')
+        lines << [[0.0, y, 0.0], [0.0, y, base + leg]]
+        w, hb, lb = sh[:bar]
+        lo, hi = shoe_span(y)
+        [[lo, lo + w], [hi - w, hi]].each do |g0, g1|
+          part.add(:steel, Mesh.box([-lb / 2.0, g0, 0.0], [lb / 2.0, g1, hb]))
+          D.box_lines(lines, [-lb / 2.0, g0, 0.0], [lb / 2.0, g1, hb])
+          bom << { cat: 'plate', key: 'guide', desc: "ไกด์ shoe เหล็กแบน #{w.round}×#{hb.round} ยาว #{lb.round}", qty: 1,
+                   kg: (w * hb * lb * Steel::RHO).round(2) }
         end
       end
 
