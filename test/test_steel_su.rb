@@ -371,9 +371,9 @@ class TestSteelSU < Minitest::Test
 
   # Draw a Plant Piping pipe of +size+ from a point picked on +path+
   # (a support / its guide) along +x.
-  def draw_onto(size, path, start, along: [1.0, 0.0, 0.0])
-    PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => size,
-                                                       'lod' => 'light', 'snap45' => false))
+  def draw_onto(size, path, start, along: [1.0, 0.0, 0.0], service: 'CW', ins: 0)
+    PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => service, 'catalog' => 'CS_B36_10', 'size' => size,
+                                                       'lod' => 'light', 'snap45' => false, 'insulation_mm' => ins))
     tool = ArtK::PlantPipe::PipeTool.new
     tool.activate
     view = @model.active_view
@@ -502,41 +502,32 @@ class TestSteelSU < Minitest::Test
     PH.get_json(free, 'cl').flatten(1).each { |p| assert_in_delta 1500.0, p[2], 1e-6 }
   end
 
-  # C: the steam line drawn onto the top lies on its shoe as drawn (the
-  # shoe welds to the bare pipe – insulation round it); the 6" below on
-  # its guide.
-  def test_steam_line_drawn_onto_c_lies_on_its_shoe
+  # The user's new C (2.3): the 6" on the bottom member; the steam (2" +
+  # insulation) drawn onto its guide lies bare on its shoe between the
+  # guides; the air drawn onto its guide hangs under the top member.
+  def test_pipes_drawn_onto_the_new_c
     column!
     g = SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
                                                         [3000.0, 5000.0, 1500.0]))
-    assert_equal [[330.0, 0.0], [600.0, 0.0], [435.0, 525.0]], guide_points(g)
-    PH.save_settings(ArtK::PlantPipe::Settings.sanitize('service' => 'STM', 'catalog' => 'CS_B36_10', 'size' => '4"',
-                                                       'lod' => 'light', 'insulation_mm' => 50))
-    tool = ArtK::PlantPipe::PipeTool.new
-    tool.activate
-    view = @model.active_view
-    Sketchup::InputPoint.next_path = [g]
-    Sketchup::InputPoint.next_dof = 2
-    Sketchup::InputPoint.next_position = PH.to_pt([3010.0, -450.0 + 435.0, 1500.0 + 425.0]) # on the 2" seat
-    tool.onMouseMove(0, 0, 0, view)
-    tool.onLButtonDown(0, 0, 0, view)
-    Sketchup::InputPoint.next_path = nil
-    tool.onKeyDown(VK_RIGHT, 0, 0, view)
-    Sketchup::InputPoint.next_position = PH.to_pt([7000.0, 0, 0])
-    tool.onMouseMove(0, 0, 0, view)
-    tool.onLButtonDown(0, 0, 0, view)
-    tool.onReturn(view)
-    stm = ArtK::PlantPipe::Collector.all_runs(@model).map(&:first).last
-    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 525.0 + 57.15, p[2], 1e-6 }
-    six, = draw_onto('6"', [supports.first], [2600.0, -450.0 + 330.0, 1500.0])
+    assert_equal [[290.0, 0.0], [500.0, 320.0], [650.0, 50.0]], guide_points(g).sort
+    six, = draw_onto('6"', [g], [2600.0, -450.0 + 300.0, 1500.0])
+    stm, tip = draw_onto('2"', [supports.first], [2600.0, -450.0 + 640.0, 1500.0], service: 'STM', ins: 25)
+    assert_match(/ที่ 0\.65/, tip)
+    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 50.0 + 30.15, p[2], 1e-6, 'bare on the shoe' }
+    air, = draw_onto('2"', [supports.first], [2600.0, -450.0 + 510.0, 1500.0 + 320.0], service: 'CA')
+    PH.get_json(air, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 320.0 - 30.15, p[2], 1e-6, 'hung: top at the member' }
     c = supports.first
-    assert_equal [six.persistent_id, stm.persistent_id].sort, SH.get_json(c, 'pipes').map { |q| q['pid'] }.sort
+    pipes = SH.get_json(c, 'pipes').sort_by { |q| q['y'] }
+    assert_equal [290.0, 500.0, 650.0], pipes.map { |q| q['y'] }
+    assert_equal [six, air, stm].map(&:persistent_id), pipes.map { |q| q['pid'] }
+    bom = SH.get_json(c, 'bom')
+    assert(bom.any? { |b| b['key'] == 'shoe' }, 'the steam on its shoe')
+    assert_equal ['ub 1/2 168', 'ub 3/8 60'], bom.select { |b| b['cat'] == 'ubolt' }.map { |b| b['key'] }.sort,
+                 'no U-bolt on the steam'
+    refute(bom.any? { |b| b['key'] == 'pad' }, 'no packers')
+    assert_empty SH.get_json(c, 'notes')
+    assert_empty guide_points(c)
     assert_in_delta 1500.0, SH.get_json(c, 'origin')[2], 1e-6
-    refute(SH.get_json(c, 'bom').any? { |b| b['cat'] == 'plate' }, 'shoe as drawn, no packing')
-    assert_equal [[600.0, 0.0]], guide_points(c)
-  ensure
-    Sketchup::InputPoint.next_path = nil
-    Sketchup::InputPoint.next_dof = nil
   end
 
   # The user's case (2.0.5): the 6" picked on the arm by the column and

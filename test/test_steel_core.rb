@@ -201,7 +201,7 @@ class TestSteelStd < Minitest::Test
 
   def test_all_closed_and_sized_as_drawn
     { 'A' => [[0, 310], [-300, 0], [-20, 20]], 'B' => [[0, 480], [-400, 0], [-25, 25]],
-      'D' => [[0, 870], [-100, 420], [-25, 25]] }.each do |t, (ys, zs, xs)|
+      'D' => [[0, 870], [-100, 420], [-100, 100]] }.each do |t, (ys, zs, xs)| # D: the steam's shoe 0.20 long
       res = SS::Std.build(t)
       res.part.solids.each { |role, s| assert SS::Mesh.closed?(s), "#{t} #{role}" }
       res.part.solids.each { |_, s| assert_operator SS::Mesh.volume(s), :>, 0 }
@@ -212,7 +212,7 @@ class TestSteelStd < Minitest::Test
     end
     c = SS::Std.build('C')
     assert_equal [0.0, 870.0], range(steel(c), 1)
-    assert_equal [-100.0, 525.0], range(steel(c), 2), 'frame + 2" seat + 4" angle shoe'
+    assert_equal [-100.0, 420.0], range(steel(c), 2), 'the frame (steam on a shoe inside since 2.3)'
   end
 
   def test_sections_anchors_and_bom_as_drawn
@@ -232,18 +232,14 @@ class TestSteelStd < Minitest::Test
       assert_equal [1740, 1040], r.bom.select { |x| x[:cat] == 'steel' && x[:key] == 'C100' }.map { |x| x[:length] }
     end
     c = SS::Std.build('C')
-    assert_equal %w[L50 L100], c.bom.select { |x| x[:cat] == 'steel' && x[:key] != 'C100' }.map { |x| x[:key] }
+    assert_equal %w[L50 L50], c.bom.select { |x| x[:cat] == 'steel' && x[:key] != 'C100' }.map { |x| x[:key] }, 'shoe guides'
   end
 
   def test_drawing_pipe_positions_when_no_pipes
     d = SS::Std.build('D')
     assert d.info[:nominal]
-    assert_equal [330.0, 540.0, 690.0], d.carried.map { |p| p[:y] } # 0.33, +0.21, +0.15
+    assert_equal [290.0, 500.0, 650.0], d.carried.map { |p| p[:y] }.sort # 0.19 in, 0.50, 0.12 in from the front
     assert_equal 3, d.info[:guides].size
-    c = SS::Std.build('C')
-    assert_equal [330.0, 600.0, 435.0], c.carried.map { |p| p[:y] }
-    steam = c.carried.last
-    assert_in_delta 420 + 5 + 100 + 57.15, steam[:z], 1e-6
   end
 
   def test_u_bolts_follow_the_pipes_steel_stays
@@ -293,8 +289,8 @@ class TestSteelStd < Minitest::Test
     assert_equal [[430.0, 0.0]], one.info[:rests], 'the other drawn place keeps its guide'
     assert_equal [[430.0, 24.15]], one.info[:guides]
     c = SS::Std.build('C')
-    assert_equal [435.0, 525.0], c.info[:rests].last, 'steam: on its shoe'
-    assert_empty SS::Std.build('D', [P.call(330, 84.15, 168.3), P.call(540, 36.5, 73.0), P.call(690, 24.15, 48.3)])
+    assert_equal [650.0, 50.0], c.info[:rests].max, 'steam: on its shoe'
+    assert_empty SS::Std.build('D', [P.call(290, 84.15, 168.3), P.call(650, 80.15, 60.3, 25.0), P.call(500, 289.85, 60.3)])
       .info[:rests]
   end
 
@@ -304,12 +300,12 @@ class TestSteelStd < Minitest::Test
     at = ->(*a) { SS::Std.rest(*a)&.slice(:z, :bare, :half) }
     assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('B', 250.0, 0.4), 'on the arm')
     assert_equal({ z: 0.0, bare: false, half: 20.0 }, at.call('A', 100.0, 0.0))
-    assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('D', 600.0, 0.0), 'on the bottom member')
+    assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('D', 400.0, 0.0), 'on the bottom member')
+    assert_equal({ z: 50.0, bare: true, half: 25.0 }, at.call('D', 600.0, 0.0), 'near the steam: onto its shoe')
     assert_nil SS::Std.rest('D', 50.0, 0.0), 'inside the back post'
     assert_nil SS::Std.rest('B', 250.0, -50.0)
-    assert_equal({ z: 525.0, bare: true, half: 100.0 }, at.call('C', 435.0, 425.0), 'on the seat: onto the shoe')
+    assert_equal({ z: 525.0, bare: true, half: 100.0 }, at.call('C', 435.0, 425.0), 'a line on top (2.0): onto its shoe')
     assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('B', 200.0, 30.15), "2.0.4's guide at the 2\" centre")
-    assert_equal 525.0, SS::Std.rest('C', 435.0, 525.0 + 57.15)[:z]
   end
 
   # A pipe drawn into the steel the pipes sit on: the steel stays as
@@ -333,8 +329,8 @@ class TestSteelStd < Minitest::Test
     taken = [P.call(200, 84.15, 168.3)]
     assert_equal 430.0, SS::Std.rest('B', 330.0, 0.0, one, taken)[:y], 'the next free place'
     assert_equal 330.0, SS::Std.rest('B', 330.0, 0.0, six, taken)[:y], 'none free for a 6": where picked'
-    assert_equal 540.0, SS::Std.rest('D', 600.0, 0.0, six)[:y], '0.69 is no place for a 6"'
-    assert_equal 435.0, SS::Std.rest('C', 380.0, 425.0, { od: 114.3, ins: 50.0 })[:y], 'steam on its shoe'
+    assert_equal 650.0, SS::Std.rest('D', 600.0, 0.0, six)[:y], 'the nearest place a 6" fits'
+    assert_equal 380.0, SS::Std.rest('C', 380.0, 425.0, { od: 114.3, ins: 50.0 })[:y], 'on top: no drawn place since 2.3'
     assert_equal 200.0, SS::Std.rest('B', 250.0, 0.0)[:y], 'size not known (Plant Piping 1.16.2)'
   end
 
@@ -394,6 +390,47 @@ class TestSteelStd < Minitest::Test
     assert_equal [420.0, 565.0], [up[:z], up[:y]]
     assert_nil SS::Std.rest('E', 400.0, 420.0, six, [], geo: { 'chord' => { 'z' => 900.0, 'r' => 50.8 } }), 'one tier'
     assert_nil SS::Std.rest('E', 30.0, 0.0), 'outside the rods'
+  end
+
+  # The user's new C / D (2.3): 6" water 0.19 inside the post, 2" steam +
+  # insulation on a shoe between guides 0.12 inside the front post, 2" air
+  # hung under the top member (U-bolt up through it).
+  def test_c_and_d_as_newly_drawn
+    %w[C D].each do |t|
+      r = SS::Std.build(t)
+      r.part.solids.each { |role, sol| assert SS::Mesh.closed?(sol), "#{t} #{role}" }
+      assert_equal [290.0, 500.0, 650.0], r.carried.map { |p| p[:y] }.sort, t
+      at = ->(y) { r.carried.find { |p| p[:y] == y } }
+      assert_in_delta 84.15, at.call(290.0)[:z], 1e-6, "#{t}: 6\" on the bottom member"
+      assert_in_delta 320.0 - 30.15, at.call(500.0)[:z], 1e-6, "#{t}: air hung under the top member"
+      assert_in_delta 50.0 + 30.15, at.call(650.0)[:z], 1e-6, "#{t}: steam on its shoe"
+      assert_equal [[290.0, 0.0], [500.0, 320.0], [650.0, 50.0]], r.info[:rests].sort, "#{t}: guides"
+      assert_equal %w[ub\ 1/2\ 168 ub\ 3/8\ 60].map { |k| k.delete('\\') }.sort,
+                   r.bom.select { |b| b[:cat] == 'ubolt' }.map { |b| b[:key] }.sort, "#{t}: no U-bolt on the steam"
+      assert(r.bom.any? { |b| b[:key] == 'shoe' }, "#{t}: shoe")
+      assert_equal 2, r.bom.count { |b| b[:cat] == 'steel' && b[:key] == 'L50' }, "#{t}: guides"
+      assert_equal [-100.0, 420.0], range(steel(r), 2), "#{t}: nothing on top any more"
+      # the air's U-bolt goes up through the top member's lower flange
+      ub = r.part.solids.map { |_, sol| sol.polys.flatten(1) }.select { |pts| pts.map { |q| q[1] }.minmax.then { |a, b| a > 450 && b < 550 } }
+      assert(ub.any? { |pts| pts.map { |q| q[2] }.max > 320.0 + 7.5 && pts.map { |q| q[2] }.min < 320.0 - 60.3 })
+    end
+  end
+
+  def test_pipes_drawn_onto_the_new_c
+    six = SS::Std.rest('C', 310.0, 0.0, { od: 168.3, ins: 0.0 })
+    assert_equal [290.0, 0.0, false], six.values_at(:y, :z, :bare)
+    stm = SS::Std.rest('C', 630.0, 0.0, { od: 60.3, ins: 25.0 })
+    assert_equal [650.0, 50.0, true], stm.values_at(:y, :z, :bare), 'onto the shoe: the bare pipe on it'
+    air = SS::Std.rest('C', 520.0, 320.0, { od: 60.3, ins: 0.0 })
+    assert_equal 500.0, air[:y]
+    assert_in_delta 320.0 - 60.3, air[:z], 1e-6, 'under the top member: its top touches it'
+    # drawn there, each carried its own way
+    pipes = [P.call(290, 84.15, 168.3, 0, '6"'), P.call(500, 320.0 - 30.15, 60.3, 0, 'air'),
+             P.call(650, 50.0 + 30.15, 60.3, 25.0, 'steam').merge(hot: true)]
+    r = SS::Std.build('D', pipes)
+    assert_equal 3, r.carried.size
+    assert_empty r.notes
+    refute(r.bom.any? { |b| b[:desc].include?('steam') && b[:cat] == 'ubolt' })
   end
 
   def test_steam_shoe_fits_the_steam_line

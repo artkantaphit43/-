@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.2.1**
-(`dist/artk_steel_support-2.2.1.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (300 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.3.0**
+(`dist/artk_steel_support-2.3.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (302 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -184,6 +184,13 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
 - **Steel Supports 2.2.1** ("ปรับแล้วไม่ได้ใส่จุดสแนปที่ปลายเส้นมาให้"): เส้นไกด์มีแต่จุดกลาง → `Builder.guides` ใส่ cpoint ที่ x = 0, ±`GUIDE`
   (500) ทุกเส้น + `guides_v` = 2; refit เทียบ `guides_v` → ซัพพอร์ตเก่าสร้างใหม่ครั้งเดียว (ปุ่มปรับตามท่อ) · ปลายเส้นอยู่ในระยะ rest
   (|lx| ≤ 503) ท่อที่เริ่มจากปลายเส้นจึงวางบนเหล็ก
+- **Steel Supports 2.3.0 – C, D แบบใหม่** ("ซัพพอตจะอยู่ท่านี้แล้ว อัพเดต C D", แบบ CAD มีมิติ): โครงเดิม 0.87×0.52 พุก 1/2"×3 ·
+  6" ที่ 0.29 (0.19 จากด้านในเสาโครง), สตีม 2"+ฉนวน 25 ที่ 0.65 (0.12 จากด้านในเสาหน้า) บน shoe + ไกด์ L50 ×2, ลม 2" แขวนใต้คานบน
+  ที่ 0.50 (วัดจากรูป) · มิติ 0.32 ในแบบไม่ตรง (0.19+0.12 ใน 0.67 = 0.36 ระหว่างศูนย์; เส้น 0.32 เริ่มเยื้อง 0.04) – ใช้ 0.19/0.12,
+  0.25 อ่านไม่ออก (ไม่ใช้) · `TYPES` C/D: `pipes` (`shoe`/`ins`), `hung`; C `top` คงไว้ `nominal: false` (ท่อบนโครงจากแบบ 2.0) ·
+  `Std.under`, `hangs?` (ผิวบนท่อภายใน `HANG` 30 ใต้คานบน), `shoe?` (`hot` จาก Plant Piping / `shoe`), `hung_u_bolt`, `pipe_shoe`
+  (`SHOE` h 50), `rest_of`, rest: `hang` + `place`→`seat`/`settle` (สตีม: rest z 50 bare, แขวน: z = ใต้คาน − ท่อ) ·
+  **ระวัง: `Std.hung?(t)` มีอยู่แล้ว (E/F) – ตั้งชื่อใหม่ซ้ำทำให้ทับ**
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

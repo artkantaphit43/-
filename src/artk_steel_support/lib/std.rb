@@ -18,10 +18,12 @@ module ArtK
     #      2 anchors 3/8"; one 3"/4" water line
     #   B  bracket C 4":  arm 480, post 400, 45° brace, 2 anchors 3/8";
     #      lines at 200 and 430 from the face
-    #   C  box frame C 4": 870 out × 520 high, 3 anchors 1/2"; 6" water at
-    #      330 (230 inside the post), 2" air; 4" steam on a 4" angle shoe on
-    #      a 2" angle seat on top
-    #   D  box frame C 4": 870 × 520, 3 anchors 1/2"; lines at 330, 540, 690
+    #   C, D  box frame C 4": 870 out × 520 high, 3 anchors 1/2". As drawn
+    #      in 2.3 (both): 6" water 190 inside the post (290 out), 2" steam +
+    #      insulation on a shoe between guides 120 inside the front post
+    #      (650), 2" air hung under the top member (500). (2.0: C had 6" at
+    #      330, 2" air at 600 and a 4" steam on a shoe on top – a line on
+    #      top is still carried so; D had lines at 330, 540, 690.)
     #   E  trapeze C 4" 800 long hung on 2 threaded rods (700 apart) from a
     #      round member above (C-clip under it, U-bolt over it), centred on
     #      that member's axis; lines at 230 and 565. E2 (or pipes stacked
@@ -50,12 +52,16 @@ module ArtK
                  pipes: [{ y: 200.0, od: 60.3, label: '2"' }, { y: 430.0, od: 48.3, label: '1½"' }],
                  th: 'ซัพพอร์ต B – ขาค้ำ C 4"' },
         'C' => { form: :frame, sec: 'C100', width: 870.0, height: 520.0, anchor: '1/2', bolts: [80.0, 260.0, 440.0],
-                 pipes: [{ y: 330.0, od: 168.3, label: '6" ประปา' }, { y: 600.0, od: 60.3, label: '2" ลม' }],
-                 top: { y: 435.0, od: 114.3, label: '4" สตีม', seat: 'L50', seat_len: 250.0, shoe: 'L100', shoe_len: 200.0 },
-                 th: 'ซัพพอร์ต C – โครงกล่อง C 4" + สตีมด้านบน' },
+                 pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
+                         { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                 hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
+                 top: { y: 435.0, od: 114.3, label: '4" สตีม', seat: 'L50', seat_len: 250.0, shoe: 'L100', shoe_len: 200.0,
+                        nominal: false },
+                 th: 'ซัพพอร์ต C – โครงกล่อง C 4"' },
         'D' => { form: :frame, sec: 'C100', width: 870.0, height: 520.0, anchor: '1/2', bolts: [80.0, 260.0, 440.0],
-                 pipes: [{ y: 330.0, od: 168.3, label: '6"' }, { y: 540.0, od: 73.0, label: '2½"' },
-                         { y: 690.0, od: 48.3, label: '1½"' }],
+                 pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
+                         { y: 650.0, od: 60.3, ins: 25.0, shoe: true, label: '2" สตีม + ฉนวน' }],
+                 hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                  th: 'ซัพพอร์ต D – โครงกล่อง C 4"' },
         'E' => { form: :hanger, sec: 'C100', length: 800.0, rods: [50.0, 750.0], gap: 420.0, tiers: 1,
                  pipes: [{ y: 230.0, od: 168.3, label: '6"' }, { y: 565.0, od: 114.3, ins: 50.0, label: '4" หุ้มฉนวน 50' }],
@@ -78,6 +84,10 @@ module ArtK
       CLIP = { t: 6.0, h: 60.0, w: 65.0, web: 35.0 }.freeze
       DROP = 600.0 # E without a placement: round member this far over the top tier
       RISE = 300.0 # a pipe up to this above the steel rides on a packer
+      HANG = 30.0  # a pipe whose top is this near a frame's top member hangs from it
+      # Hot line's shoe on a frame's bottom member (h: to the bare pipe),
+      # base b × len × t, its web t; between two angle guides.
+      SHOE = { h: 50.0, b: 110.0, len: 200.0, t: 6.0, guide: 'L50', guide_len: 100.0, gap: 3.0 }.freeze
       SNAP = 120.0 # a pipe drawn onto a support this near one of the drawing's places goes there
 
       module_function
@@ -115,11 +125,33 @@ module ArtK
             end
           end
         end
-        list = s[:pipes].map { |q| pipe(q[:y], q[:od] / 2.0, q[:od], q[:label]) }
-        if (tp = s[:top])
+        list = s[:pipes].map do |q|
+          r = q[:od] / 2.0 + q[:ins].to_f
+          z = q[:shoe] ? SHOE[:h] + q[:od] / 2.0 : r
+          pipe(q[:y], z, q[:od], q[:label]).merge(ins: q[:ins].to_f, r: r, shoe: q[:shoe] == true)
+        end
+        s[:hung].to_a.each { |q| list << pipe(q[:y], under(s) - q[:od] / 2.0, q[:od], q[:label]) }
+        if (tp = s[:top]) && tp[:nominal] != false
           list << pipe(tp[:y], shoe_top(s) + tp[:od] / 2.0, tp[:od], tp[:label]).merge(top: true)
         end
         list
+      end
+
+      # Underside of a frame's top member.
+      def under(s)
+        top_level(s) - Steel.depth(s[:sec])
+      end
+
+      # A pipe hung under a frame's top member (its top at the underside).
+      def hangs?(s, p)
+        return false unless s[:hung]
+
+        Pipes.top(p).between?(under(s) - HANG, under(s) + 1.0)
+      end
+
+      # A hot line (or the drawing's steam): on a shoe, no U-bolt.
+      def shoe?(p)
+        p[:shoe] == true || p[:hot] == true
       end
 
       # E's placement (a support's struct): chord { z:, r: } – the round
@@ -146,6 +178,7 @@ module ArtK
       # Which steel a pipe +p+ is on: its top (C's steam shoe, E's upper tier).
       def level_of(t, p, geo = nil)
         s = type(t)
+        return under(s) if s[:form] == :frame && hangs?(s, p)
         return on_top?(s, p) ? shoe_top(s) : 0.0 unless s[:form] == :hanger
 
         levels(t, geo).reverse.find { |v| Pipes.bottom(p) >= v - 1.0 } || 0.0
@@ -202,30 +235,59 @@ module ArtK
         lv = levels(t, geo).find { |v| (z - v).abs <= 3.0 }
         r = if lv && y.between?(lo - 3.0, hi + 3.0)
               { z: lv, bare: false, half: b }
+            elsif s[:hung] && (z - under(s)).abs <= 3.0 && y.between?(lo - 3.0, hi + 3.0)
+              { z: under(s), bare: false, half: b, hang: true }
             elsif s[:top] && y.between?(lo, hi) && z.between?(top_level(s) - 3.0, shoe_top(s) + 3.0)
               { z: shoe_top(s), bare: true, half: s[:top][:shoe_len] / 2.0 }
             elsif q
               { z: q[:z] - q[:r], bare: q[:top] == true, half: b }
             end
-        r && r.merge(y: place(t, s, y, r, pipe, taken, geo))
+        r && place(t, s, y, r, pipe, taken, geo)
       end
 
-      # Rest.y: the drawing's place for a pipe +drawn+ there (or y).
+      # The rest at the drawing's place for a pipe +drawn+ there (or at y):
+      # + y:; z: / bare: settled for the place (on the steam's shoe, hung
+      # under the top member).
       def place(t, s, y, rest, drawn, taken, geo = nil)
         mine = taken.select { |p| level_of(t, p, geo) == rest[:z] }
-        near = nominal(t, geo).select { |q| (Pipes.bottom(q) - rest[:z]).abs < 1.0 && (q[:y] - y).abs <= SNAP }
+        near = nominal(t, geo).select do |q|
+          (seat(t, s, q, geo) - rest[:z]).abs < 1.0 && (q[:y] - y).abs <= SNAP
+        end
         best = near.sort_by { |q| (q[:y] - y).abs }.find do |q|
           if drawn
+            fin = rest.merge(settle(s, rest, q, drawn))
             r = drawn[:od] / 2.0 + drawn[:ins].to_f
-            lift = rest[:bare] ? drawn[:od] / 2.0 : r
-            p = pipe(q[:y], rest[:z] + lift, drawn[:od], 'new').merge(ins: drawn[:ins].to_f, r: r)
+            lift = fin[:bare] ? drawn[:od] / 2.0 : r
+            p = pipe(q[:y], fin[:z] + lift, drawn[:od], 'new').merge(ins: drawn[:ins].to_f, r: r)
             carried, top = fit(t, s, mine + [p], [], geo)
             (carried.include?(p) || top.equal?(p)) && mine.none? { |o| (o[:y] - p[:y]).abs < side(o) + side(p) }
           else
             mine.none? { |o| (o[:y] - q[:y]).abs < o[:r] + q[:r] + 25.0 }
           end
         end
-        best ? best[:y] : y
+        rest.merge(settle(s, rest, best, drawn)).merge(y: best ? best[:y] : y).reject { |k, _| k == :hang }
+      end
+
+      # The steel the drawing's line +q+ sits on (z): the member under it
+      # (the steam: the bottom one, under its shoe), the top member it
+      # hangs from, C's top seat.
+      def seat(t, s, q, geo)
+        return 0.0 if q[:shoe]
+
+        level_of(t, q, geo)
+      end
+
+      # Where on that steel a pipe +drawn+ at place +q+ goes: on the shoe
+      # (an insulated line – the bare pipe on it), hung (its top at the
+      # underside).
+      def settle(s, rest, q, drawn)
+        if rest[:hang]
+          d = drawn || q || s[:hung].first
+          return { z: rest[:z] - d[:od] - 2.0 * d[:ins].to_f, bare: false }
+        end
+        return { z: SHOE[:h], bare: true } if q && q[:shoe] && (drawn.nil? || drawn[:ins].to_f.positive?)
+
+        {}
       end
 
       # A pipe on C's steam shoe (above the top member), not on the bottom.
@@ -277,9 +339,15 @@ module ArtK
         else rod = hanger(part, bom, lines, checks, t, s, key, carried, opts, geo)
         end
         carried.each do |p|
-          v = level_of(t, p, geo)
-          D.packer(part, bom, p, v, b)
-          D.pipe_u_bolt(part, bom, p, v, tf, x: xu)
+          if s[:form] == :frame && hangs?(s, p)
+            hung_u_bolt(part, bom, p, s, key, xu)
+          elsif s[:form] == :frame && shoe?(p)
+            pipe_shoe(part, bom, lines, p)
+          else
+            v = level_of(t, p, geo)
+            D.packer(part, bom, p, v, b)
+            D.pipe_u_bolt(part, bom, p, v, tf, x: xu)
+          end
         end
         anchors(part, bom, checks, notes, s, key, carried + [top_pipe].compact, opts) if s[:anchor]
         checks.each do |c|
@@ -298,7 +366,7 @@ module ArtK
         D::Result.new(part: part, bom: bom, checks: checks, notes: notes, carried: carried + [top_pipe].compact,
                       lines: lines, info: { type: t, section: key, anchor: s[:anchor], anchors: s[:bolts].to_a.size,
                                             rod: rod, nominal: !given, guides: free.map { |p| [p[:y], p[:z]] },
-                                            rests: free.map { |p| [p[:y], p[:top] ? shoe_top(s) : Pipes.bottom(p)] },
+                                            rests: free.map { |p| [p[:y], rest_of(s, p).round(6)] },
                                             size: size, h: h, tiers: tiers, title: title })
       end
 
@@ -331,7 +399,13 @@ module ArtK
         pipes.each do |p|
           u = Hardware.get(D.u_size(p))
           bottom = Pipes.bottom(p)
-          if bottom.between?(-1.0, RISE) && p[:y] - side(p) >= lo && p[:y] + side(p) <= hi && p[:z] + p[:r] + u[:d] <= room
+          across = p[:y] - side(p) >= lo && p[:y] + side(p) <= hi
+          if s[:form] == :frame && hangs?(s, p) && across
+            carried << p
+          elsif bottom.between?(-1.0, RISE) && across && p[:z] + p[:r] + u[:d] <= room
+            carried << p
+          elsif shoe?(p) && Pipes.bare_bottom(p).between?(SHOE[:t] - 1.0, RISE) && across && p[:z] + p[:r] <= room
+            notes << "ท่อ #{p[:label]}: shoe ต่ำกว่าฉนวน – ยกท่อขึ้นให้ shoe สูงกว่าฉนวน (≥ #{SHOE[:h].round} มม.)"
             carried << p
           elsif on_top?(s, p) && p[:y].between?(0.0, s[:width])
             top = p if top.nil? || (p[:y] - s[:top][:y]).abs < (top[:y] - s[:top][:y]).abs
@@ -426,11 +500,71 @@ module ArtK
         D.bom_steel(bom, key, 2 * w, 'คานบน + คานล่าง')
         D.bom_steel(bom, key, 2 * s[:height], 'เสาโครง 2 ตัว')
         inch = Steel.get(key)[:inch]
-        beam(checks, "คานล่าง #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(pipes, opts))
-        return unless s[:top]
+        upper, lower = pipes.partition { |p| hangs?(s, p) }
+        beam(checks, "คานล่าง #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(lower, opts))
+        upper << top_pipe if top_pipe
+        top_shoe(part, bom, lines, s, b, top_pipe) if top_pipe || (s[:top] && s[:top][:nominal] != false)
+        return if upper.empty?
 
-        top_shoe(part, bom, lines, s, b, top_pipe)
-        beam(checks, "คานบน #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads([top_pipe].compact, opts))
+        beam(checks, "คานบน #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(upper, opts))
+      end
+
+      # Where a free place's guide goes: the pipe's underside (on the
+      # steam's shoe: the bare pipe's; hung: its top, at the top member).
+      def rest_of(s, p)
+        return shoe_top(s) if p[:top]
+        return Pipes.top(p) if s[:form] == :frame && hangs?(s, p)
+        return Pipes.bare_bottom(p) if p[:shoe]
+
+        Pipes.bottom(p)
+      end
+
+      # A line hung under the frame's top member: U-bolt round it from
+      # below, its legs up through the member's lower flange, nuts on that
+      # flange inside the channel; a spacer when it hangs lower.
+      def hung_u_bolt(part, bom, p, s, key, x)
+        sec = Steel.get(key)
+        u = under(s)
+        size = D.u_size(p)
+        hs = Hardware.get(size)
+        rc = p[:r] + 1.0 + hs[:d] / 2.0
+        gap = u - Pipes.top(p)
+        if gap >= 2.0
+          w = 2.0 * (p[:r] + hs[:d]) + 10.0
+          part.add(:steel, Mesh.box([-sec[:b] / 2.0 + 5.0, p[:y] - w / 2.0, u - gap], [sec[:b] / 2.0 - 5.0, p[:y] + w / 2.0, u]))
+          D.bom_pad(bom, (sec[:b] - 10.0) * w * gap * Steel::RHO)
+        end
+        above = u + sec[:t2]
+        leg = above + Hardware.stack_height(size) + 0.6 * hs[:d] - p[:z]
+        Hardware.u_bolt(part, [x, p[:y], p[:z]], [0, 1.0, 0], [0, 0, -1.0], p[:r] + 1.0, size, leg)
+        [-1, 1].each { |k| Hardware.fastening(part, [x, p[:y] + k * rc, above], [0, 0, 1.0], size) }
+        D.bom_item(bom, 'ubolt', "U-bolt #{Hardware.label(size)} แขวนท่อ #{p[:label]}", 1, key: "ub #{size} #{p[:od].round}")
+        D.nuts(bom, size, 2)
+      end
+
+      # Hot line's shoe on the bottom member: base plate between two angle
+      # guides, a web up to the bare pipe (welded to it; the insulation
+      # round it) – free to slide along the pipe.
+      def pipe_shoe(part, bom, lines, p)
+        sh = SHOE
+        t = sh[:t]
+        y = p[:y]
+        top = Pipes.bare_bottom(p)
+        part.add(:steel, Mesh.box([-sh[:len] / 2.0, y - sh[:b] / 2.0, 0.0], [sh[:len] / 2.0, y + sh[:b] / 2.0, t]))
+        if top > t + 1.0
+          part.add(:steel, Mesh.box([-sh[:len] / 2.0, y - t / 2.0, t], [sh[:len] / 2.0, y + t / 2.0, top]))
+        end
+        lines << [[0.0, y, 0.0], [0.0, y, top]]
+        bom << { cat: 'plate', key: 'shoe', desc: "Shoe ท่อร้อน (เพลท #{t.round} มม. สูง #{top.round} มม.)", qty: 1,
+                 kg: (sh[:len] * (sh[:b] + [top - t, 0.0].max) * t * Steel::RHO).round(2) }
+        g = Steel.get(sh[:guide])
+        [-1, 1].each do |k|
+          heel = [-sh[:guide_len] / 2.0, y + k * (sh[:b] / 2.0 + sh[:gap]), 0.0]
+          part.add(:steel, Steel.angle(sh[:guide], heel, Vec.add(heel, [sh[:guide_len], 0, 0]), [0, k.to_f, 0], [0, 0, 1.0]))
+          D.box_lines(lines, [-sh[:guide_len] / 2.0, [heel[1], heel[1] + k * g[:a]].min, 0.0],
+                      [sh[:guide_len] / 2.0, [heel[1], heel[1] + k * g[:a]].max, g[:a]])
+          D.bom_steel(bom, sh[:guide], sh[:guide_len], 'ไกด์ shoe')
+        end
       end
 
       # 2" angle seat lying on the top member (its other leg down the web
