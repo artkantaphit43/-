@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.5**
-(`dist/artk_plant_pipe-1.16.5.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.2**
-(`dist/artk_steel_support-2.4.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (310 runs, all green).
+(`dist/artk_plant_pipe-1.16.5.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.0**
+(`dist/artk_steel_support-2.5.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (313 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -213,6 +213,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   หน้าตัดตัดที่แกนโค้ง (v ≥ 0, จุดใกล้แกน < 2 มม. ลงแกน, แทรกมุมจุดตัดวงกลม–แกน, รูในมุมเดียวกัน) = ด้านในโค้งเต็มถึงแกน solid ปิด ·
   ฉนวนบางกว่าเดิม = รูปเดิมทุกจุด · **ไฟล์เก่าไม่ต้องวาดใหม่:** `Migrate.model` (เปิดไฟล์/โหลดปลั๊กอิน) วาดใหม่เฉพาะท่อที่ `extras` มี insulation
   (`bare_elbows?`, res `insulated`) – กลุ่มท่อเดิม (pid เดิม ซัพพอร์ตยังเชื่อม) · ไม่ได้เปลี่ยน DataFormat
+- **Steel Supports 2.5.0 – C ใหญ่ + shoe คู่** ("ทำซัพพอตเพิ่ม เอาแบบ C แต่ขยายใส่ท่อสตีม 4 นิ้วหุ้มฉนวน เผื่ออีกหน่อยเพราะท่อขยาย อย่าใหญ่เวอร์
+  พื้นที่จำกัด อย่าทำใส่แบบ C" + "เหล็กฉาก 3 นิ้วต้องเสริม 2 ข้าง"): `TYPES['CL']` (หลัง D, series CL) 970 × 640, สตีม 4" + 100 ที่ 660 –
+  ระยะเว้น ~50 รอบฉนวน (เสาหน้า/คานบน/ท่อลม), พุก 1/2" ×3 ที่ 80/320/560, C100 ผ่าน (ดัด 13/147 MPa, พุก 0.51) · `pipe_shoe` = L75 ×2
+  หลังชนกันที่ y (ขาตั้งรวม 12 กลางท่อ, ขานอน ±75), `shoe_span` ±(75 + 3 + 10) · ใช้กับ C/D/CH/DH ด้วย · ไอคอน cl, การ์ด "C ใหญ่", Tab: D → CL → CH
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

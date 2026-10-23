@@ -531,6 +531,22 @@ class TestSteelSU < Minitest::Test
     assert_in_delta 1500.0, SH.get_json(c, 'origin')[2], 1e-6
   end
 
+  # The user (2.5): the enlarged C placed on the column face and the 4"
+  # steam (+ 100 insulation) drawn from its guide line, onto its shoe.
+  def test_4_inch_steam_drawn_onto_the_large_c
+    column!
+    g = SS::Builder.create(@model, SS::Placer.from_face(@model, 'CL', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
+                                                        [3000.0, 5000.0, 1500.0]))
+    assert_equal 'CL-01', g.get_attribute(SH::DICT, 'number')
+    assert_equal [[290.0, 0.0], [500.0, 440.0], [660.0, 75.0]], guide_points(g).sort
+    stm, tip = draw_onto('4"', [], [2800.0, -450.0 + 660.0, 1500.0 + 75.0], service: 'STM', ins: 100)
+    assert_match(/ที่ 0\.66/, tip)
+    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 157.15, p[2], 1e-6 }
+    c = supports.first
+    assert_empty SH.get_json(c, 'notes')
+    assert_equal 2, SH.get_json(c, 'bom').count { |b| b['key'] == 'L75' }
+  end
+
   # The user (2.4.2, screenshot – "มันไม่จับท้องฉนวน"): the steam drawn from
   # its guide line (a guide snap: no instance path) lay with its centre on
   # the line, the insulation into the steel – now its insulation's
@@ -639,11 +655,13 @@ class TestSteelSU < Minitest::Test
     assert_match(/ท่อกลม/, err.message)
   end
 
-  def test_place_tool_has_c_and_d_hung_after_d
+  def test_place_tool_has_c_large_and_c_and_d_hung_after_d
     iso!
     tool = SS::PlaceTool.new('D')
     tool.activate
     view = @model.active_view
+    tool.onKeyDown(9, false, 0, view)
+    assert_equal 'CL', tool.instance_variable_get(:@detail), 'C enlarged (2.5) next to C / D'
     tool.onKeyDown(9, false, 0, view)
     assert_equal 'CH', tool.instance_variable_get(:@detail)
     assert_match(/แขวนท่อกลม/, Sketchup.status_text.to_s)
@@ -712,7 +730,7 @@ class TestSteelSU < Minitest::Test
     SH.forget_settings
     assert_equal 'A', SH.settings['detail'], '1.0 types are no longer offered'
     d = SS::Dialog.payload
-    assert_equal %w[A B C D CH DH E E2 F G], d[:types].map { |t| t[:key] }
+    assert_equal %w[A B C D CL CH DH E E2 F G], d[:types].map { |t| t[:key] }
     assert_match(/เหล็กเส้น/, d[:types].last[:info])
     assert_equal true, d[:linked]
     JSON.generate(d)

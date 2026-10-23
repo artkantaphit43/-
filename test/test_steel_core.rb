@@ -232,7 +232,7 @@ class TestSteelStd < Minitest::Test
       assert_equal [1740, 1040], r.bom.select { |x| x[:cat] == 'steel' && x[:key] == 'C100' }.map { |x| x[:length] }
     end
     c = SS::Std.build('C')
-    assert_equal %w[L75], c.bom.select { |x| x[:cat] == 'steel' && x[:key] != 'C100' }.map { |x| x[:key] }, "the steam's 3\" angle shoe"
+    assert_equal %w[L75 L75], c.bom.select { |x| x[:cat] == 'steel' && x[:key] != 'C100' }.map { |x| x[:key] }, "the steam's 3\" angle shoe"
   end
 
   def test_drawing_pipe_positions_when_no_pipes
@@ -459,6 +459,53 @@ class TestSteelStd < Minitest::Test
     sunk = SS::Std.build('C', [P.call(650, 75.0, 60.3, 70.0, 'steam').merge(hot: true)])
     assert_equal 1, sunk.notes.size, sunk.notes.inspect
     assert_match(/ยกท่อขึ้น 100 มม\./, sunk.notes.first)
+  end
+
+  # The user (2.5, "เหล็กฉาก 3 นิ้วมันต้องเสริม 2 ข้าง"): the shoe of two 3"
+  # angles back to back (⊥) – upright legs together under the line, the
+  # lying legs out to both sides between the guides.
+  def test_shoe_of_two_angles_back_to_back
+    { 'C' => 650.0, 'CL' => 660.0 }.each do |t, ys|
+      r = SS::Std.build(t)
+      assert_equal [200, 200], r.bom.select { |b| b[:key] == 'L75' }.map { |b| b[:length] }, t
+      pts = r.part.solids.flat_map { |role, sol| role == :steel ? sol.polys.flatten(1) : [] }
+                         .select { |q| q[0].abs <= 101.0 && (q[1] - ys).abs <= 100.0 }
+      web = pts.select { |q| q[2] > 31.0 && q[2] < 80.0 }
+      assert_equal [ys - 6.0, ys + 6.0], web.map { |q| q[1].round(6) }.minmax, "#{t}: upright legs together, centred"
+      assert_in_delta 75.0, web.map { |q| q[2] }.max, 1e-6, "#{t}: 75 high"
+      foot = pts.select { |q| q[2] > 0.5 && q[2] < 6.5 && (q[1] - ys).abs < 76.0 }
+      assert_equal [ys - 75.0, ys + 75.0], foot.map { |q| q[1].round(6) }.minmax, "#{t}: a leg out to each side"
+      assert_equal 2, r.bom.select { |b| b[:key] == 'guide' }.sum { |b| b[:qty] }, t
+    end
+  end
+
+  # The user (2.5): C enlarged – a type of its own, C stays as drawn – for
+  # the 4" steam + 100 insulation (2 layers of 2": 0.31 overall) on its
+  # shoe, about 0.05 clear round it (the line moves as it heats) and no
+  # bigger (the site is tight); the 6" and the hung 2" air as C's.
+  def test_c_large_takes_the_4_inch_steam
+    r = SS::Std.build('CL')
+    r.part.solids.each { |role, sol| assert SS::Mesh.closed?(sol), role.to_s }
+    assert_equal [970.0, 640.0], r.info[:size]
+    assert_equal [870.0, 520.0], SS::Std.build('C').info[:size], 'C as it was'
+    assert_equal [290.0, 500.0, 660.0], r.carried.map { |p| p[:y] }.sort
+    stm = r.carried.find { |p| p[:y] == 660.0 }
+    air = r.carried.find { |p| p[:y] == 500.0 }
+    assert_equal [114.3, 100.0], [stm[:od], stm[:ins]]
+    assert_in_delta 75.0 + 157.15, stm[:z], 1e-6, 'its insulation on the shoe'
+    assert_in_delta 640.0 - 200.0 - 30.15, air[:z], 1e-6, 'air hung under the top member'
+    clear = { 'front post' => 970.0 - 100.0 - (stm[:y] + stm[:r]), 'top member' => 440.0 - (stm[:z] + stm[:r]),
+              'air' => Math.hypot(stm[:y] - air[:y], stm[:z] - air[:z]) - stm[:r] - air[:r] }
+    clear.each { |k, g| assert g.between?(50.0, 60.0), "#{k}: #{g.round(1)} clear" }
+    assert_empty r.notes
+    assert r.ok?, r.checks.reject { |c| c[:ok] }.inspect
+    assert_equal [[290.0, 0.0], [500.0, 440.0], [660.0, 75.0]], r.info[:rests].sort
+    assert_equal [660.0, 75.0, false], SS::Std.rest('CL', 660.0, 75.0, { od: 114.3, ins: 100.0 }).values_at(:y, :z, :bare)
+    four = [P.call(290, 84.15, 168.3, 0.0, '6"'), P.call(500, 409.85, 60.3, 0.0, 'air'),
+            P.call(660, 75.0 + 157.15, 114.3, 100.0, '4" steam').merge(hot: true)]
+    assert_empty SS::Std.build('CL', four).notes
+    on_c = SS::Std.build('C', [P.call(650, 75.0 + 157.15, 114.3, 100.0, '4" steam').merge(hot: true)])
+    assert(on_c.notes.any? { |n| n.include?('ชน') }, 'too big for C')
   end
 
   # The user's Iso wall (no drilling / fixing to it, 2.4): C / D hung from

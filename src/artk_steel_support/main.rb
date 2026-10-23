@@ -38,8 +38,10 @@ module ArtK
         settings: command('Steel Supports / ซัพพอร์ตเหล็ก', 'เลือกแบบ A–G และคำสั่งทั้งหมด', 'settings') { Commands.settings },
         a: command('Support A / ซัพพอร์ต A', 'ขาค้ำ C 3" 0.31×0.30 – ชี้ท่อข้างเสา หรือหน้าเสา แล้วคลิก', 'a') { Commands.place('A') },
         b: command('Support B / ซัพพอร์ต B', 'ขาค้ำ C 4" 0.48×0.40 – ชี้ท่อข้างเสา หรือหน้าเสา แล้วคลิก', 'b') { Commands.place('B') },
-        c: command('Support C / ซัพพอร์ต C', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe เหล็กฉาก 3"', 'c') { Commands.place('C') },
-        d: command('Support D / ซัพพอร์ต D', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe เหล็กฉาก 3"', 'd') { Commands.place('D') },
+        c: command('Support C / ซัพพอร์ต C', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe เหล็กฉาก 3" คู่', 'c') { Commands.place('C') },
+        d: command('Support D / ซัพพอร์ต D', 'โครงกล่อง C 4" 0.87×0.52 – 6" + ลม 2" แขวน + สตีม 2" บน shoe เหล็กฉาก 3" คู่', 'd') { Commands.place('D') },
+        cl: command('Support C large / ซัพพอร์ต C ใหญ่', 'โครงกล่อง C 4" 0.97×0.64 – 6" + ลม 2" แขวน + สตีม 4" + ฉนวน 100 บน shoe เหล็กฉาก 3" คู่',
+                    'cl') { Commands.place('CL') },
         ch: command('Support C hung / ซัพพอร์ต C แขวน', 'โครง C แขวนท่อกลมด้านบนด้วย pipe shoe 2 ตัว – ไม่ยึดผนัง (Iso wall)', 'ch') do
           Commands.place('CH')
         end,
@@ -59,9 +61,9 @@ module ArtK
         report: command('BOM & Checks / รายการวัสดุ', 'สรุปเหล็ก U-bolt พุก น็อต และผลตรวจกำลัง', 'report') { Commands.report }
       }
       menu = UI.menu('Extensions').add_submenu('Steel Supports TH')
-      %i[settings a b c d ch dh e e2 f g columns refit report].each { |k| menu.add_item(cmds[k]) }
+      %i[settings a b c d cl ch dh e e2 f g columns refit report].each { |k| menu.add_item(cmds[k]) }
       tb = UI::Toolbar.new('Steel Supports TH')
-      %i[settings a b c d ch dh e e2 f g columns refit report].each { |k| tb.add_item(cmds[k]) }
+      %i[settings a b c d cl ch dh e e2 f g columns refit report].each { |k| tb.add_item(cmds[k]) }
       tb.restore
       # Plant Piping loads first (file order); register now and once more
       # when SketchUp is up, in case it came later.

@@ -24,6 +24,8 @@ module ArtK
     #      (650), 2" air hung under the top member (500). (2.0: C had 6" at
     #      330, 2" air at 600 and a 4" steam on a shoe on top – a line on
     #      top is still carried so; D had lines at 330, 540, 690.)
+    #   CL C enlarged (2.5): 970 × 640 for a 4" steam + 100 insulation on
+    #      its shoe at 660 (~0.05 clear round it); 6" and air as C's.
     #   E  trapeze C 4" 800 long hung on 2 threaded rods (700 apart) from a
     #      round member above (C-clip under it, U-bolt over it), centred on
     #      that member's axis; lines at 230 and 565. E2 (or pipes stacked
@@ -63,6 +65,16 @@ module ArtK
                          { y: 650.0, od: 60.3, ins: 70.0, shoe: true, label: '2" สตีม + ฉนวน 70' }],
                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
                  th: 'ซัพพอร์ต D – โครงกล่อง C 4"' },
+        # C enlarged for the 4" steam + 100 insulation (2 layers of 2", 2.5)
+        # – a type of its own: ~0.05 clear round the insulation (the line
+        # moves as it heats) and no more (the site is tight); 6" and air
+        # as C's.
+        'CL' => { form: :frame, sec: 'C100', width: 970.0, height: 640.0, anchor: '1/2', bolts: [80.0, 320.0, 560.0],
+                  series: 'CL',
+                  pipes: [{ y: 290.0, od: 168.3, label: '6" ประปา' },
+                          { y: 660.0, od: 114.3, ins: 100.0, shoe: true, label: '4" สตีม + ฉนวน 100' }],
+                  hung: [{ y: 500.0, od: 60.3, label: '2" ลม' }],
+                  th: 'ซัพพอร์ต C ใหญ่ – โครงกล่อง C 4" 0.97×0.64 (สตีม 4" + ฉนวน 100)' },
         # C / D on an Iso wall (nothing may be fixed to it, 2.4): the same
         # frame hung from the round member over it by two pipe shoes –
         # types of their own, so C / D never look for one.
@@ -98,10 +110,10 @@ module ArtK
       DROP = 600.0 # E without a placement: round member this far over the top tier
       RISE = 300.0 # a pipe up to this above the steel rides on a packer
       HANG = 30.0  # a pipe whose top is this near a frame's top member hangs from it
-      # Steam's shoe on a frame's bottom member (2.4.1, the user's 3"): an
-      # angle +len+ long, the line's insulation on its upright leg (h –
-      # 2.4.2: "จับท้องฉนวน"); between two flat-bar guides w × h × len,
-      # +gap+ off its lying leg.
+      # Steam's shoe on a frame's bottom member (2.4.1, the user's 3"): two
+      # angles +len+ long back to back (2.5), the line's insulation on
+      # their upright legs (h – 2.4.2: "จับท้องฉนวน"); between two flat-bar
+      # guides w × h × len, +gap+ off the lying legs.
       SHOE = { h: 75.0, key: 'L75', len: 200.0, bar: [10.0, 30.0, 100.0], gap: 3.0 }.freeze
       # CH / DH hung from a round member (Iso wall – nothing fixed to it, 2.4):
       # two pipe-shoe clamps (the user's picture, upside down) on the top
@@ -191,11 +203,10 @@ module ArtK
         (shoe_place?(s, p) && b + 2.0 * p[:r] > 0.0) || (shoe?(p) && b >= a[:t] + a[:r1] + a[:r2] + 1.0)
       end
 
-      # Across the steel under a shoe at +y+ (its lying leg, the guides).
+      # Across the steel under a shoe at +y+ (its lying legs, the guides).
       def shoe_span(y)
-        a = Steel.get(SHOE[:key])
-        out = SHOE[:gap] + SHOE[:bar][0]
-        [y + a[:t] / 2.0 - a[:a] - out, y + a[:t] / 2.0 + out]
+        a = Steel.get(SHOE[:key])[:a] + SHOE[:gap] + SHOE[:bar][0]
+        [y - a, y + a]
       end
 
       # E's placement (a support's struct): chord { z:, r: } – the round
@@ -725,29 +736,31 @@ module ArtK
         D.nuts(bom, size, 2)
       end
 
-      # Steam's shoe on the bottom member: a 3" angle under the line, its
-      # insulation on the upright leg (2.4.2; cut / packed to its height –
-      # the drawn 75 under one lower), the other leg lying on the member
+      # Steam's shoe on the bottom member: two 3" angles back to back (⊥,
+      # 2.5 – "เสริม 2 ข้าง") under the line, its insulation on their
+      # upright legs (2.4.2; cut / packed to its height – the drawn 75
+      # under one lower), the lying legs out to both sides on the member
       # between two flat-bar guides – free to slide along the pipe.
       def pipe_shoe(part, bom, lines, p)
         sh = SHOE
         a = Steel.get(sh[:key])
         y = p[:y]
-        y0 = y + a[:t] / 2.0 # the upright leg's back, the lying leg in from it
         gap = Pipes.bottom(p)
         leg = a[:a]
         base = 0.0
         if gap > a[:a] + 1.0 # packed up under the shoe
           base = gap - a[:a]
-          part.add(:steel, Mesh.box([-sh[:len] / 2.0, y0 - a[:a], 0.0], [sh[:len] / 2.0, y0, base]))
-          D.bom_pad(bom, sh[:len] * a[:a] * base * Steel::RHO)
+          part.add(:steel, Mesh.box([-sh[:len] / 2.0, y - a[:a], 0.0], [sh[:len] / 2.0, y + a[:a], base]))
+          D.bom_pad(bom, sh[:len] * 2.0 * a[:a] * base * Steel::RHO)
         elsif gap >= a[:t] + a[:r1] + a[:r2]
           leg = gap
         end
-        heel = [-sh[:len] / 2.0, y0, base]
-        part.add(:steel, Steel.angle(sh[:key], heel, Vec.add(heel, [sh[:len], 0, 0]), [0, -1.0, 0], [0, 0, 1.0],
-                                     leg2_len: leg))
-        D.bom_steel(bom, sh[:key], sh[:len], 'shoe ท่อร้อน')
+        heel = [-sh[:len] / 2.0, y, base]
+        [-1.0, 1.0].each do |k|
+          part.add(:steel, Steel.angle(sh[:key], heel, Vec.add(heel, [sh[:len], 0, 0]), [0, k, 0], [0, 0, 1.0],
+                                       leg2_len: leg))
+          D.bom_steel(bom, sh[:key], sh[:len], 'shoe ท่อร้อน (คู่)')
+        end
         lines << [[0.0, y, 0.0], [0.0, y, base + leg]]
         w, hb, lb = sh[:bar]
         lo, hi = shoe_span(y)
