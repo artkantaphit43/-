@@ -503,8 +503,9 @@ class TestSteelSU < Minitest::Test
   end
 
   # The user's new C (2.3): the 6" on the bottom member; the steam (2" +
-  # insulation) drawn onto its guide lies bare on its shoe between the
-  # guides; the air drawn onto its guide hangs under the top member.
+  # insulation) drawn onto its guide lies on its shoe between the guides
+  # (2.4.2: the insulation on it); the air drawn onto its guide hangs
+  # under the top member.
   def test_pipes_drawn_onto_the_new_c
     column!
     g = SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
@@ -513,7 +514,7 @@ class TestSteelSU < Minitest::Test
     six, = draw_onto('6"', [g], [2600.0, -450.0 + 300.0, 1500.0])
     stm, tip = draw_onto('2"', [supports.first], [2600.0, -450.0 + 640.0, 1500.0], service: 'STM', ins: 70)
     assert_match(/ที่ 0\.65/, tip)
-    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 30.15, p[2], 1e-6, 'bare on the shoe' }
+    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 100.15, p[2], 1e-6, 'its insulation on the shoe' }
     air, = draw_onto('2"', [supports.first], [2600.0, -450.0 + 510.0, 1500.0 + 320.0], service: 'CA')
     PH.get_json(air, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 320.0 - 30.15, p[2], 1e-6, 'hung: top at the member' }
     c = supports.first
@@ -528,6 +529,21 @@ class TestSteelSU < Minitest::Test
     assert_empty SH.get_json(c, 'notes')
     assert_empty guide_points(c)
     assert_in_delta 1500.0, SH.get_json(c, 'origin')[2], 1e-6
+  end
+
+  # The user (2.4.2, screenshot – "มันไม่จับท้องฉนวน"): the steam drawn from
+  # its guide line (a guide snap: no instance path) lay with its centre on
+  # the line, the insulation into the steel – now its insulation's
+  # underside is on the line, on the shoe.
+  def test_steam_drawn_from_its_guide_line
+    column!
+    SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
+                                                    [3000.0, 5000.0, 1500.0]))
+    stm, tip = draw_onto('2"', [], [2800.0, -450.0 + 650.0, 1500.0 + 75.0], service: 'STM', ins: 70)
+    assert_match(/ที่ 0\.65/, tip)
+    PH.get_json(stm, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 100.15, p[2], 1e-6 }
+    assert_empty SH.get_json(supports.first, 'notes')
+    assert(SH.get_json(supports.first, 'bom').any? { |b| b['key'] == 'L75' })
   end
 
   # The user's case (2.0.5): the 6" picked on the arm by the column and

@@ -301,7 +301,8 @@ class TestSteelStd < Minitest::Test
     assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('B', 250.0, 0.4), 'on the arm')
     assert_equal({ z: 0.0, bare: false, half: 20.0 }, at.call('A', 100.0, 0.0))
     assert_equal({ z: 0.0, bare: false, half: 25.0 }, at.call('D', 400.0, 0.0), 'on the bottom member')
-    assert_equal({ z: 75.0, bare: true, half: 25.0 }, at.call('D', 600.0, 0.0), 'near the steam: onto its shoe')
+    assert_equal({ z: 75.0, bare: false, half: 25.0 }, at.call('D', 600.0, 0.0), 'near the steam: its insulation on the shoe')
+    assert_equal({ z: 75.0, bare: false, half: 25.0 }, at.call('D', 650.0, 75.0), "on the steam's guide line (2.4.2)")
     assert_nil SS::Std.rest('D', 50.0, 0.0), 'inside the back post'
     assert_nil SS::Std.rest('B', 250.0, -50.0)
     assert_equal({ z: 525.0, bare: true, half: 100.0 }, at.call('C', 435.0, 425.0), 'a line on top (2.0): onto its shoe')
@@ -403,7 +404,7 @@ class TestSteelStd < Minitest::Test
       at = ->(y) { r.carried.find { |p| p[:y] == y } }
       assert_in_delta 84.15, at.call(290.0)[:z], 1e-6, "#{t}: 6\" on the bottom member"
       assert_in_delta 320.0 - 30.15, at.call(500.0)[:z], 1e-6, "#{t}: air hung under the top member"
-      assert_in_delta 75.0 + 30.15, at.call(650.0)[:z], 1e-6, "#{t}: steam on its 3\" angle shoe"
+      assert_in_delta 75.0 + 100.15, at.call(650.0)[:z], 1e-6, "#{t}: steam's insulation on its 3\" angle shoe"
       assert_in_delta 70.0, at.call(650.0)[:ins], 1e-6, "#{t}: 2\" + 70 insulation, about 0.20 overall"
       assert_equal [[290.0, 0.0], [500.0, 320.0], [650.0, 75.0]], r.info[:rests].sort, "#{t}: guides"
       assert_equal %w[ub\ 1/2\ 168 ub\ 3/8\ 60].map { |k| k.delete('\\') }.sort,
@@ -422,28 +423,42 @@ class TestSteelStd < Minitest::Test
     six = SS::Std.rest('C', 310.0, 0.0, { od: 168.3, ins: 0.0 })
     assert_equal [290.0, 0.0, false], six.values_at(:y, :z, :bare)
     stm = SS::Std.rest('C', 630.0, 0.0, { od: 60.3, ins: 70.0 })
-    assert_equal [650.0, 75.0, true], stm.values_at(:y, :z, :bare), 'onto the shoe: the bare pipe on it'
+    assert_equal [650.0, 75.0, false], stm.values_at(:y, :z, :bare), 'onto the shoe: its insulation on it'
+    # the user (2.4.2): picked on the steam's guide line (the shoe's top) – the same
+    assert_equal [650.0, 75.0, false], SS::Std.rest('C', 650.0, 75.0, { od: 60.3, ins: 70.0 }).values_at(:y, :z, :bare)
+    assert_equal [650.0, 75.0, false], SS::Std.rest('D', 650.0, 75.0, { od: 60.3, ins: 100.0 }).values_at(:y, :z, :bare)
     air = SS::Std.rest('C', 520.0, 320.0, { od: 60.3, ins: 0.0 })
     assert_equal 500.0, air[:y]
     assert_in_delta 320.0 - 60.3, air[:z], 1e-6, 'under the top member: its top touches it'
     # drawn there, each carried its own way
     pipes = [P.call(290, 84.15, 168.3, 0, '6"'), P.call(500, 320.0 - 30.15, 60.3, 0, 'air'),
-             P.call(650, 75.0 + 30.15, 60.3, 70.0, 'steam').merge(hot: true)]
+             P.call(650, 75.0 + 100.15, 60.3, 70.0, 'steam').merge(hot: true)]
     r = SS::Std.build('D', pipes)
     assert_equal 3, r.carried.size
     assert_empty r.notes
     refute(r.bom.any? { |b| b[:desc].include?('steam') && b[:cat] == 'ubolt' })
   end
 
-  # The user (2.4.1): the steam's shoe is a 3" angle (75); its insulation
-  # (2 layers of 2" = 100) deeper than the shoe, or pipes too big for the
-  # frame's opening (0.67 × 0.32 inside), are said.
+  # The user (2.4.1–2.4.2): the steam's insulation sits on a 3" angle (75 –
+  # "เหล็กฉาก 3 นิ้ว 75 mm + เส้นผ่านศูนย์กลาง 20 เซนนิดๆ" in 0.67 × 0.32
+  # inside); pipes too big for the opening, into each other, or below the
+  # shoe (drawn by 2.4.1's guide) are said.
   def test_c_d_say_when_the_pipes_do_not_fit
-    thick = SS::Std.build('C', [P.call(650, 75.0 + 30.15, 60.3, 100.0, 'steam').merge(hot: true)])
-    assert(thick.notes.any? { |n| n.include?('steam') && n.include?('ฉนวน') }, 'insulation deeper than the shoe')
-    big = SS::Std.build('C', [P.call(650, 75.0 + 57.15, 114.3, 100.0, '4" steam').merge(hot: true),
+    thick = SS::Std.build('C', [P.call(650, 75.0 + 130.15, 60.3, 100.0, 'steam').merge(hot: true)])
+    assert(thick.notes.any? { |n| n.include?('steam') && n.include?('ชนคานบน') }, thick.notes.inspect)
+    assert(thick.notes.any? { |n| n.include?('steam') && n.include?('ชนเสาหน้า') }, thick.notes.inspect)
+    assert(thick.bom.any? { |b| b[:key] == 'L75' }, 'still on its shoe')
+    big = SS::Std.build('C', [P.call(650, 75.0 + 157.15, 114.3, 100.0, '4" steam').merge(hot: true),
                               P.call(500, 320.0 - 30.15, 60.3, 0.0, 'air')])
     assert(big.notes.any? { |n| n.include?('ชน') }, big.notes.inspect)
+    two = SS::Std.build('C', [P.call(560, 84.15, 168.3, 0.0, '6"'), P.call(650, 75.0 + 100.15, 60.3, 70.0, 'steam')])
+    assert(two.notes.any? { |n| n.include?('6"') && n.include?('ชนท่อ steam') }, two.notes.inspect)
+    low = SS::Std.build('C', [P.call(650, 75.0 + 30.15, 60.3, 70.0, 'steam').merge(hot: true)])
+    assert_equal 1, low.notes.size, low.notes.inspect
+    assert_match(/steam.*ยกท่อขึ้น 70 มม\./, low.notes.first)
+    sunk = SS::Std.build('C', [P.call(650, 75.0, 60.3, 70.0, 'steam').merge(hot: true)])
+    assert_equal 1, sunk.notes.size, sunk.notes.inspect
+    assert_match(/ยกท่อขึ้น 100 มม\./, sunk.notes.first)
   end
 
   # The user's Iso wall (no drilling / fixing to it, 2.4): C / D hung from

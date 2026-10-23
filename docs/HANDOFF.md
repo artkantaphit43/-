@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.1**
-(`dist/artk_steel_support-2.4.1.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (306 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.2**
+(`dist/artk_steel_support-2.4.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (307 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -202,6 +202,12 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `pipe_shoe` = `Steel.angle` ขาตั้งกึ่งกลางใต้ท่อ (heel y + t/2, ขานอนไป −y) ตัดถึงท่อเปล่า/แผ่นรองถ้าสูงกว่า, ไกด์เหล็กแบน (bom plate key `guide`) ·
   `on_shoe?` (ท่อเปล่าสูงพอให้ขาตัดสั้นสุด t+r1+r2) · `shoe_span` (ขานอน + ไกด์ ต้องอยู่ระหว่างเสา) · สตีมในแบบ ฉนวน 70 (rest [650, 75]) ·
   `clashes` (ฉนวนจมใต้ shoe, `frame_hits` ชนเสาหลัง/หน้า/คานบน, ท่อชนกัน > 1 มม.) note มีคำว่า "ชน"/"ฉนวน" · ท่อเดิมที่ระดับ 50 ยังได้ shoe (ขาตัด 50)
+- **Steel Supports 2.4.2 – "มันไม่จับท้องฉนวน"** (ภาพ: ท่อสตีมวาดจากเส้นไกด์ ศูนย์ท่ออยู่บนเส้น ฉนวนจมในเหล็ก):
+  (1) `Std.rest` ไม่รู้จักเส้นไกด์ของสตีม (z = `SHOE[:h]`, ไม่ใช่ระดับเหล็ก) → nil → Plant Piping ใช้จุดดิบเป็นศูนย์ท่อ –
+  เพิ่ม branch `guide` (= คลิกคานล่าง) · (2) ข้อเสนอ 2.4.1 ที่ผู้ใช้ตกลง = "เหล็กฉาก 7.5 + ท่อ 20 = 27.5" คือ **ท้องฉนวนวางบน shoe**
+  แต่ทำเป็นท่อเปล่าบน shoe – แก้: `settle` bare false, `nominal` z = 75 + r, `rest_of` = ท้องฉนวน, `pipe_shoe` ขาถึงท้องฉนวน ·
+  `shoe_place?` (ท่อมีฉนวนห่างที่สตีม ≤ 25: ขึ้น shoe แม้ไม่ใช่บริการร้อน, ไม่ `hangs?`) · `clashes`: ท้องฉนวนต่ำกว่า 75 → "ยกท่อขึ้น N มม."
+  (shoe คง 75 ตามแบบ) แทนข้อความ "ฉนวนหนากว่า shoe" · เทสต์ `test_steam_drawn_from_its_guide_line` (guide snap ไม่มี path)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

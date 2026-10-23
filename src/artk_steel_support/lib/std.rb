@@ -98,9 +98,10 @@ module ArtK
       DROP = 600.0 # E without a placement: round member this far over the top tier
       RISE = 300.0 # a pipe up to this above the steel rides on a packer
       HANG = 30.0  # a pipe whose top is this near a frame's top member hangs from it
-      # Hot line's shoe on a frame's bottom member (2.4.1, the user's 3"):
-      # an angle +len+ long, its upright leg (h) to the bare pipe; between
-      # two flat-bar guides w × h × len, +gap+ off its lying leg.
+      # Steam's shoe on a frame's bottom member (2.4.1, the user's 3"): an
+      # angle +len+ long, the line's insulation on its upright leg (h –
+      # 2.4.2: "จับท้องฉนวน"); between two flat-bar guides w × h × len,
+      # +gap+ off its lying leg.
       SHOE = { h: 75.0, key: 'L75', len: 200.0, bar: [10.0, 30.0, 100.0], gap: 3.0 }.freeze
       # CH / DH hung from a round member (Iso wall – nothing fixed to it, 2.4):
       # two pipe-shoe clamps (the user's picture, upside down) on the top
@@ -146,7 +147,7 @@ module ArtK
         end
         list = s[:pipes].map do |q|
           r = q[:od] / 2.0 + q[:ins].to_f
-          z = q[:shoe] ? SHOE[:h] + q[:od] / 2.0 : r
+          z = q[:shoe] ? SHOE[:h] + r : r
           pipe(q[:y], z, q[:od], q[:label]).merge(ins: q[:ins].to_f, r: r, shoe: q[:shoe] == true)
         end
         s[:hung].to_a.each { |q| list << pipe(q[:y], under(s) - q[:od] / 2.0, q[:od], q[:label]) }
@@ -161,9 +162,10 @@ module ArtK
         top_level(s) - Steel.depth(s[:sec])
       end
 
-      # A pipe hung under a frame's top member (its top at the underside).
+      # A pipe hung under a frame's top member (its top at the underside;
+      # not the steam on its shoe).
       def hangs?(s, p)
-        return false unless s[:hung]
+        return false if !s[:hung] || shoe_place?(s, p)
 
         Pipes.top(p).between?(under(s) - HANG, under(s) + 1.0)
       end
@@ -173,11 +175,20 @@ module ArtK
         p[:shoe] == true || p[:hot] == true
       end
 
-      # One on a frame high enough for its shoe (the bare pipe at least
-      # the angle's shortest cut leg over the steel).
+      # An insulated line at the drawing's steam place (its shoe).
+      def shoe_place?(s, p)
+        s[:form] == :frame && p[:ins].to_f.positive? && s[:pipes].any? { |q| q[:shoe] && (p[:y] - q[:y]).abs <= 25.0 }
+      end
+
+      # On a frame's shoe: a line at the steam place (over the steel – the
+      # shoe as drawn under one lower, said), a hot line high enough for
+      # one (the angle's shortest cut leg under it).
       def on_shoe?(s, p)
+        return false unless s[:form] == :frame
+
         a = Steel.get(SHOE[:key])
-        s[:form] == :frame && shoe?(p) && Pipes.bare_bottom(p) >= a[:t] + a[:r1] + a[:r2] + 1.0
+        b = Pipes.bottom(p)
+        (shoe_place?(s, p) && b + 2.0 * p[:r] > 0.0) || (shoe?(p) && b >= a[:t] + a[:r1] + a[:r2] + 1.0)
       end
 
       # Across the steel under a shoe at +y+ (its lying leg, the guides).
@@ -254,7 +265,8 @@ module ArtK
       # a pipe from – Plant Piping's pipe tool: where that pipe goes,
       # { y:, z: (its underside), bare: (on the bare pipe – C's steam
       # shoe), half: (the steel there along the pipe, ±) } or nil.
-      # On the steel the pipes sit on or its guide → on it; on C's top /
+      # On the steel the pipes sit on or its guide (the steam's: on its
+      # shoe) → on it; on C's top /
       # seat / shoe → on the shoe as drawn; on a guide point of 2.0.4 and
       # before (the drawn line's centre) → where that line rests. y: the
       # nearest of the drawing's places within SNAP that no pipe there
@@ -266,8 +278,11 @@ module ArtK
         b = s[:sec] ? Steel.width(s[:sec]) / 2.0 : CRADLE[:w] / 2.0
         q = nominal(t, geo).find { |p| (p[:y] - y).abs <= 3.0 && (p[:z] - z).abs <= 3.0 }
         lv = levels(t, geo).find { |v| (z - v).abs <= 3.0 }
+        guide = s[:form] == :frame && (z - SHOE[:h]).abs <= 3.0 && s[:pipes].any? { |p| p[:shoe] && (p[:y] - y).abs <= 3.0 }
         r = if lv && y.between?(lo - 3.0, hi + 3.0)
               { z: lv, bare: false, half: b }
+            elsif guide # the steam's guide line (the shoe's top, 2.4.2): as on its member
+              { z: 0.0, bare: false, half: b }
             elsif s[:hung] && (z - under(s)).abs <= 3.0 && y.between?(lo - 3.0, hi + 3.0)
               { z: under(s), bare: false, half: b, hang: true }
             elsif s[:top] && y.between?(lo, hi) && z.between?(top_level(s) - 3.0, shoe_top(s) + 3.0)
@@ -311,14 +326,14 @@ module ArtK
       end
 
       # Where on that steel a pipe +drawn+ at place +q+ goes: on the shoe
-      # (an insulated line – the bare pipe on it), hung (its top at the
-      # underside).
+      # (an insulated line – its insulation on it, 2.4.2), hung (its top at
+      # the underside).
       def settle(s, rest, q, drawn)
         if rest[:hang]
           d = drawn || q || s[:hung].first
           return { z: rest[:z] - d[:od] - 2.0 * d[:ins].to_f, bare: false }
         end
-        return { z: SHOE[:h], bare: true } if q && q[:shoe] && (drawn.nil? || drawn[:ins].to_f.positive?)
+        return { z: SHOE[:h], bare: false } if q && q[:shoe] && (drawn.nil? || drawn[:ins].to_f.positive?)
 
         {}
       end
@@ -441,8 +456,7 @@ module ArtK
           across = p[:y] - side(p) >= lo && p[:y] + side(p) <= hi
           if s[:form] == :frame && hangs?(s, p) && across
             carried << p
-          elsif on_shoe?(s, p) && Pipes.bare_bottom(p) <= RISE && p[:z] + p[:r] <= room &&
-                shoe_span(p[:y]).first >= lo && shoe_span(p[:y]).last <= hi
+          elsif on_shoe?(s, p) && Pipes.bottom(p) <= RISE && shoe_span(p[:y]).first >= lo && shoe_span(p[:y]).last <= hi
             carried << p
           elsif bottom.between?(-1.0, RISE) && across && p[:z] + p[:r] + u[:d] <= room
             carried << p
@@ -489,15 +503,14 @@ module ArtK
         out.map { |n, mm| [n, mm.round] }
       end
 
-      # The user's frames are tight (2.4.1, 0.67 × 0.32 inside): a shoe
-      # lower than the line's insulation, a line into a post, lines into
-      # each other – said.
+      # The user's frames are tight (2.4.1, 0.67 × 0.32 inside): a line
+      # into a post / the top member, lines into each other, the steam
+      # under its shoe's top (2.4.1's guide put the bare pipe there) – said.
       def clashes(s, carried, notes)
         carried.each do |p|
-          if shoe?(p) && Pipes.bottom(p) < -1.0
-            ins = (p[:r] - p[:od] / 2.0).round
-            notes << "ท่อ #{p[:label]}: ฉนวน #{ins} มม. หนากว่า shoe (สูง #{Pipes.bare_bottom(p).round}) – " \
-                     "ฉนวนจมในเหล็ก #{(-Pipes.bottom(p)).round} มม.: ใช้ shoe สูง ≥ #{ins} มม. หรือลดฉนวน"
+          if shoe_place?(s, p) && (low = SHOE[:h] - Pipes.bottom(p)) > 1.0
+            notes << "ท่อ #{p[:label]}: ท้องฉนวนต่ำกว่าหลัง shoe – ยกท่อขึ้น #{low.round} มม. " \
+                     "ให้ฉนวนวางบน shoe (สูง #{SHOE[:h].round}) หรือวาดใหม่ลงเส้นไกด์"
           end
           frame_hits(s, p).each do |n, mm|
             notes << "ท่อ #{p[:label]} ชน#{n} #{mm} มม. – ขยับท่อเข้า หรือลดขนาด/ฉนวน"
@@ -681,11 +694,10 @@ module ArtK
       end
 
       # Where a free place's guide goes: the pipe's underside (on the
-      # steam's shoe: the bare pipe's; hung: its top, at the top member).
+      # steam's shoe: its insulation's; hung: its top, at the top member).
       def rest_of(s, p)
         return shoe_top(s) if p[:top]
         return Pipes.top(p) if s[:form] == :frame && hangs?(s, p)
-        return Pipes.bare_bottom(p) if p[:shoe]
 
         Pipes.bottom(p)
       end
@@ -713,23 +725,23 @@ module ArtK
         D.nuts(bom, size, 2)
       end
 
-      # Hot line's shoe on the bottom member: a 3" angle under the pipe,
-      # its upright leg welded to the bare pipe (cut / packed to its
-      # height; the insulation round it), the other leg lying on the member
+      # Steam's shoe on the bottom member: a 3" angle under the line, its
+      # insulation on the upright leg (2.4.2; cut / packed to its height –
+      # the drawn 75 under one lower), the other leg lying on the member
       # between two flat-bar guides – free to slide along the pipe.
       def pipe_shoe(part, bom, lines, p)
         sh = SHOE
         a = Steel.get(sh[:key])
         y = p[:y]
         y0 = y + a[:t] / 2.0 # the upright leg's back, the lying leg in from it
-        gap = Pipes.bare_bottom(p)
+        gap = Pipes.bottom(p)
         leg = a[:a]
         base = 0.0
         if gap > a[:a] + 1.0 # packed up under the shoe
           base = gap - a[:a]
           part.add(:steel, Mesh.box([-sh[:len] / 2.0, y0 - a[:a], 0.0], [sh[:len] / 2.0, y0, base]))
           D.bom_pad(bom, sh[:len] * a[:a] * base * Steel::RHO)
-        else
+        elsif gap >= a[:t] + a[:r1] + a[:r2]
           leg = gap
         end
         heel = [-sh[:len] / 2.0, y0, base]
