@@ -53,7 +53,45 @@ module ArtK
         mine = pl[:result].carried.any? { |p| (p[:y] - me[:y]).abs < 1.0 && (p[:z] - (me[:z] - level)).abs < 1.0 }
         raise "ท่อ #{me[:label]} อยู่ชิดเสาเกินไป / ไม่อยู่ในตำแหน่งที่ซัพพอร์ต #{t} รับได้" unless mine
 
-        pl
+        hang?(t, opts) ? hang_frame(model, t, pl, opts) : pl
+      end
+
+      ISO_GAP = 20.0 # C / D hung: off the (Iso) wall
+
+      # C / D hung from the round member above (setting hang_cd: an Iso wall
+      # nothing may be fixed to)?
+      def hang?(t, opts)
+        Std.type(t)[:form] == :frame && (opts['hang_cd'] || opts[:hang_cd]) ? true : false
+      end
+
+      # The frame as placed, hung from the round member over it (across
+      # the pipes – found by rays up from its top, ±0.6 m along the pipes):
+      # moved along the pipes onto its axis, ISO_GAP off the wall, two pipe
+      # shoes on its top member; noted when the member does not reach them.
+      def hang_frame(model, t, pl, opts)
+        s = Std.type(t)
+        x = pl[:x]
+        y = pl[:y]
+        zt = Std.top_level(s)
+        mid = Vec.along(pl[:origin], y, s[:width] / 2.0)
+        c = Probe.above(model, mid, x, zt + 10.0)
+        unless c && c[:kind] == :round
+          raise 'ไม่พบท่อกลมเหนือซัพพอร์ตที่จะแขวน (โหมดแขวนท่อกลม) – ปิดโหมดนี้ (Alt) เพื่อยึดเสา/ผนังด้วยพุก'
+        end
+
+        origin = Vec.along(Vec.along(pl[:origin], x, c[:x]), y, ISO_GAP)
+        pipes = section(model, origin, x, y, pl[:hit][:src] == 'generic' ? pl[:hit] : nil)
+        struct = pl[:struct].merge(hang: { z: c[:z], r: c[:r] })
+        out = plan(t, origin, x, y, pipes, opts, pl[:hit], struct)
+        under = origin[2] + c[:z] - c[:r]
+        [Std::PSHOE[:at], s[:width] - Std::PSHOE[:at]].each do |sy|
+          start = Vec.add(Vec.along(origin, y, sy), [0.0, 0.0, zt + 10.0])
+          h = Probe.cast(model, start, UP, max: 4000.0)
+          next if h && (h[:point][2] - under).abs <= 30.0
+
+          out[:result].notes << "ท่อกลมด้านบนไม่ถึง pipe shoe ที่ #{(sy / 1000.0).round(2)} ม. – ตรวจตำแหน่ง/ความยาวท่อกลม"
+        end
+        out
       end
 
       # Click on a column / wall face at the level the pipes sit on – the
@@ -72,7 +110,8 @@ module ArtK
         col = extent(model, point, x, y, face)
         origin = Vec.along(point, x, centre(col))
         pipes = section(model, origin, x, y, nil)
-        plan(t, origin, x, y, pipes, opts, nil, { face: 0.0, column: column(col) })
+        pl = plan(t, origin, x, y, pipes, opts, nil, { face: 0.0, column: column(col) })
+        hang?(t, opts) ? hang_frame(model, t, pl, opts) : pl
       end
 
       # Rebuild a placed support where it is (fixed to the column at the

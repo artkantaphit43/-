@@ -2,8 +2,8 @@
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
 branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.3.0**
-(`dist/artk_steel_support-2.3.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (302 runs, all green).
+(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.0**
+(`dist/artk_steel_support-2.4.0.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (305 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -191,6 +191,11 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `Std.under`, `hangs?` (ผิวบนท่อภายใน `HANG` 30 ใต้คานบน), `shoe?` (`hot` จาก Plant Piping / `shoe`), `hung_u_bolt`, `pipe_shoe`
   (`SHOE` h 50), `rest_of`, rest: `hang` + `place`→`seat`/`settle` (สตีม: rest z 50 bare, แขวน: z = ใต้คาน − ท่อ) ·
   **ระวัง: `Std.hung?(t)` มีอยู่แล้ว (E/F) – ตั้งชื่อใหม่ซ้ำทำให้ทับ**
+- **Steel Supports 2.4.0 – C/D แขวนท่อกลม (Iso wall)** ("ผนัง Iso wall ลูกค้าห้ามเจาะ/ยึด ใช้ Pipe Shoe ยึดซัพพอต C D ตามรูป",
+  ร่าง: โครงห้อยจากท่อกลมที่ข้ามเหนือผนัง 2 จุด + รูปแคลมป์บนเสาปรับระดับ): setting `hang_cd` (หน้าต่าง + Alt ใน PlaceTool) ·
+  `Placer.hang?`/`hang_frame` (Probe.above เหนือคานบนที่กึ่งกลางโครง, เลื่อนตามแนวท่อเข้าแกน, ห่างผนัง `ISO_GAP` 20, รังสีตรวจท่อกลมถึง shoe) ·
+  struct `hang` {z, r} · `Std.hang_geo`, `frame_shoes` (ไม่มีพุก, คานบนรับแรงจากเสาโครงถึง shoe 2 จุดที่ `PSHOE[:at]` 150, สลักฐาน 1/2" ×2),
+  `chord_shoe` (แคลมป์ 2 สลักรอบท่อกลมในระนาบ x–z: `strap` + `turned`, ปลอก + เสาแบน, ฐานบนปีกคานบน)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

@@ -433,6 +433,27 @@ class TestSteelStd < Minitest::Test
     refute(r.bom.any? { |b| b[:desc].include?('steam') && b[:cat] == 'ubolt' })
   end
 
+  # The user's Iso wall (no drilling / fixing to it, 2.4): C / D hung from
+  # the round member above by two pipe-shoe clamps (clamp ring round it,
+  # adjustable post, base plate bolted on the top member) – no anchors.
+  def test_c_and_d_hung_from_a_round_member
+    zc = 420.0 + 8.0 + 150.0 + 50.8
+    %w[C D].each do |t|
+      r = SS::Std.build(t, nil, {}, { hang: { z: zc, r: 50.8 } })
+      r.part.solids.each { |role, sol| assert SS::Mesh.closed?(sol), "#{t} #{role}" }
+      refute(r.bom.any? { |b| b[:cat] == 'anchor' }, "#{t}: no anchors")
+      assert_equal 0, r.info[:anchors]
+      shoes = r.bom.select { |b| b[:key].to_s.start_with?('pshoe') }
+      assert_equal 2, shoes.sum { |b| b[:qty] }, "#{t}: two pipe shoes"
+      assert_match(/แขวน/, r.info[:title])
+      assert_equal [290.0, 500.0, 650.0], r.carried.map { |p| p[:y] }.sort, "#{t}: the pipes as drawn"
+      top = steel(r).map { |p| p[2] }.max
+      assert_in_delta zc + 50.8 + 6.0, top, 1e-6, "#{t}: the clamp ring round the round member"
+      assert r.ok?, r.checks.reject { |c| c[:ok] }.inspect
+    end
+    assert_raises(ArgumentError) { SS::Std.build('C', nil, {}, { hang: { z: 470.0, r: 40.0 } }) }
+  end
+
   def test_steam_shoe_fits_the_steam_line
     low = SS::Std.build('C', [P.call(330, 84.15, 168.3), P.call(440, 420 + 5 + 60 + 57.15, 114.3, 0, 'st')])
     assert_equal 440.0, low.carried.last[:y]

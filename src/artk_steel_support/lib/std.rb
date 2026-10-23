@@ -88,6 +88,11 @@ module ArtK
       # Hot line's shoe on a frame's bottom member (h: to the bare pipe),
       # base b × len × t, its web t; between two angle guides.
       SHOE = { h: 50.0, b: 110.0, len: 200.0, t: 6.0, guide: 'L50', guide_len: 100.0, gap: 3.0 }.freeze
+      # C / D hung from a round member (Iso wall – nothing fixed to it, 2.4):
+      # two pipe-shoe clamps (the user's picture, upside down) on the top
+      # member, +at+ in from each end; base plate base × flange × t, post bar,
+      # sleeve; min / max clear height under the round member.
+      PSHOE = { at: 150.0, base: 120.0, t: 8.0, post: [40.0, 6.0], sleeve: [56.0, 28.0, 70.0], min: 90.0, max: 400.0 }.freeze
       SNAP = 120.0 # a pipe drawn onto a support this near one of the drawing's places goes there
 
       module_function
@@ -349,7 +354,12 @@ module ArtK
             D.pipe_u_bolt(part, bom, p, v, tf, x: xu)
           end
         end
-        anchors(part, bom, checks, notes, s, key, carried + [top_pipe].compact, opts) if s[:anchor]
+        hang = s[:form] == :frame ? hang_geo(geo) : nil
+        if hang
+          frame_shoes(part, bom, lines, checks, notes, s, key, carried, top_pipe, hang, opts)
+        elsif s[:anchor]
+          anchors(part, bom, checks, notes, s, key, carried + [top_pipe].compact, opts)
+        end
         checks.each do |c|
           next if c[:ok] || c[:kind] == :anchor # anchors note themselves
 
@@ -363,8 +373,10 @@ module ArtK
         free = given ? free_places(t, carried, top_pipe, geo) : carried + [top_pipe].compact
         tiers = levels(t, geo).size
         title = s[:form] == :hanger && tiers == 2 ? TYPES['E2'][:th] : s[:th]
+        title = "#{title} – แขวนท่อกลม (ไม่ยึดผนัง)" if hang
         D::Result.new(part: part, bom: bom, checks: checks, notes: notes, carried: carried + [top_pipe].compact,
-                      lines: lines, info: { type: t, section: key, anchor: s[:anchor], anchors: s[:bolts].to_a.size,
+                      lines: lines, info: { type: t, section: key, anchor: hang ? nil : s[:anchor],
+                                            anchors: hang ? 0 : s[:bolts].to_a.size,
                                             rod: rod, nominal: !given, guides: free.map { |p| [p[:y], p[:z]] },
                                             rests: free.map { |p| [p[:y], rest_of(s, p).round(6)] },
                                             size: size, h: h, tiers: tiers, title: title })
@@ -507,6 +519,95 @@ module ArtK
         return if upper.empty?
 
         beam(checks, "คานบน #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(upper, opts))
+      end
+
+      # C / D hung from a round member: its { z: (axis over the bottom
+      # member's top), r: } or nil (fixed to the wall / column).
+      def hang_geo(geo)
+        h = (geo || {}).transform_keys(&:to_sym)[:hang]
+        return nil unless h
+
+        h = h.transform_keys(&:to_sym)
+        { z: h[:z].to_f, r: h[:r].to_f }
+      end
+
+      # The two pipe shoes the frame hangs by (over its posts' insides),
+      # their load (the frame on two supports) and the top member carrying
+      # the posts to them.
+      def frame_shoes(part, bom, lines, checks, notes, s, key, carried, top_pipe, hang, opts)
+        sec = Steel.get(key)
+        h = sec[:h]
+        w = s[:width]
+        zt = top_level(s)
+        clear = hang[:z] - hang[:r] - (zt + PSHOE[:t])
+        if clear < PSHOE[:min]
+          raise ArgumentError, "ท่อกลมชิดโครงเกินไปสำหรับ pipe shoe – ใต้ท่อกลมต้องสูงกว่าหลังคานบน ≥ #{(PSHOE[:min] + PSHOE[:t]).round} มม."
+        end
+
+        notes << "pipe shoe สูง #{clear.round} มม. เกินช่วงปรับ (#{PSHOE[:max].round}) – พิจารณาแขวนด้วยเหล็กเส้น" if clear > PSHOE[:max]
+        ys = [PSHOE[:at], w - PSHOE[:at]]
+        upper, lower = (carried + [top_pipe].compact).partition { |p| hangs?(s, p) || p.equal?(top_pipe) }
+        low = Beam.two_support(h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(lower, opts), 1.0)
+        lds = [[h / 2.0, low[:r1]], [w - h / 2.0, low[:r2]]] + D.loads(upper, opts)
+        r = beam(checks, "คานบนรับแขวน #{sec[:inch]}", key, 0.0, w, ys[0], ys[1], lds)
+        bolt = Hardware.get('1/2')
+        D.check(checks, "สลักยึดฐาน pipe shoe 1/2\" ×2: แรงดึง", [r[:r1], r[:r2]].max / 2000.0, bolt[:rod_kn], 'kN', kind: :rod)
+        ys.each { |y| chord_shoe(part, bom, lines, y, zt, hang, sec) }
+      end
+
+      # Pipe shoe (the user's picture: a two-bolt clamp ring on an
+      # adjustable post with a base plate), upside down: base bolted on the
+      # top member's top flange (2 bolts, nuts under the flange), post up
+      # through a sleeve with a lock bolt, the ring round the round member
+      # (axis along y) bolted at its sides.
+      def chord_shoe(part, bom, lines, y, zt, hang, sec)
+        zc = hang[:z]
+        r = hang[:r]
+        cs = clamp_size(2.0 * r)
+        t = cs[:t]
+        bs = Hardware.get(cs[:bolt])
+        rr = r + t / 2.0
+        ear = 1.2 * bs[:wod] + 10.0
+        a0 = Math.asin(t / (2.0 * rr))
+        half = lambda do |k| # k = 1 top half, −1 bottom half; [u (x), v (z − zc)]
+          arc = (0..24).map do |i|
+            a = (Math::PI - a0) - (Math::PI - 2.0 * a0) * i / 24.0
+            [rr * Math.cos(a), k * rr * Math.sin(a)]
+          end
+          [[-(rr + ear), k * t / 2.0]] + arc + [[rr + ear, k * t / 2.0]]
+        end
+        place = ->(sol) { Mesh::Solid.new(turned(sol).polys.map { |q| q.map { |a, b, c| [a, b + y, c] } }) }
+        [1, -1].each { |k| part.add(:steel, place.call(strap(half.call(k).map { |u, v| [u, zc + v] }, cs[:w], t))) }
+        [-1, 1].each do |k| # the clamp bolts through the ears
+          u = k * (rr + ear / 2.0)
+          Hardware.rod(part, [u, y, zc - t - Hardware.stack_height(cs[:bolt]) - 0.6 * bs[:d]],
+                       [u, y, zc + t + Hardware.stack_height(cs[:bolt]) + 0.6 * bs[:d]], cs[:bolt])
+          Hardware.fastening(part, [u, y, zc + t], [0, 0, 1.0], cs[:bolt])
+          Hardware.fastening(part, [u, y, zc - t], [0, 0, -1.0], cs[:bolt])
+        end
+        base = zt + PSHOE[:t]
+        bw = sec[:b]
+        part.add(:steel, Mesh.box([-bw / 2.0, y - PSHOE[:base] / 2.0, zt], [bw / 2.0, y + PSHOE[:base] / 2.0, base]))
+        sw, sd, sh = PSHOE[:sleeve]
+        part.add(:steel, Mesh.box([-sw / 2.0, y - sd / 2.0, base], [sw / 2.0, y + sd / 2.0, base + sh]))
+        pw, pt = PSHOE[:post]
+        part.add(:steel, Mesh.box([-pw / 2.0, y - pt / 2.0, base + sh], [pw / 2.0, y + pt / 2.0, zc - rr - t / 2.0]))
+        lock = Hardware.get('1/2')
+        Hardware.rod(part, [0.0, y - sd / 2.0 - 15.0, base + 0.6 * sh], [0.0, y + sd / 2.0 + 15.0, base + 0.6 * sh], '1/2')
+        [-1, 1].each { |k| Hardware.nut(part, [0.0, y + k * sd / 2.0, base + 0.6 * sh], [0, k.to_f, 0], '1/2') }
+        [-1, 1].each do |k| # base bolts through the top flange
+          by = y + k * (PSHOE[:base] / 2.0 - 20.0)
+          xb = sec[:t1] / 2.0
+          Hardware.rod(part, [xb, by, zt - sec[:t2] - Hardware.stack_height('1/2') - 0.6 * lock[:d]],
+                       [xb, by, base + Hardware.stack_height('1/2') + 0.6 * lock[:d]], '1/2')
+          Hardware.fastening(part, [xb, by, base], [0, 0, 1.0], '1/2')
+          Hardware.fastening(part, [xb, by, zt - sec[:t2]], [0, 0, -1.0], '1/2')
+        end
+        D.box_lines(lines, [-(rr + ear), y - PSHOE[:base] / 2.0, zt], [rr + ear, y + PSHOE[:base] / 2.0, zc + rr + t])
+        D.bom_item(bom, 'clamp', "Pipe shoe แคลมป์ปรับระดับ ยึดท่อกลม Ø#{(2 * r).round} (ฐานยึดคานบน)", 1,
+                   key: "pshoe #{(2 * r).round}")
+        D.bom_item(bom, 'nut', "สลักเกลียว + น็อต + แหวน #{Hardware.label(cs[:bolt])} (แคลมป์ pipe shoe)", 2, key: "bolt #{cs[:bolt]}")
+        D.bom_item(bom, 'nut', "สลักเกลียว + น็อต + แหวน #{Hardware.label('1/2')} (ฐาน pipe shoe)", 2, key: 'bolt 1/2 base')
       end
 
       # Where a free place's guide goes: the pipe's underside (on the

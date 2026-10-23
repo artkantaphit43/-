@@ -735,6 +735,7 @@ VK_LEFT = 37
 VK_UP = 38
 VK_DOWN = 40
 CONSTRAIN_MODIFIER_KEY = 16
+ALT_MODIFIER_KEY = 18
 
 class String
   # SketchUp parses lengths in model units; the tests use millimetres.

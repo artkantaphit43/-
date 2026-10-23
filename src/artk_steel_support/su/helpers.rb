@@ -15,7 +15,7 @@ module ArtK
       }.freeze
       DEFAULTS = {
         'detail' => 'A', 'section' => 'auto', 'anchor' => 'auto', 'anchors' => 3, 'rod' => 'auto',
-        'spacing_m' => 0, 'gap' => 600, 'drop_hangers' => true
+        'spacing_m' => 0, 'gap' => 600, 'drop_hangers' => true, 'hang_cd' => false
       }.freeze
 
       module_function

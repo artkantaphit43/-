@@ -144,6 +144,7 @@
     <label>ระยะห่างซัพพอร์ต (ม.)<input type="number" id="spacing_m" min="0" max="12" step="0.1"></label>
     <div class="info">ใช้คิดน้ำหนักที่ซัพพอร์ตรับในรายงานตรวจกำลัง (0 = ระยะสูงสุดตามขนาดท่อ) – ไม่เปลี่ยนขนาดเหล็ก</div>
     <label class="chk"><input type="checkbox" id="drop_hangers"><span>ลบซัพพอร์ตแขวนของ Plant Piping ที่ตำแหน่งเดียวกัน</span></label>
+    <label class="chk"><input type="checkbox" id="hang_cd"><span>C / D แขวนจากท่อกลมด้านบนด้วย pipe shoe 2 ตัว – ไม่เจาะ/ไม่ยึดผนัง (Iso wall) · Alt ในเครื่องมือวางสลับได้</span></label>
   </fieldset>
 
   <div class="grid2">
@@ -174,7 +175,7 @@
       $('ver').textContent = 'v' + d.version;
       $('link').textContent = d.link; $('link').className = 'link ' + (d.linked ? 'on' : 'off');
       $('autobtn').disabled = !d.linked; $('autobtn').style.opacity = d.linked ? 1 : 0.5;
-      $('spacing_m').value = S.spacing_m; $('drop_hangers').checked = !!S.drop_hangers;
+      $('spacing_m').value = S.spacing_m; $('drop_hangers').checked = !!S.drop_hangers; $('hang_cd').checked = !!S.hang_cd;
       showType();
     }
   };
@@ -183,6 +184,7 @@
   });
   $('spacing_m').addEventListener('change', function () { S.spacing_m = Number(this.value) || 0; save(); });
   $('drop_hangers').addEventListener('change', function () { S.drop_hangers = this.checked; save(); });
+  $('hang_cd').addEventListener('change', function () { S.hang_cd = this.checked; save(); });
   document.querySelectorAll('[data-cmd]').forEach(function (b) {
     b.addEventListener('click', function () { call('command', b.dataset.cmd); });
   });

@@ -583,6 +583,56 @@ class TestSteelSU < Minitest::Test
                  "no drawing's U-bolt through the 6\""
   end
 
+  # ---------- C / D on an Iso wall: hung from a round member (2.4) ----------
+
+  # The user's site: Iso wall (no drilling), round members crossing over
+  # it; C hangs from one by two pipe shoes, on its axis, off the wall.
+  def iso!
+    @model.ray_hits = SteelSU.rays(boxes: [[[-1000.0, WALL - 300, 0.0], [9000.0, WALL, 4000.0]]],
+                                   cyls: [{ axis: 1, c: [3120.0, 2150.0], r: 50.8, range: [-1500.0, 2500.0] }])
+  end
+
+  def test_c_on_an_iso_wall_hangs_from_the_round_member
+    iso!
+    opts = SH.settings.merge('hang_cd' => true)
+    pl = SS::Placer.from_face(@model, 'C', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
+    o = pl[:origin]
+    assert_in_delta 3120.0, o[0], 1.0, 'on the round member\'s axis'
+    assert_in_delta WALL + 20.0, o[1], 1e-6, 'not touching the Iso wall'
+    assert_in_delta 1500.0, o[2], 1e-6, 'the clicked level: the pipes\' undersides'
+    res = pl[:result]
+    refute(res.bom.any? { |b| b[:cat] == 'anchor' }, 'nothing fixed to the wall')
+    assert_equal 2, res.bom.select { |b| b[:key].to_s.start_with?('pshoe') }.sum { |b| b[:qty] }
+    assert_empty res.notes
+    g = SS::Builder.create(@model, pl)
+    assert_nil g.get_attribute(SH::DICT, 'anchor')
+    assert_equal :same, SS::Builder.refit(@model, g)
+    # none over it: said so
+    wall!
+    err = assert_raises(RuntimeError) do
+      SS::Placer.from_face(@model, 'D', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], opts)
+    end
+    assert_match(/ท่อกลม/, err.message)
+    # the switch: off – anchors to the wall as before
+    plain = SS::Placer.from_face(@model, 'D', [3000.0, WALL, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0], SH.settings)
+    assert(plain[:result].bom.any? { |b| b[:cat] == 'anchor' })
+  end
+
+  def test_place_tool_switches_c_d_to_hanging
+    iso!
+    tool = SS::PlaceTool.new('C')
+    tool.activate
+    view = @model.active_view
+    refute SH.settings['hang_cd']
+    tool.onKeyDown(ALT_MODIFIER_KEY, false, 0, view)
+    assert SH.settings['hang_cd']
+    assert_match(/แขวนท่อกลม/, Sketchup.status_text.to_s)
+    tool.onKeyDown(ALT_MODIFIER_KEY, false, 0, view)
+    refute SH.settings['hang_cd']
+    d = SS::Dialog.payload
+    assert_equal false, d[:settings]['hang_cd']
+  end
+
   # Whatever passes – 1, 2, 3, 4 lines, any size and place – gets a U-bolt.
   def test_any_number_of_pipes_passing
     column!
