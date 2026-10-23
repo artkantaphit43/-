@@ -284,9 +284,34 @@ module ArtK
       #   center – bend centre, xaxis – from centre to the start point,
       #   normal – bend-plane normal, radius – centreline radius.
       def bend(center, xaxis, normal, radius, angle, ro, ri, steps: 16, arc_steps: 8)
+        return bend_filled(center, xaxis, normal, radius, angle, ro, ri, steps, arc_steps) if ro > radius - FILL
+
         outer = circle2d(0.0, radius, ro, steps)
         loops = [outer]
         loops << circle2d(0.0, radius, ri, steps) if ri && ri.positive?
+        revolve(loops, axis_o: center, axis: normal, ref: xaxis, angle: angle, steps: arc_steps)
+      end
+
+      # A section this near the bend's axis (or past it) is cut there.
+      FILL = 2.0
+
+      # Bend thicker than its radius (1.16.5 – insulation on a tight elbow):
+      # the section cut where it reaches the bend's axis, so the inside of
+      # the bend is filled to the axis, as an insulated elbow is, and the
+      # solid stays closed. Points within FILL of the axis go onto it (no
+      # slivers); the bore keeps its angles, paired with the outer points.
+      def bend_filled(center, xaxis, normal, radius, angle, ro, ri, steps, arc_steps)
+        ts = (0...steps).map { |k| TWO_PI * k / steps }
+        if ro > radius
+          a = Math.asin(radius / ro)
+          ts = (ts + [TWO_PI - a, Math::PI + a]).sort.uniq { |t| (t * 1e9).round }
+        end
+        outer = ts.map do |t|
+          v = radius + ro * Math.sin(t)
+          v < FILL ? [radius * Math.cos(t) / -Math.sin(t), 0.0] : [ro * Math.cos(t), v]
+        end
+        loops = [outer]
+        loops << ts.map { |t| [ri * Math.cos(t), radius + ri * Math.sin(t)] } if ri && ri.positive?
         revolve(loops, axis_o: center, axis: normal, ref: xaxis, angle: angle, steps: arc_steps)
       end
 

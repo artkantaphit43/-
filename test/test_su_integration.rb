@@ -60,6 +60,20 @@ class TestSuIntegration < Minitest::Test
     assert_empty children(run, 'end_center')
   end
 
+  # The user (1.16.5, "เขาไม่หุ้มตรงข้องอหรอ"): 4" + 100 insulation – thicker
+  # than the LR elbow's bend – was left bare at the elbows (BOM only).
+  def test_elbows_insulated_when_thicker_than_the_bend
+    run, = Builder.create_run(@model, l_run, @settings.merge('service' => 'HW', 'insulation_mm' => 100))
+    ins = children(run, 'insulation')
+    assert_equal 3, ins.size, 'both pipes and the elbow'
+    elbow = ins.find { |g| (g.get_attribute(H::DICT, 'length_mm') - 152.4 * Math::PI / 2).abs < 1.0 }
+    refute_nil elbow, 'the elbow\'s cover, its arc length'
+    assert_equal 100, elbow.get_attribute(H::DICT, 'thickness')
+    assert_empty H.get_json(run, 'extras', []).select { |x| x['type'] == 'insulation' }, 'drawn, not BOM only'
+    rows = Bom.aggregate(Collector.records(@model)).select { |r| r.category == 'insulation' }
+    assert_in_delta (9000 - 2 * 152.4 + 152.4 * Math::PI / 2) / 1000.0, rows.sum(&:qty), 0.02, 'counted once'
+  end
+
   def test_line_numbers_increment_per_service
     r1, = Builder.create_run(@model, l_run, @settings)
     r2, = Builder.create_run(@model, l_run, @settings)

@@ -13,12 +13,14 @@ module ArtK
       module_function
 
       # Upgrades every record in the model. Returns
-      # { upgraded: n, newer: n, rebuilt: n }.
+      # { upgraded: n, newer: n, rebuilt: n, parts: n, insulated: n }.
       def model(model)
-        res = { upgraded: 0, newer: 0, rebuilt: 0, parts: 0 }
-        todo = records(model.entities).reject { |e| DataFormat.version(H.attrs(e)) == DataFormat::CURRENT }
+        res = { upgraded: 0, newer: 0, rebuilt: 0, parts: 0, insulated: 0 }
+        recs = records(model.entities)
+        todo = recs.reject { |e| DataFormat.version(H.attrs(e)) == DataFormat::CURRENT }
+        bare = recs.select { |e| H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT && bare_elbows?(e) }
         parts, mats = RefModels.stale(model)
-        return res if todo.empty? && parts.empty? && mats.empty?
+        return res if todo.empty? && parts.empty? && mats.empty? && bare.empty?
 
         model.start_operation('Plant Piping: Upgrade Data', true)
         res[:parts] = RefModels.refresh(model, parts, mats)
@@ -27,12 +29,23 @@ module ArtK
           res[st] += 1 if res.key?(st)
           res[:upgraded] += 1 if st == :rebuilt
         end
+        bare.select { |e| bare_elbows?(e) }.each do |run|
+          Builder.render(model, run, Builder.run_settings(run))
+          res[:insulated] += 1
+        end
         model.set_attribute(H::DICT, DataFormat::KEY, DataFormat::CURRENT)
         model.commit_operation
         res
       rescue StandardError
         model.abort_operation
         raise
+      end
+
+      # Drawn with 1.16.4 or before: insulation thicker than an elbow's
+      # bend was left off it (a BOM record instead) – drawn again, the
+      # elbow is covered (1.16.5).
+      def bare_elbows?(run)
+        H.get_json(run, 'extras', []).any? { |x| x['type'] == 'insulation' }
       end
 
       # Runs and placed parts anywhere in the model; each definition's

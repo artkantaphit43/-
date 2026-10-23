@@ -38,6 +38,35 @@ class TestMesh < Minitest::Test
     assert_solid(s, nil, 0, 'tiny bend')
   end
 
+  # The user (1.16.5): 4" LR elbow (R 152.4) with 100 insulation – thicker
+  # than the bend, so its section is cut at the bend's axis (the inside of
+  # the bend filled to it, as an insulated elbow is), still one solid.
+  def test_bend_thicker_than_its_radius
+    r = 152.4
+    [[157.15, 57.65], [216.7, 17.2], [150.0, 57.65]].each do |ro, ri|
+      s = Mesh.bend([0, r, 0], [0, -1, 0], [0, 0, 1], r, PI / 2, ro, ri, steps: 24, arc_steps: 12)
+      # Pappus over the cut section (v ≥ 0 from the axis), less the bore
+      n = 4000
+      full = (0...n).sum do |i|
+        u = -ro + (i + 0.5) * 2.0 * ro / n
+        h = Math.sqrt(ro**2 - u**2)
+        v0 = [r - h, 0.0].max
+        ((r + h)**2 - v0**2) / 2.0 * (2.0 * ro / n)
+      end
+      assert_solid(s, (full - PI * ri**2 * r) * PI / 2, 0.03, "ro #{ro}")
+      pts = s.polys.flatten(1)
+      # the centre [0, 152.4, 0]: the bend's axis there, along z
+      assert(pts.all? { |p| Math.hypot(p[0], p[1] - r) <= r + ro + 1e-6 }, 'nothing out past the section')
+      assert(pts.all? { |p| p[0] >= -1e-6 && p[1] <= r + 1e-6 }, "ro #{ro}: nothing past the axis (in the bend's quarter)")
+      edges = s.polys.flat_map { |q| q.each_index.map { |i| Vec.dist(q[i], q[(i + 1) % q.size]) } }
+      assert_operator edges.min, :>, 0.05, "ro #{ro}: no sliver edges"
+    end
+    # thinner than the bend: as before
+    thin = Mesh.bend([0, r, 0], [0, -1, 0], [0, 0, 1], r, PI / 2, 107.15, 57.65, steps: 24, arc_steps: 12)
+    assert_equal Mesh.revolve([Mesh.circle2d(0.0, r, 107.15, 24), Mesh.circle2d(0.0, r, 57.65, 24)],
+                              axis_o: [0, r, 0], axis: [0, 0, 1], ref: [0, -1, 0], angle: PI / 2, steps: 12).polys, thin.polys
+  end
+
   def test_torus
     assert_solid(Mesh.torus([0, 0, 0], [0, 0, 1], 100, 8, steps: 32, sec_steps: 12), 2 * PI**2 * 100 * 64, 0.07, 'torus')
   end

@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.4**
-(`dist/artk_plant_pipe-1.16.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.2**
-(`dist/artk_steel_support-2.4.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (307 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.16.5**
+(`dist/artk_plant_pipe-1.16.5.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.4.2**
+(`dist/artk_steel_support-2.4.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (310 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -208,6 +208,11 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   แต่ทำเป็นท่อเปล่าบน shoe – แก้: `settle` bare false, `nominal` z = 75 + r, `rest_of` = ท้องฉนวน, `pipe_shoe` ขาถึงท้องฉนวน ·
   `shoe_place?` (ท่อมีฉนวนห่างที่สตีม ≤ 25: ขึ้น shoe แม้ไม่ใช่บริการร้อน, ไม่ `hangs?`) · `clashes`: ท้องฉนวนต่ำกว่า 75 → "ยกท่อขึ้น N มม."
   (shoe คง 75 ตามแบบ) แทนข้อความ "ฉนวนหนากว่า shoe" · เทสต์ `test_steam_drawn_from_its_guide_line` (guide snap ไม่มี path)
+- **Plant Piping 1.16.5 – ฉนวนข้องอ** ("เขาไม่หุ้มตรงข้องอหรอ", 4" HW + ฉนวน 100: r 157 > R 152 ของ LR): เดิม `render_elbow`
+  ข้ามเมื่อ r_ins ≥ 0.95R (ใส่ `extras` type insulation แทน = BOM อย่างเดียว) · ใหม่ `Mesh.bend` → `bend_filled` เมื่อ ro > R − `FILL` (2):
+  หน้าตัดตัดที่แกนโค้ง (v ≥ 0, จุดใกล้แกน < 2 มม. ลงแกน, แทรกมุมจุดตัดวงกลม–แกน, รูในมุมเดียวกัน) = ด้านในโค้งเต็มถึงแกน solid ปิด ·
+  ฉนวนบางกว่าเดิม = รูปเดิมทุกจุด · **ไฟล์เก่าไม่ต้องวาดใหม่:** `Migrate.model` (เปิดไฟล์/โหลดปลั๊กอิน) วาดใหม่เฉพาะท่อที่ `extras` มี insulation
+  (`bare_elbows?`, res `insulated`) – กลุ่มท่อเดิม (pid เดิม ซัพพอร์ตยังเชื่อม) · ไม่ได้เปลี่ยน DataFormat
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

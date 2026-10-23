@@ -445,7 +445,7 @@ module ArtK
         case pc.type
         when :pipe then render_pipe(ctx, d)
         when :curve then render_curve(ctx, d, warnings)
-        when :elbow then render_elbow(ctx, d, extras)
+        when :elbow then render_elbow(ctx, d)
         when :tee, :lateral, :cross, :manifold then render_tee(ctx, pc.type, d)
         when :mitre
           extras << ctx[:common].merge('type' => 'mitre', 'angle' => d[:angle])
@@ -757,7 +757,7 @@ module ArtK
         g
       end
 
-      def render_elbow(ctx, d, extras)
+      def render_elbow(ctx, d)
         spec = ctx[:spec]
         return render_bend(ctx, d) if spec.flexible && d[:radius_type] == :lr
 
@@ -786,18 +786,12 @@ module ArtK
         finish_piece(ctx, inst, "Elbow #{d[:angle_deg].round}° #{spec.size}", ctx[:mat], attrs)
         return unless ctx[:ins].positive?
 
+        # thicker than the bend (1.16.5): filled to the bend's axis inside
         arc_len = d[:radius] * ang
         r_ins = Parts.body_radius(o) + ctx[:ins]
-        if r_ins < 0.95 * d[:radius]
-          arc_steps = [(ang / (Math::PI / 2) * (ctx[:steps] / 2)).ceil, 2].max
-          insulate(ctx, Mesh.bend(d[:center], d[:xaxis], d[:normal], d[:radius], ang, r_ins, Parts.body_radius(o) + 0.5,
-                                  steps: ctx[:steps], arc_steps: arc_steps), arc_len)
-        else
-          # Insulation thicker than the bend radius cannot be modelled as a
-          # solid; still count it in the BOM.
-          extras << ctx[:common].merge('type' => 'insulation', 'thickness' => ctx[:ins],
-                                       'length_mm' => arc_len.round(1))
-        end
+        arc_steps = [(ang / (Math::PI / 2) * (ctx[:steps] / 2)).ceil, 2].max
+        insulate(ctx, Mesh.bend(d[:center], d[:xaxis], d[:normal], d[:radius], ang, r_ins, Parts.body_radius(o) + 0.5,
+                                steps: ctx[:steps], arc_steps: arc_steps), arc_len)
       end
 
       def hdpe_elbow_desc(o, d)

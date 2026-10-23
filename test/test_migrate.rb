@@ -144,4 +144,26 @@ class TestMigrate < Minitest::Test
     assert_equal 2, d.get_attribute(H::DICT, 'rev')
     assert_equal 0, Migrate.model(@model)[:parts]
   end
+
+  # The user (1.16.5): runs drawn with 1.16.4 and before left thick
+  # insulation off their elbows (a BOM record instead); installing the
+  # update covers them on open – no redrawing.
+  def test_bare_elbows_of_old_runs_insulated_on_open
+    s = Settings.sanitize('service' => 'HW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 100)
+    run, = Builder.create_run(@model, [[[0, 0, 3000], [5000, 0, 3000]], [[5000, 0, 3000], [5000, 4000, 3000]]], s)
+    other, = Builder.create_run(@model, [[[0, 900, 0], [3000, 900, 0]]], s.merge('insulation_mm' => 0))
+    # as 1.16.4 left it: the elbow's insulation a BOM record, not drawn
+    cover = run.entities.find { |e| H.type_of(e) == 'insulation' && e.get_attribute(H::DICT, 'length_mm') < 300 }
+    run.entities.erase_entities(cover)
+    H.set_json(run, 'extras', [H.attrs(cover).merge('type' => 'insulation', 'thickness' => 100, 'length_mm' => 239.4)])
+    pid = run.persistent_id
+    before = other.entities.to_a
+    res = Migrate.model(@model)
+    assert_equal 1, res[:insulated]
+    assert_equal 3, count(run, 'insulation'), 'the elbow covered'
+    assert_empty H.get_json(run, 'extras', []).select { |x| x['type'] == 'insulation' }
+    assert_equal pid, run.persistent_id, 'the same run (supports keep their link)'
+    assert_equal before, other.entities.to_a, 'other runs untouched'
+    assert_equal 0, Migrate.model(@model)[:insulated], 'nothing left to do on the next open'
+  end
 end
