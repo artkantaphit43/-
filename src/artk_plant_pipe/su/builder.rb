@@ -204,6 +204,7 @@ module ArtK
         H.set_json(run, 'extras', extras)
         H.set_json(run, 'warnings', warnings.uniq.first(50))
         H.set_json(run, 'drawn', drawn_pieces(ents))
+        model.set_attribute(H::DICT, Migrate::SPEC_KEY, 1) unless model.get_attribute(H::DICT, Migrate::SPEC_KEY)
         run.name = line_no
         run.layer = ctx[:tag]
         run.material = ctx[:mat]

@@ -13,17 +13,21 @@ module ArtK
       module_function
 
       # Upgrades every record in the model. Returns
-      # { upgraded: n, newer: n, rebuilt: n, parts: n, insulated: n }.
+      # { upgraded: n, newer: n, rebuilt: n, parts: n, insulated: n, respec: n }.
       def model(model)
-        res = { upgraded: 0, newer: 0, rebuilt: 0, parts: 0, insulated: 0 }
+        res = { upgraded: 0, newer: 0, rebuilt: 0, parts: 0, insulated: 0, respec: 0 }
         recs = records(model.entities)
         todo = recs.reject { |e| DataFormat.version(H.attrs(e)) == DataFormat::CURRENT }
         bare = recs.select { |e| H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT && bare_elbows?(e) }
+        respec = respec_runs(model, recs)
         parts, mats = RefModels.stale(model)
-        return res if todo.empty? && parts.empty? && mats.empty? && bare.empty?
+        return res if todo.empty? && parts.empty? && mats.empty? && bare.empty? && respec.empty?
 
+        respec = [] unless respec.empty? || UI.messagebox(respec_question(respec), MB_YESNO) == IDYES
         model.start_operation('Plant Piping: Upgrade Data', true)
         res[:parts] = RefModels.refresh(model, parts, mats)
+        res[:respec] = respec.each { |run| respec!(model, run) }.size
+        model.set_attribute(H::DICT, SPEC_KEY, 1)
         todo.each do |e|
           st = entity(model, e)
           res[st] += 1 if res.key?(st)
@@ -35,10 +39,62 @@ module ArtK
         end
         model.set_attribute(H::DICT, DataFormat::KEY, DataFormat::CURRENT)
         model.commit_operation
+        SupportBuilder.notify_changed(model, respec) unless respec.empty? # steel supports follow
         res
       rescue StandardError
         model.abort_operation
         raise
+      end
+
+      SPEC_KEY = 'ins_spec' # the file drawn by 1.17+ (or asked)
+
+      # A file from before 1.17.0: runs with insulation set as 2" × 2 layers
+      # (100 / 101.6) – the user's BOQ says 1-1/2" (38.1), one layer.
+      def respec_runs(model, recs)
+        return [] if model.get_attribute(H::DICT, SPEC_KEY)
+
+        recs.select do |e|
+          H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT &&
+            Settings.two_layers?(Builder.run_settings(e)['insulation_mm'])
+        end
+      end
+
+      def respec_question(runs)
+        "Plant Piping TH – ไฟล์นี้มีท่อหุ้มฉนวน 100 มม. #{runs.size} แนว (ตั้งไว้ตอนเข้าใจว่าฉนวน 2\" × 2 ชั้น)\n" \
+          "สเปกตาม BOQ: ใยแก้ว 1-1/2\" (38 มม.) ชั้นเดียว\n\n" \
+          "เปลี่ยนเป็น 1-1/2\" ให้เลยไหม?\n" \
+          '• ท่อเลื่อนลงเท่าที่ฉนวนบางลง (~62 มม.) ท้องฉนวนยังวางบนซัพพอร์ตเหมือนเดิม ซัพพอร์ตเหล็กปรับตามเอง\n' \
+          '• ท่อที่ต่อแยก/ต่อกับท่ออื่นอยู่ที่เดิม เปลี่ยนแค่ฉนวน\n• กด Undo ย้อนได้'
+      end
+
+      # 38.1 on +run+, dropped by what the insulation lost (its underside
+      # stays where it lay) unless tied to another run; hangers keep their
+      # tops (the steel they hang from does not move).
+      def respec!(model, run)
+        s = Builder.run_settings(run)
+        drop = s['insulation_mm'] - Settings::SPEC_MM
+        s = s.merge('insulation_mm' => Settings::SPEC_MM)
+        H.set_json(run, 'settings', s)
+        before = RunEditor.data(run)
+        unless tied?(model, run, before)
+          moves = before['cl'].flatten(1).uniq { |p| p.map { |c| c.round(3) } }.map { |p| [p, Vec.add(p, [0.0, 0.0, -drop])] }
+          after, = RunEdit.move_points(before, moves)
+          if after
+            after['supports'].zip(before['supports']).each { |a, b| a['target'] = b['target'] if b.key?('target') }
+            RunEditor.store(run, after)
+          end
+        end
+        Builder.render(model, run, s)
+      end
+
+      # Branched / joined: to another run, or another run to this one.
+      def tied?(model, run, data)
+        return true unless (data['tees'] + data['joins']).empty?
+
+        pid = run.persistent_id
+        Collector.all_runs(model).any? do |r, _|
+          r != run && (H.get_json(r, 'tees', []) + H.get_json(r, 'joins', [])).any? { |t| t['main_pid'] == pid }
+        end
       end
 
       # Drawn with 1.16.4 or before: insulation thicker than an elbow's

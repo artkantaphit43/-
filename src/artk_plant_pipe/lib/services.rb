@@ -9,7 +9,8 @@ module ArtK
     #                used to pick fluid properties & sizing criteria
     # * gravity    – true for drainage lines drawn with a fall (slope)
     # * catalog / size / rating – sensible default material for a Thai plant
-    # * insulation – default insulation thickness (mm)
+    # * insulation – default insulation thickness (mm); hot lines 1-1/2"
+    #                (38.1 – the user's BOQ: fiberglass pipe section, 1.17.0)
     # * vmax       – recommended max velocity (m/s) for sizing (design
     #                guidance, not a code limit – editable in settings)
     # * hf_max     – recommended max friction loss (m per 100 m) for liquids
@@ -21,10 +22,10 @@ module ArtK
           catalog: 'PVC_TIS17',  size: '1"',     rating: 'Class 13.5', insulation: 0,
           vmax: 2.0, hf_max: 4.0, asme: :water, jis: :water, rgb: [30, 136, 229] },
         { code: 'HW',   th: 'น้ำร้อน',                         en: 'Hot Water Supply',         fluid: :hot_water,
-          catalog: 'PPR_DIN8077', size: '32 mm', rating: 'PN20', insulation: 25,
+          catalog: 'PPR_DIN8077', size: '32 mm', rating: 'PN20', insulation: 38.1,
           vmax: 1.5, hf_max: 4.0, asme: :water, jis: :water, rgb: [229, 57, 53] },
         { code: 'HWR',  th: 'น้ำร้อนไหลกลับ',                  en: 'Hot Water Return',         fluid: :hot_water,
-          catalog: 'PPR_DIN8077', size: '25 mm', rating: 'PN20', insulation: 25,
+          catalog: 'PPR_DIN8077', size: '25 mm', rating: 'PN20', insulation: 38.1,
           vmax: 1.5, hf_max: 4.0, asme: :water, jis: :water, rgb: [244, 143, 177] },
         { code: 'SAN',  th: 'ท่อน้ำเสีย / โสโครก',            en: 'Soil & Waste (gravity)',   fluid: :water, gravity: true,
           catalog: 'PVC_TIS17',  size: '4"',     rating: 'Class 8.5', insulation: 0,
@@ -54,10 +55,10 @@ module ArtK
           catalog: 'SS_B36_19',  size: '1"',     rating: '10S', insulation: 0,
           vmax: 2.0, hf_max: 4.0, asme: :water, jis: :water, rgb: [128, 222, 234] },
         { code: 'STM',  th: 'ไอน้ำ',                           en: 'Steam',                    fluid: :steam,
-          catalog: 'CS_B36_10',  size: '2"',     rating: 'SCH40', insulation: 50,
+          catalog: 'CS_B36_10',  size: '2"',     rating: 'SCH40', insulation: 38.1,
           vmax: 30.0, hf_max: nil, asme: :water, jis: :steam, rgb: [183, 28, 28] },
         { code: 'CON',  th: 'น้ำคอนเดนเสท',                   en: 'Condensate Return',        fluid: :hot_water,
-          catalog: 'CS_B36_10',  size: '1-1/2"', rating: 'SCH80', insulation: 25,
+          catalog: 'CS_B36_10',  size: '1-1/2"', rating: 'SCH80', insulation: 38.1,
           vmax: 1.5, hf_max: 4.0, asme: :water, jis: :water, rgb: [255, 112, 67] },
         { code: 'CA',   th: 'ลมอัด',                           en: 'Compressed Air',           fluid: :air,
           catalog: 'GSP_BS1387', size: '1"',     rating: 'Medium', insulation: 0,

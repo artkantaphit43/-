@@ -404,8 +404,8 @@ class TestSteelStd < Minitest::Test
       at = ->(y) { r.carried.find { |p| p[:y] == y } }
       assert_in_delta 84.15, at.call(290.0)[:z], 1e-6, "#{t}: 6\" on the bottom member"
       assert_in_delta 320.0 - 30.15, at.call(500.0)[:z], 1e-6, "#{t}: air hung under the top member"
-      assert_in_delta 75.0 + 100.15, at.call(650.0)[:z], 1e-6, "#{t}: steam's insulation on its 3\" angle shoe"
-      assert_in_delta 70.0, at.call(650.0)[:ins], 1e-6, "#{t}: 2\" + 70 insulation, about 0.20 overall"
+      assert_in_delta 75.0 + 68.25, at.call(650.0)[:z], 1e-6, "#{t}: steam's insulation on its 3\" angle shoe"
+      assert_in_delta 38.1, at.call(650.0)[:ins], 1e-6, "#{t}: 2\" + 1-1/2\" insulation (the BOQ, 2.5.1)"
       assert_equal [[290.0, 0.0], [500.0, 320.0], [650.0, 75.0]], r.info[:rests].sort, "#{t}: guides"
       assert_equal %w[ub\ 1/2\ 168 ub\ 3/8\ 60].map { |k| k.delete('\\') }.sort,
                    r.bom.select { |b| b[:cat] == 'ubolt' }.map { |b| b[:key] }.sort, "#{t}: no U-bolt on the steam"

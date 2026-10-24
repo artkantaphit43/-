@@ -119,7 +119,7 @@ module ArtK
         return Settings.sanitize({}) if raw.nil? || raw.to_s.empty?
 
         json = raw.to_s.unpack1('m0').force_encoding('UTF-8')
-        Settings.sanitize(JSON.parse(json))
+        respec_settings(Settings.sanitize(JSON.parse(json)))
       rescue StandardError => e
         puts "Plant Piping: stored settings unreadable (#{e.message}) – using defaults"
         Settings.sanitize({})
@@ -127,6 +127,21 @@ module ArtK
 
       def reset_settings_cache!
         @settings_cache = nil
+      end
+
+      SPEC_PREF = 'ins_spec'
+
+      # 1.17.0: insulation set as 2" × 2 layers (100) is the BOQ's 1-1/2"
+      # (38.1) one layer – the stored setting is put right once.
+      def respec_settings(s)
+        return s unless Sketchup.read_default(PREF, SPEC_PREF, nil).nil?
+
+        Sketchup.write_default(PREF, SPEC_PREF, 1)
+        return s unless Settings.two_layers?(s['insulation_mm'])
+
+        s = s.merge('insulation_mm' => Settings::SPEC_MM)
+        Sketchup.write_default(PREF, 'settings_b64', [JSON.generate(s)].pack('m0'))
+        s
       end
 
       # ---------- tags & materials ----------

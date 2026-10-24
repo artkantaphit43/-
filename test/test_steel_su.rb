@@ -531,6 +531,51 @@ class TestSteelSU < Minitest::Test
     assert_in_delta 1500.0, SH.get_json(c, 'origin')[2], 1e-6
   end
 
+  # The user (2.5.1): supports placed with an older version kept their old
+  # steel (a single angle shoe) – "ปรับตามท่อ" saw the same pipes and left
+  # them. Built by an older revision: redone, also on their own when the
+  # file opens / the plugin loads.
+  def test_supports_from_an_older_version_are_redone
+    column!
+    g = SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
+                                                        [3000.0, 5000.0, 1500.0]))
+    assert_equal SS::Builder::REV, g.get_attribute(SH::DICT, 'rev')
+    assert_equal :same, SS::Builder.refit(@model, g)
+    g.delete_attribute(SH::DICT, 'rev') # as 2.5.0 and before left it
+    assert_equal :done, SS::Builder.refit(@model, g), 'redone though its pipes are the same'
+    assert_equal SS::Builder::REV, supports.first.get_attribute(SH::DICT, 'rev')
+    assert_equal 'C-01', supports.first.get_attribute(SH::DICT, 'number'), 'same number'
+    supports.first.set_attribute(SH::DICT, 'rev', 1)
+    assert_equal 1, SS::Builder.refit_stale(@model)
+    assert_equal SS::Builder::REV, supports.first.get_attribute(SH::DICT, 'rev')
+    assert_equal 0, SS::Builder.refit_stale(@model), 'nothing left on the next open'
+    assert_equal 2, SH.get_json(supports.first, 'bom').count { |b| b['key'] == 'L75' }, 'the shoe of two angles'
+  end
+
+  # The user's file (Plant Piping 1.17 + 2.5.1): a 4" hot line drawn with
+  # 100 insulation (read as 2" × 2 layers) onto C's shoe, C from 2.5.0.
+  # Opened: the line takes the BOQ's 1-1/2" and drops so its insulation
+  # still lies on the shoe; the support is redone (two angles) and has
+  # nothing to say – nothing to do by hand.
+  def test_old_file_put_right_on_open
+    column!
+    SS::Builder.create(@model, SS::Placer.from_face(@model, 'C', [3000.0, -450.0, 1500.0], [0, 1.0, 0],
+                                                    [3000.0, 5000.0, 1500.0]))
+    hw, = draw_onto('4"', [], [2800.0, -450.0 + 650.0, 1500.0 + 75.0], service: 'HW', ins: 100)
+    PH.get_json(hw, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 157.15, p[2], 1e-6 }
+    refute_empty SH.get_json(supports.first, 'notes'), '0.31 overall: too big for C'
+    @model.delete_attribute(PH::DICT, ArtK::PlantPipe::Migrate::SPEC_KEY) # as the file was
+    supports.first.delete_attribute(SH::DICT, 'rev')
+    assert_equal 1, ArtK::PlantPipe::Migrate.model(@model)[:respec] # Plant Piping, on open (asked: yes)
+    SS::Builder.refit_stale(@model) # Steel Supports, on open
+    PH.get_json(hw, 'cl').flatten(1).each { |p| assert_in_delta 1500.0 + 75.0 + 95.25, p[2], 1e-6, 'insulation still on the shoe' }
+    c = supports.first
+    assert_equal SS::Builder::REV, c.get_attribute(SH::DICT, 'rev')
+    assert_empty SH.get_json(c, 'notes')
+    assert_in_delta 38.1, SH.get_json(c, 'pipes').find { |p| p['pid'] == hw.persistent_id }['ins'], 1e-6
+    assert_equal 2, SH.get_json(c, 'bom').count { |b| b['key'] == 'L75' }
+  end
+
   # The user (2.5): the enlarged C placed on the column face and the 4"
   # steam (+ 100 insulation) drawn from its guide line, onto its shoe.
   def test_4_inch_steam_drawn_onto_the_large_c

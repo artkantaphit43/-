@@ -556,10 +556,11 @@ module UI
   @messages = []
   class << self
     attr_reader :messages
+    attr_accessor :answer
 
     def messagebox(msg, *_a)
       @messages << msg
-      6 # IDYES
+      @answer || 6 # IDYES
     end
 
     def beep; end

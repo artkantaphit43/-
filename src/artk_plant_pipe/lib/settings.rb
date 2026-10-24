@@ -34,7 +34,15 @@ module ArtK
         'hdpe_joint'    => 'auto'     # auto (by size) | butt | ef | comp – HDPE fitting system
       }.freeze
 
+      # Insulation of the user's BOQ (fiberglass pipe section 1-1/2", one
+      # layer); 100 / 101.6 was it read as 2" × 2 layers (1.17.0).
+      SPEC_MM = 38.1
+
       module_function
+
+      def two_layers?(mm)
+        [100.0, 101.6].any? { |v| (mm.to_f - v).abs < 0.5 }
+      end
 
       # Returns a clean settings hash, fixing any inconsistent combination
       # (e.g. a size that does not exist in the chosen catalogue).

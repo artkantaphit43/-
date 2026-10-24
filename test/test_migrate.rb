@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool].each do |f|
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool run_editor].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
 
@@ -143,6 +143,80 @@ class TestMigrate < Minitest::Test
     assert_equal 1, Migrate.model(@model)[:parts]
     assert_equal 2, d.get_attribute(H::DICT, 'rev')
     assert_equal 0, Migrate.model(@model)[:parts]
+  end
+
+  # The user (1.17.0): steam / hot water drawn with 100 insulation (read as
+  # 2" × 2 layers) – the BOQ says 1-1/2" (38.1) one layer. A file from
+  # before, opened once and asked once: those runs take 38.1 and drop by
+  # the difference so the insulation's underside stays on the supports; a
+  # run tied to another keeps its centre line; other runs are left alone.
+  def test_old_100_insulation_becomes_one_and_a_half_inch_on_open
+    s = Settings.sanitize('service' => 'HW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 100)
+    run, = Builder.create_run(@model, [[[0, 0, 3000], [5000, 0, 3000]], [[5000, 0, 3000], [5000, 0, 1000]]], s)
+    main, = Builder.create_run(@model, [[[0, 3000, 3000], [8000, 3000, 3000]]], s.merge('insulation_mm' => 101.6))
+    tee = { 'at' => [4000.0, 3000.0, 3000.0], 'main_dir' => [1.0, 0, 0], 'main_catalog' => 'CS_B36_10',
+            'main_size' => '4"', 'main_rating' => 'SCH40', 'main_service' => 'HW', 'main_pid' => main.persistent_id }
+    branch, = Builder.create_run(@model, [[[4000.0, 3000.0, 3000.0], [4000, 6000, 3000]]], s.merge('size' => '2"'), tees: [tee])
+    thin, = Builder.create_run(@model, [[[0, 9000, 3000], [4000, 9000, 3000]]], s.merge('insulation_mm' => 25))
+    @model.delete_attribute(H::DICT, Migrate::SPEC_KEY) # a file from before 1.17
+    keep = H.get_json(thin, 'cl')
+    UI.messages.clear
+    res = Migrate.model(@model)
+    assert_equal 3, res[:respec]
+    assert_equal 1, UI.messages.size, 'asked once'
+    assert_match(%r{1-1/2"}, UI.messages.first)
+    [run, main, branch].each { |r| assert_in_delta 38.1, Builder.run_settings(r)['insulation_mm'], 1e-6 }
+    zs = H.get_json(run, 'cl').flatten(1).map { |p| p[2].to_f.round(1) }.uniq.sort
+    assert_equal [1000.0 - 61.9, 3000.0 - 61.9], zs, 'lowered: the insulation underside where it was'
+    assert_equal [3000.0], H.get_json(main, 'cl').flatten(1).map { |p| p[2].to_f.round(1) }.uniq, 'branched: centre line kept'
+    assert_equal [3000.0], H.get_json(branch, 'cl').flatten(1).map { |p| p[2].to_f.round(1) }.uniq, 'on its main: kept'
+    assert_equal keep, H.get_json(thin, 'cl')
+    assert_in_delta 25, Builder.run_settings(thin)['insulation_mm'], 1e-6
+    UI.messages.clear
+    assert_equal 0, Migrate.model(@model)[:respec]
+    assert_empty UI.messages, 'not asked again'
+  end
+
+  # The user's stored setting (100 – 2" × 2 read wrong) becomes 1-1/2"
+  # once; hot services start at 1-1/2" (the BOQ's fiberglass, 1.17.0).
+  def test_stored_100_insulation_setting_becomes_one_and_a_half_inch
+    stored = Settings.sanitize('service' => 'HW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 100)
+    Sketchup.write_default(H::PREF, 'settings_b64', [JSON.generate(stored)].pack('m0'))
+    Sketchup.write_default(H::PREF, H::SPEC_PREF, nil)
+    H.reset_settings_cache!
+    assert_in_delta 38.1, H.load_settings['insulation_mm'], 1e-6
+    H.save_settings(H.load_settings.merge('insulation_mm' => 100))
+    H.reset_settings_cache!
+    assert_in_delta 100, H.load_settings['insulation_mm'], 1e-6, 'set again on purpose: kept'
+    %w[STM HW HWR CON].each { |c| assert_in_delta 38.1, Services.get(c)[:insulation], 1e-6, c }
+  ensure
+    Sketchup.write_default(H::PREF, 'settings_b64', nil)
+    H.reset_settings_cache!
+  end
+
+  # Drawn with 1.17 on purpose: 100 stays 100.
+  def test_new_100_insulation_is_left_alone
+    s = Settings.sanitize('service' => 'HW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 100)
+    run, = Builder.create_run(@model, [[[0, 0, 3000], [5000, 0, 3000]]], s)
+    UI.messages.clear
+    assert_equal 0, Migrate.model(@model)[:respec]
+    assert_empty UI.messages
+    assert_in_delta 100, Builder.run_settings(run)['insulation_mm'], 1e-6
+  end
+
+  # Answered no: nothing changes, not asked again.
+  def test_old_100_insulation_kept_when_declined
+    s = Settings.sanitize('service' => 'HW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 100)
+    run, = Builder.create_run(@model, [[[0, 0, 3000], [5000, 0, 3000]]], s)
+    @model.delete_attribute(H::DICT, Migrate::SPEC_KEY)
+    UI.answer = 7 # IDNO
+    assert_equal 0, Migrate.model(@model)[:respec]
+    assert_in_delta 100, Builder.run_settings(run)['insulation_mm'], 1e-6
+    UI.messages.clear
+    Migrate.model(@model)
+    assert_empty UI.messages
+  ensure
+    UI.answer = nil
   end
 
   # The user (1.16.5): runs drawn with 1.16.4 and before left thick

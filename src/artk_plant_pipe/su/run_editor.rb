@@ -54,6 +54,19 @@ module ArtK
         return [false, warnings] unless after
 
         model.start_operation(name, true, false, transparent)
+        store(run, after)
+        warnings += Builder.render(model, run, Builder.run_settings(run))
+        warnings += branch_warnings(model, run)
+        model.commit_operation
+        SupportBuilder.notify_changed(model, [run]) # other extensions' supports follow the pipe
+        [true, warnings.uniq]
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
+      # Writes edited data (RunEdit's) back onto +run+ and its pieces.
+      def store(run, after)
         H.set_json(run, 'cl', after['cl'])
         H.set_json(run, 'supports', after['supports'])
         valve_instances(run).zip(after['valves']).each do |v, rec|
@@ -63,14 +76,6 @@ module ArtK
         end_part_instances(run).zip(after['end_parts']).each do |e, rec|
           e.set_attribute(H::DICT, 'end_part', JSON.generate(rec))
         end
-        warnings += Builder.render(model, run, Builder.run_settings(run))
-        warnings += branch_warnings(model, run)
-        model.commit_operation
-        SupportBuilder.notify_changed(model, [run]) # other extensions' supports follow the pipe
-        [true, warnings.uniq]
-      rescue StandardError
-        model.abort_operation
-        raise
       end
 
       # Runs branching off +run+ whose connection point is no longer on it.

@@ -104,7 +104,10 @@
 
   <fieldset>
     <legend>การวาด (Drawing)</legend>
-    <label>ฉนวน (mm)<input type="number" id="insulation_mm" min="0" max="200" step="5"></label>
+    <label>ฉนวน (mm)<input type="number" id="insulation_mm" min="0" max="200" step="0.1" list="insopts"></label>
+    <datalist id="insopts"><option value="25.4" label='1"'><option value="38.1" label='1-1/2"'>
+      <option value="50.8" label='2"'><option value="76.2" label='3"'></datalist>
+    <div class="info" id="insinfo"></div>
     <label>ความลาด (%)<input type="number" id="slope_pct" min="0" max="10" step="0.01"></label>
     <div class="note tip" id="slopetip" hidden></div>
     <label>ข้องอ (Elbow)<select id="elbow_type">
@@ -250,6 +253,13 @@ const PP = (() => {
       `OD ${z.od} × t ${wall} mm · ID ${id.toFixed(1)} mm · ${kgm.toFixed(2)} kg/m · ${c.joint}` +
       (c.flexible ? ` · ดัดโค้งรัศมีไม่น้อยกว่า ${Math.round(z.od * ((c.bend_factor || {})[S.rating] || 25))} mm` +
         ` (${(c.bend_factor || {})[S.rating] || 25}×OD) · ม้วนละ ${z.od > 63 ? 50 : 100} m` : '');
+    // what the insulated pipe comes to: the thickness on both sides (1.17.0)
+    const ins = Number(S.insulation_mm) || 0;
+    const frac = [[0.5, '1/2'], [0.75, '3/4'], [1, '1'], [1.5, '1-1/2'], [2, '2'], [2.5, '2-1/2'], [3, '3'], [4, '4']]
+      .find(([v]) => Math.abs(v - ins / 25.4) < 0.02);
+    $('insinfo').textContent = ins > 0
+      ? `หนา ${ins} mm${frac ? ` (${frac[1]}")` : ''} ต่อข้าง · หุ้มแล้วโต ${(z.od + 2 * ins).toFixed(1)} mm = ${z.od} + ${ins} × 2`
+      : 'ไม่หุ้มฉนวน';
     $('estwarn').hidden = !c.estimated;
     const pe = S.catalog.startsWith('HDPE');
     $('hdperow').hidden = !pe;

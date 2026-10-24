@@ -9,6 +9,10 @@ module ArtK
     module Builder
       FORMAT = 1
       GUIDES = 2   # guide points mid + at both ends of each line (2.2.1)
+      # The steel's revision: raised when what is drawn for the same pipes
+      # changes (2.5.1 – the 3" shoe of two angles); older supports are
+      # redone by a refit, and on their own when a file opens.
+      REV = 3
       GUIDE = 500.0 # guide lines reach this far each way along the pipes
       NEAR = 2500.0 # mm, pipes changed this close to a support refit it
 
@@ -122,6 +126,7 @@ module ArtK
         g.set_attribute(H::DICT, 'kind', 'support')
         g.set_attribute(H::DICT, 'format', FORMAT)
         g.set_attribute(H::DICT, 'detail', plan[:detail])
+        g.set_attribute(H::DICT, 'rev', REV)
         g.set_attribute(H::DICT, 'number', number)
         g.set_attribute(H::DICT, 'section', res.info[:section])
         g.set_attribute(H::DICT, 'anchor', res.info[:anchor]) if res.info[:anchor]
@@ -217,7 +222,8 @@ module ArtK
                plan[:result].info[:section] == g.get_attribute(H::DICT, 'section') &&
                H.get_json(g, 'origin') == plan[:origin].map { |c| c.round(2) } &&
                plan[:result].notes == H.get_json(g, 'notes', []) &&
-               (!Placer.std?(plan[:detail]) || g.get_attribute(H::DICT, 'guides_v').to_i >= GUIDES) # older guides: redone
+               (!Placer.std?(plan[:detail]) || g.get_attribute(H::DICT, 'guides_v').to_i >= GUIDES) && # older guides: redone
+               g.get_attribute(H::DICT, 'rev').to_i >= REV # older steel: redone
         return :same if same
 
         model.start_operation('Steel Supports: ปรับตามท่อ', true, false, op == :transparent) if op
@@ -227,6 +233,34 @@ module ArtK
         model.commit_operation if op
         forget
         :done
+      end
+
+      # Standard supports built by an older revision (a file from before /
+      # the plugin updated): redone, one undo step. Returns how many.
+      def refit_stale(model)
+        old = H.supports(model).select do |g, _|
+          Placer.std?(g.get_attribute(H::DICT, 'detail')) && g.get_attribute(H::DICT, 'rev').to_i < REV
+        end
+        return 0 if old.empty?
+
+        n = 0
+        model.start_operation('Steel Supports: ปรับตามเวอร์ชันใหม่', true)
+        old.each do |g, _|
+          n += 1 if refit(model, g, op: false) == :done
+        rescue StandardError => e
+          puts "Steel Supports: #{g.get_attribute(H::DICT, 'number')} not redone – #{e.message}"
+        end
+        model.commit_operation
+        n
+      end
+
+      # Redoes the older supports of a file as it opens.
+      class OpenObserver < (defined?(Sketchup::AppObserver) ? Sketchup::AppObserver : Object)
+        def onOpenModel(model)
+          Builder.refit_stale(model)
+        rescue StandardError => e
+          puts "Steel Supports: older supports not redone – #{e.message}"
+        end
       end
 
       # World min / max corners of a run's bounds (nil when unknown).

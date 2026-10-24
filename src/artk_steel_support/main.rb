@@ -69,6 +69,13 @@ module ArtK
       # when SketchUp is up, in case it came later.
       Link.register
       UI.start_timer(2.0, false) { Link.register }
+      # supports placed with an older version: redone (2.5.1)
+      Sketchup.add_observer(Builder::OpenObserver.new)
+      begin
+        Builder.refit_stale(Sketchup.active_model) if Sketchup.active_model
+      rescue StandardError => e
+        puts "Steel Supports: older supports not redone – #{e.message}"
+      end
       file_loaded(__FILE__)
     end
   end

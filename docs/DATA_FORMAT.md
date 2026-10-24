@@ -118,7 +118,11 @@ fusion spigot / … – shown in the BOM), `fitting_desc` on elbows, couplers an
 butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends` (count) and
 `stub_dn`. Tee and join records may carry `main_joint` – the main run's `hdpe_joint`.
 
-**Model:** `fmt` – the format the file was last upgraded to.
+**Model:** `fmt` – the format the file was last upgraded to; `ins_spec` (1.17.0) – the file was drawn by 1.17+
+or its runs with insulation set as 2" × 2 layers (100 / 101.6) were offered the BOQ's 1-1/2" (38.1) once, on open
+(`Migrate.respec_runs`; yes = 38.1 and the run dropped by the difference unless tied to another run). Stored setting:
+pref `ins_spec` – the same, once, for the saved settings. Steel Supports groups carry `rev` (2.5.1, `Builder::REV`):
+older steel is redone by a refit and on open.
 
 **Other extensions (1.16.1):** `ArtK::PlantPipe::API` (LEVEL 1, `su/api.rb`; LEVEL 2 in 1.16.2 adds
 `register_rests` – the pipe tool lays a pipe picked on another extension's support on it; 1.16.3 passes the pipe
