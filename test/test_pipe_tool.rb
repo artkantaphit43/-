@@ -117,6 +117,57 @@ class TestPipeTool < Minitest::Test
     assert_equal 1, branch.entities.count { |e| H.type_of(e) == 'elbow' }
   end
 
+  # The user (1.17.1, screenshot – "จะวาดที่จุดนี้ แต่ทำไมมันไปสแนปที่จุด
+  # กากบาท"): starting on an endpoint of their own line beside a 4" pipe,
+  # the start jumped onto that pipe (a tee, the ✕). A point snapped on
+  # your own geometry is where the pipe starts; it joins a pipe only when
+  # it is on that pipe's end / centre line. A free cursor still finds it.
+  def test_snapped_point_of_your_own_geometry_is_where_the_pipe_starts
+    t = tool_with('service' => 'CW', 'catalog' => 'GSP_BS1387', 'size' => '4"')
+    click(t, [0, 0, 3000])
+    click(t, [10_000, 0, 3000])
+    t.onReturn(@view)
+    main = runs.first
+    Sketchup::InputPoint.next_vertex = :endpoint # the user's own line, beside the pipe
+    Sketchup::InputPoint.next_position = H.to_pt([4000, 40, 3050])
+    t.onMouseMove(0, 0, 0, @view)
+    assert_nil t.instance_variable_get(:@hover), 'no ✕ on the pipe'
+    assert_equal [4000.0, 40.0, 3050.0], t.instance_variable_get(:@cursor).map { |v| v.round(6) }
+    t.onLButtonDown(0, 0, 0, @view)
+    Sketchup::InputPoint.next_vertex = nil
+    click(t, [4000, 3000, 3050])
+    t.onReturn(@view)
+    mine = runs.find { |r| r != main }
+    refute_nil mine, 'a pipe of its own'
+    assert_equal [4000.0, 40.0, 3050.0], cl_points(mine).first.map { |v| v.round(6) }
+    assert_nil mine.entities.find { |e| H.type_of(e) == 'tee' }
+    # snapped on the pipe's own end: continues it
+    Sketchup::InputPoint.next_vertex = :endpoint
+    click(t, [10_000, 0, 3000])
+    Sketchup::InputPoint.next_vertex = nil
+    click(t, [12_000, 0, 3000])
+    t.onReturn(@view)
+    assert_equal 2, runs.size, 'drawn on from its end'
+    # ended on your own point beside the pipe: ends there
+    before = runs.size
+    click(t, [2000, 3000, 3050])
+    Sketchup::InputPoint.next_vertex = :endpoint
+    click(t, [2000, 40, 3050])
+    Sketchup::InputPoint.next_vertex = nil
+    t.onReturn(@view)
+    last = (runs - [main, mine]).find { |r| cl_points(r).any? { |q| q[0].round == 2000 } }
+    assert_equal before + 1, runs.size
+    assert_equal [2000.0, 40.0, 3050.0], cl_points(last).max_by { |q| -q[1] }.map { |v| v.round(6) }
+    assert_nil last.entities.find { |e| H.type_of(e) == 'tee' }
+    # a free cursor beside the pipe still branches off it
+    click(t, [7000, 40, 3050])
+    click(t, [7000, 3000, 3000])
+    t.onReturn(@view)
+    assert(runs.any? { |r| r.entities.any? { |e| H.type_of(e) == 'tee' } }, 'free cursor: tee')
+  ensure
+    Sketchup::InputPoint.next_vertex = nil
+  end
+
   def test_new_size_from_run_end_adds_reducer_and_new_run
     t = tool_with('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '4"')
     click(t, [0, 0, 0])

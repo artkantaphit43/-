@@ -75,7 +75,7 @@ module ArtK
         @cursor = @ip.valid? ? constrain(@ip) : nil
         @hover = nil
         if @cursor && @points.empty?
-          @hover = detect_link(@cursor)
+          @hover = link_at(@cursor)
         elsif @cursor && (@hover = end_target(H.from_pt(@ip.position)))
           @cursor = @hover[:point] # snap to the Center of that pipe end
         end
@@ -97,7 +97,7 @@ module ArtK
             @end_link = @hover
             return finish(view)
           end
-          link = detect_link(@cursor, exclude_run: @start_link && @start_link[:run])
+          link = link_at(@cursor, exclude_run: @start_link && @start_link[:run])
           if link && %i[tee node].include?(link[:kind])
             @points << link[:point]
             @end_link = link
@@ -275,6 +275,7 @@ module ArtK
 
       def constrain(ip)
         raw = H.from_pt(ip.position)
+        @own = own_snap?(ip)
         if (@rest = support_rest(ip, raw))
           lift = @spec.od / 2.0 + (@rest[:bare] ? 0.0 : @settings['insulation_mm'].to_f)
           raw = [*(@rest[:point] || raw)[0, 2], @rest[:z] + lift]
@@ -307,9 +308,32 @@ module ArtK
         return nil if SupportBuilder::RESTS.empty?
 
         path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
-        SupportBuilder.rest_at(@model, path, raw, { od: @spec.od, ins: @settings['insulation_mm'].to_f })
+        rest = SupportBuilder.rest_at(@model, path, raw, { od: @spec.od, ins: @settings['insulation_mm'].to_f })
+        # your own point: a support may lift the pipe onto itself there,
+        # not move it along or across
+        return nil if rest && @own && rest[:point] && Math.hypot(rest[:point][0] - raw[0], rest[:point][1] - raw[1]) > 1.0
+
+        rest
       rescue StandardError
         nil
+      end
+
+      # Another extension's support (its steel / guides) – not your own.
+      SUPPORT_DICTS = %w[ArtK_SteelSupport].freeze
+
+      # Snapped on your own geometry – an endpoint, intersection, guide
+      # point (not a pipe of ours, not a support): the point you meant, as
+      # it is (1.17.1 – the start jumped onto a pipe beside it).
+      def own_snap?(ip)
+        return false if ip.vertex.nil? && ip.degrees_of_freedom != 0
+
+        path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
+        path.none? do |e|
+          e.respond_to?(:get_attribute) &&
+            (H.type_of(e) || SUPPORT_DICTS.any? { |d| e.respond_to?(:attribute_dictionary) && e.attribute_dictionary(d) })
+        end
+      rescue StandardError
+        false
       end
 
       def bop_offset?(ip)
@@ -362,6 +386,13 @@ module ArtK
         { kind: :tee, hit: hit, point: hit[:proj] }
       end
 
+      # What a pipe started / ended at +pt+ joins – your own snapped point
+      # only one right there, not a pipe beside it (1.17.1).
+      def link_at(pt, exclude_run: nil)
+        link = detect_link(pt, exclude_run: exclude_run)
+        link && @own && Vec.dist(link[:point], pt) > 2.0 ? nil : link
+      end
+
       # Open pipe end (its Center) under the cursor while drawing, other
       # than the end this line started from.
       def end_target(raw)
@@ -398,7 +429,7 @@ module ArtK
       end
 
       def start_run(pt)
-        link = detect_link(pt)
+        link = link_at(pt)
         if link
           # A different size/material selected → reducer + new run;
           # the same spec → simply continue the existing run.

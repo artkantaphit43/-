@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.17.0**
-(`dist/artk_plant_pipe-1.17.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.1**
-(`dist/artk_steel_support-2.5.1.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (319 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.17.1**
+(`dist/artk_plant_pipe-1.17.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.1**
+(`dist/artk_steel_support-2.5.1.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (321 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -225,6 +225,11 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   ปลายบนของแขวน `target` คงเดิม) ยกเว้นท่อที่ต่อกับท่ออื่น (`tied?`) → `notify_changed` ให้ Steel ปรับ · `RunEditor.store` แยกจาก apply ·
   Steel: **บั๊ก** refit เห็นท่อเหมือนเดิม → :same ซัพพอร์ตเก่าไม่เคยได้ L75/⊥ (2.4.1/2.5.0 บอกผู้ใช้ผิดว่ากดปรับตามท่อแล้วได้) →
   `Builder::REV` (3) stamp `rev` + เงื่อนไขใน same · `refit_stale` + `OpenObserver` (เปิดไฟล์/โหลด) · สตีมในแบบ C/D/CH/DH ฉนวน 38.1
+- **Plant Piping 1.17.1 – จุดที่สแนปเองถูกย้ายไปท่อข้าง ๆ** (ภาพ: Endpoint ของเส้นผู้ใช้ข้างท่อ 4" → ✕ ส้ม = `@hover` tee บนท่อนั้น;
+  "จะวาดที่จุดนี้ แต่ทำไมมันไปสแนปที่จุดกากบาท"): `own_snap?` (vertex / dof 0, path ไม่มีของ PP และไม่มีซัพพอร์ต `SUPPORT_DICTS`) →
+  `link_at` รับเฉพาะ link ที่จุดนั้นเอง (≤ 2 มม.: ปลายท่อ/แนวศูนย์) ทั้งเริ่มและจบท่อ · `support_rest` ของจุดตัวเองยกขึ้นได้แต่ไม่ย้ายแนวราบ (> 1 มม. = ไม่ใช้) ·
+  เคอร์เซอร์อิสระ (ไม่สแนป) ยังต่อ tee/ปลายท่อเหมือนเดิม · ระหว่างนั้นผู้ใช้แจ้ง "กดไอคอนอื่นไม่ได้นอกจาก C" – ตรวจ rbz จริง: กดได้ทั้ง 11 แบบ,
+  การ์ดครบ, refit-on-open ทุกแบบผ่าน (เพิ่มเทสต์) – น่าจะติดตั้งทับตอนเปิดโปรแกรม; Ruby Console ของผู้ใช้ไม่มี error (เขาพิมพ์ A ลงช่องคำสั่ง)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
