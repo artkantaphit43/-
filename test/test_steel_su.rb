@@ -552,6 +552,37 @@ class TestSteelSU < Minitest::Test
     assert_equal 2, SH.get_json(supports.first, 'bom').count { |b| b['key'] == 'L75' }, 'the shoe of two angles'
   end
 
+  # The user (2.5.1, "แก้แต่ C D จนตัวอื่นใช้ไม่ได้"): every type – not
+  # only C / D – comes through being redone on open as it was.
+  def test_every_type_comes_through_being_redone_on_open
+    plans = {
+      'A' => -> { column!; pipe_run(160, 1500 + 57.15, '4"', 'CW'); SS::Placer.from_face(@model, 'A', [3000.0, -450.0, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0]) },
+      'B' => -> { column!; pipe_run(200, 1500 + 30.15, '2"', 'CW'); SS::Placer.from_face(@model, 'B', [3000.0, -450.0, 1500.0], [0, 1.0, 0], [3000.0, 5000.0, 1500.0]) },
+      'E' => lambda do
+        chord!
+        pipe_run(-150, 2000, '6"', 'CW')
+        SS::Placer.from_pipe_hanger(@model, 'E', hit_at([3000, -150, 2000]), SH.settings)
+      end,
+      'F' => -> { chord_along!; pipe_run(0, 2000, '4"', 'CW'); SS::Placer.from_pipe_rod(@model, 'F', hit_at([3000, 0, 2000]), SH.settings) },
+      'G' => -> { @model.ray_hits = SteelSU.rays(boxes: [BEAM]); pipe_run(0, 2000, '4"', 'CW'); SS::Placer.from_pipe_angle(@model, 'G', hit_at([3000, 0, 2000]), SH.settings) }
+    }
+    plans.each do |t, make|
+      setup
+      g = SS::Builder.create(@model, make.call)
+      read = lambda do |e|
+        %w[origin bom notes].map { |k| SH.get_json(e, k) } + [e.get_attribute(SH::DICT, 'number'),
+                                                              SH.get_json(e, 'pipes').map { |q| q.reject { |k, _| k == 'at' } }]
+      end
+      before = read.call(g)
+      g.delete_attribute(SH::DICT, 'rev')
+      assert_equal 1, SS::Builder.refit_stale(@model), t
+      assert_equal 1, supports.size, "#{t}: still there"
+      g2 = supports.first
+      assert_equal before, read.call(g2), "#{t}: as it was"
+      assert_equal :same, SS::Builder.refit(@model, g2), t
+    end
+  end
+
   # The user's file (Plant Piping 1.17 + 2.5.1): a 4" hot line drawn with
   # 100 insulation (read as 2" × 2 layers) onto C's shoe, C from 2.5.0.
   # Opened: the line takes the BOQ's 1-1/2" and drops so its insulation
