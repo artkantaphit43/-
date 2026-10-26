@@ -10,9 +10,10 @@ module ArtK
       FORMAT = 1
       GUIDES = 2   # guide points mid + at both ends of each line (2.2.1)
       # The steel's revision: raised when what is drawn for the same pipes
-      # changes (2.5.1 – the 3" shoe of two angles); older supports are
-      # redone by a refit, and on their own when a file opens.
-      REV = 3
+      # changes (3: 2.5.1 – the 3" shoe of two angles; 4: 2.5.2 – a line
+      # mid-frame hangs from the top member); older supports are redone by
+      # a refit, and on their own when a file opens.
+      REV = 4
       GUIDE = 500.0 # guide lines reach this far each way along the pipes
       NEAR = 2500.0 # mm, pipes changed this close to a support refit it
 

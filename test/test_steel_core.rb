@@ -461,6 +461,35 @@ class TestSteelStd < Minitest::Test
     assert_match(/ยกท่อขึ้น 100 มม\./, sunk.notes.first)
   end
 
+  # The user (2.5.2, "ดูตรงท่อชมพู"): a line inside a frame neither on the
+  # bottom member nor at the top one (e.g. drawn at C's level through a C
+  # large) stood on a packer 0.2 high. Now it hangs from the top member
+  # on a threaded rod + two-bolt clamp (as F); packers only up to 0.05,
+  # and just under the member a U-bolt with a spacer.
+  def test_a_line_mid_frame_hangs_from_the_top_member
+    { 'C' => 320.0, 'CL' => 440.0 }.each do |t, u|
+      air = P.call(500, 320.0 - 120.0 - 30.15, 60.3, 0.0, 'air') # 0.12 under C's top member
+      r = SS::Std.build(t, [P.call(290, 84.15, 168.3, 0.0, '6"'), air])
+      r.part.solids.each { |role, sol| assert SS::Mesh.closed?(sol), "#{t} #{role}" }
+      assert_equal [290.0, 500.0], r.carried.map { |p| p[:y] }.sort, t
+      refute(r.bom.any? { |b| b[:key] == 'pad' }, "#{t}: no tall packer")
+      assert(r.bom.any? { |b| b[:cat] == 'clamp' }, "#{t}: a clamp round it")
+      rod = r.bom.find { |b| b[:cat] == 'rod' && b[:desc].include?('จากคานบน') }
+      refute_nil rod, t
+      assert_in_delta u - (320.0 - 120.0), rod[:desc][/ยาว (\d+)/, 1].to_f, 80.0, "#{t}: rod up to the member"
+      assert_empty r.notes, t
+      assert(r.checks.any? { |c| c[:item].include?('คานบน') }, "#{t}: the top member carries it")
+      assert(r.checks.any? { |c| c[:kind] == :rod }, "#{t}: rod checked")
+      refute_includes r.info[:rests].map(&:first), 500.0, "#{t}: the air's place taken"
+    end
+    low = SS::Std.build('C', [P.call(500, 40.0 + 30.15, 60.3, 0.0, 'air')])
+    assert(low.bom.any? { |b| b[:key] == 'pad' }, 'a small gap: packer')
+    refute(low.bom.any? { |b| b[:cat] == 'clamp' })
+    near = SS::Std.build('C', [P.call(500, 320.0 - 50.0 - 30.15, 60.3, 0.0, 'air')])
+    assert(near.bom.any? { |b| b[:cat] == 'ubolt' && b[:desc].include?('แขวนท่อ') }, 'just under: U-bolt + spacer')
+    refute(near.bom.any? { |b| b[:cat] == 'clamp' })
+  end
+
   # The user (2.5, "เหล็กฉาก 3 นิ้วมันต้องเสริม 2 ข้าง"): the shoe of two 3"
   # angles back to back (⊥) – upright legs together under the line, the
   # lying legs out to both sides between the guides.

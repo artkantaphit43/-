@@ -110,6 +110,7 @@ module ArtK
       DROP = 600.0 # E without a placement: round member this far over the top tier
       RISE = 300.0 # a pipe up to this above the steel rides on a packer
       HANG = 30.0  # a pipe whose top is this near a frame's top member hangs from it
+      PACK = 50.0  # in a frame, a packer up to this; higher, the line hangs from the top member (2.5.2)
       # Steam's shoe on a frame's bottom member (2.4.1, the user's 3"): two
       # angles +len+ long back to back (2.5), the line's insulation on
       # their upright legs (h – 2.4.2: "จับท้องฉนวน"); between two flat-bar
@@ -182,6 +183,19 @@ module ArtK
         Pipes.top(p).between?(under(s) - HANG, under(s) + 1.0)
       end
 
+      # Inside a frame, neither on the bottom member (over PACK above it)
+      # nor at the top one: hung from the top member (2.5.2 – such a line
+      # stood on a packer as tall as the gap).
+      def drops?(s, p)
+        s[:form] == :frame && !hangs?(s, p) && !shoe_place?(s, p) && Pipes.bottom(p) > PACK &&
+          Pipes.top(p) < under(s) - HANG
+      end
+
+      # Hung from a frame's top member, at it or below it.
+      def from_top?(s, p)
+        hangs?(s, p) || drops?(s, p)
+      end
+
       # A hot line (or the drawing's steam): on a shoe, no U-bolt.
       def shoe?(p)
         p[:shoe] == true || p[:hot] == true
@@ -233,7 +247,7 @@ module ArtK
       # Which steel a pipe +p+ is on: its top (C's steam shoe, E's upper tier).
       def level_of(t, p, geo = nil)
         s = type(t)
-        return under(s) if s[:form] == :frame && hangs?(s, p)
+        return under(s) if s[:form] == :frame && from_top?(s, p)
         return on_top?(s, p) ? shoe_top(s) : 0.0 unless s[:form] == :hanger
 
         levels(t, geo).reverse.find { |v| Pipes.bottom(p) >= v - 1.0 } || 0.0
@@ -402,6 +416,13 @@ module ArtK
             hung_u_bolt(part, bom, p, s, key, xu)
           elsif on_shoe?(s, p)
             pipe_shoe(part, bom, lines, p)
+          elsif drops?(s, p)
+            # room for a clamp and a rod over it – else a U-bolt on a spacer
+            if under(s) - Pipes.top(p) >= clamp_ear(p) + 25.0
+              rod_from_top(part, bom, lines, checks, p, s, key, opts)
+            else
+              hung_u_bolt(part, bom, p, s, key, xu)
+            end
           else
             v = level_of(t, p, geo)
             D.packer(part, bom, p, v, b)
@@ -468,6 +489,8 @@ module ArtK
           if s[:form] == :frame && hangs?(s, p) && across
             carried << p
           elsif on_shoe?(s, p) && Pipes.bottom(p) <= RISE && shoe_span(p[:y]).first >= lo && shoe_span(p[:y]).last <= hi
+            carried << p
+          elsif drops?(s, p) && across
             carried << p
           elsif bottom.between?(-1.0, RISE) && across && p[:z] + p[:r] + u[:d] <= room
             carried << p
@@ -606,7 +629,7 @@ module ArtK
         D.bom_steel(bom, key, 2 * w, 'คานบน + คานล่าง')
         D.bom_steel(bom, key, 2 * s[:height], 'เสาโครง 2 ตัว')
         inch = Steel.get(key)[:inch]
-        upper, lower = pipes.partition { |p| hangs?(s, p) }
+        upper, lower = pipes.partition { |p| from_top?(s, p) }
         beam(checks, "คานล่าง #{inch}", key, h / 2.0, w - h / 2.0, h / 2.0, w - h / 2.0, D.loads(lower, opts))
         upper << top_pipe if top_pipe
         top_shoe(part, bom, lines, s, b, top_pipe) if top_pipe || (s[:top] && s[:top][:nominal] != false)
@@ -734,6 +757,30 @@ module ArtK
         [-1, 1].each { |k| Hardware.fastening(part, [x, p[:y] + k * rc, above], [0, 0, 1.0], size) }
         D.bom_item(bom, 'ubolt', "U-bolt #{Hardware.label(size)} แขวนท่อ #{p[:label]}", 1, key: "ub #{size} #{p[:od].round}")
         D.nuts(bom, size, 2)
+      end
+
+      # A line inside the frame below its top member (2.5.2): a two-bolt
+      # clamp round it (MSS SP-58 type 4) on a threaded rod up through the
+      # member's lower flange, a nut each side of it; the rod by load, at
+      # least MSS SP-69's (as F).
+      def rod_from_top(part, bom, lines, checks, p, s, key, opts)
+        sec = Steel.get(key)
+        u = under(s)
+        kn = Pipes.load_n(p, D.spacing(p, opts)) / 1000.0
+        rsz = [Hardware.size_for(kn, :rod_kn), min_rod(p[:od])].max_by { |z| Hardware::ORDER.index(z) }
+        rs = Hardware.get(rsz)
+        D.check(checks, "เหล็กเส้นเกลียว #{Hardware.label(rsz)} แขวนท่อ #{p[:label]}: แรงดึง (MSS SP-58)", kn, rs[:rod_kn], 'kN',
+                kind: :rod)
+        low = pipe_clamp(part, bom, lines, p, rsz)
+        top = [0.0, p[:y], u + sec[:t2] + Hardware.stack_height(rsz) + 0.6 * rs[:d]]
+        Hardware.rod(part, low, top, rsz)
+        Hardware.fastening(part, [0.0, p[:y], u], [0, 0, -1.0], rsz)
+        Hardware.fastening(part, [0.0, p[:y], u + sec[:t2]], [0, 0, 1.0], rsz)
+        lines << [low, top]
+        len = Vec.dist(low, top)
+        D.bom_item(bom, 'rod', "เหล็กเส้นเกลียว #{Hardware.label(rsz)} ยาว #{len.round} มม. (แขวนท่อ #{p[:label]} จากคานบน)", 1,
+                   key: "rod #{rsz} #{len.round}")
+        D.nuts(bom, rsz, 2)
       end
 
       # Steam's shoe on the bottom member: two 3" angles back to back (⊥,
