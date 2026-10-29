@@ -25,6 +25,7 @@ module ArtK
           @dialog.add_action_callback('save') { |_ctx, json| save(json) }
           @dialog.add_action_callback('size') { |_ctx, json| sizing(json) }
           @dialog.add_action_callback('command') { |_ctx, name| command(name) }
+          @dialog.add_action_callback('presets') { |_ctx, json| save_presets(json) }
           @dialog.show
         end
 
@@ -79,8 +80,16 @@ module ArtK
             supports: Supports::TYPES.reject { |k, v| v[:hidden] && k != H.load_settings['support_type'] }
                                      .map { |k, v| { type: k, th: v[:th], name: v[:name], multi: v[:multi] ? true : false } },
             valves: FittingsData::VALVES.map { |k, v| { type: k, th: v[:th], name: v[:name] } },
-            tags: user_tags
+            tags: user_tags,
+            presets: H.load_presets
           }
+        end
+
+        # The tag list as the dialog left it.
+        def save_presets(json)
+          H.save_presets(JSON.parse(json))
+        rescue JSON::ParserError => e
+          puts "Plant Piping tags: #{e.message}"
         end
 
         # The model's tags to pick from: the user's, not the ones we keep
@@ -146,6 +155,7 @@ module ArtK
           when 'check' then Commands.check_pipes
           when 'rebuild' then Commands.rebuild_selection
           when 'retag' then Commands.retag_selection
+          when 'match' then Commands.match_pipe
           when 'flow' then Commands.set_design_flow
           when 'hydraulic' then Commands.hydraulic_report
           when 'bom' then Commands.bom

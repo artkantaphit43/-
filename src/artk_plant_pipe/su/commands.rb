@@ -111,6 +111,19 @@ module ArtK
         UI.messagebox("Plant Piping: แปลงเส้นไม่สำเร็จ (convert failed)\n#{e.message}")
       end
 
+      # Click a pipe drawn before, draw on like it (1.19.0).
+      def match_pipe
+        Sketchup.active_model.select_tool(MatchPipeTool.new)
+      end
+
+      # The one selected run's pipe as the settings, then draw (1.19.0).
+      def match_selection
+        model = Sketchup.active_model
+        run = H.selected_runs(model).first or return UI.messagebox('เลือกแนวท่อ 1 แนว (select one pipe run)')
+
+        MatchPipeTool.take(run)
+      end
+
       # The selected runs onto the tag in the settings (1.18.0).
       def retag_selection
         model = Sketchup.active_model

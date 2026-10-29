@@ -129,6 +129,23 @@ module ArtK
         @settings_cache = nil
       end
 
+      # The user's tags and the pipe each remembers (Settings.preset), kept
+      # like the settings (1.19.0).
+      def load_presets
+        raw = Sketchup.read_default(PREF, 'presets_b64', nil)
+        return [] if raw.nil? || raw.to_s.empty?
+
+        Settings.sanitize_presets(JSON.parse(raw.to_s.unpack1('m0').force_encoding('UTF-8')))
+      rescue StandardError
+        []
+      end
+
+      def save_presets(list)
+        list = Settings.sanitize_presets(list)
+        Sketchup.write_default(PREF, 'presets_b64', [JSON.generate(list)].pack('m0'))
+        list
+      end
+
       SPEC_PREF = 'ins_spec'
 
       # 1.17.0: insulation set as 2" × 2 layers (100) is the BOQ's 1-1/2"

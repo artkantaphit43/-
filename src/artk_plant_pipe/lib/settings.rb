@@ -39,7 +39,29 @@ module ArtK
       # layer); 100 / 101.6 was it read as 2" × 2 layers (1.17.0).
       SPEC_MM = 38.1
 
+      # What a tag remembers of the pipe drawn on it (1.19.0) – the size is
+      # picked each time.
+      PRESET_KEYS = %w[service catalog rating insulation_mm pipe_color hdpe_joint].freeze
+
       module_function
+
+      # Tag +name+ remembering +settings+' pipe.
+      def preset(name, settings)
+        s = sanitize(settings)
+        { 'name' => sanitize('tag' => name)['tag'] }.merge(s.slice(*PRESET_KEYS))
+      end
+
+      # +settings+ with +preset+'s pipe and its tag (the size kept, or the
+      # closest the material has).
+      def use_preset(settings, preset)
+        sanitize(settings.merge(preset.slice(*PRESET_KEYS)).merge('tag' => preset['name'].to_s))
+      end
+
+      # The user's tags: named, one per name, each a whole pipe.
+      def sanitize_presets(list)
+        Array(list).filter_map { |q| q.is_a?(Hash) && preset(q['name'], q) }
+                   .reject { |q| q['name'].empty? }.uniq { |q| q['name'] }.first(60)
+      end
 
       def two_layers?(mm)
         [100.0, 101.6].any? { |v| (mm.to_f - v).abs < 0.5 }

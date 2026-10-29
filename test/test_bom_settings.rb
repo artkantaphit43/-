@@ -10,6 +10,25 @@ class TestBomSettings < Minitest::Test
       'stick_m' => 6.0 }
   end
 
+  # Tags that remember their pipe (1.19.0, "กดเพิ่ม แล้วมาเลือกใช้"): picking
+  # one sets service, material, rating, insulation, colour and the tag –
+  # the size stays (the closest the material has).
+  def test_tag_presets
+    s = Settings.sanitize('service' => 'STM', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 38.1,
+                          'pipe_color' => '#e08a2c')
+    pre = Settings.preset(' สตีม ', s)
+    assert_equal 'สตีม', pre['name']
+    assert_equal 'CS_B36_10', pre['catalog']
+    refute pre.key?('size'), 'the size is picked each time'
+    cur = Settings.sanitize('service' => 'CA', 'catalog' => 'GSP_BS1387', 'size' => '2"', 'tag' => 'ลม')
+    used = Settings.use_preset(cur, pre)
+    assert_equal ['STM', 'CS_B36_10', '2"', 'สตีม', '#e08a2c'], used.values_at('service', 'catalog', 'size', 'tag', 'pipe_color')
+    assert_in_delta 38.1, used['insulation_mm'], 1e-6
+    list = Settings.sanitize_presets([pre, pre.merge('catalog' => 'nope'), { 'name' => '  ' }, { 'name' => 'ลม', 'service' => 'CA' }, 7])
+    assert_equal %w[สตีม ลม], list.map { |q| q['name'] }, 'one per name, none blank'
+    assert_equal 'CA', list.last['service']
+  end
+
   def test_pipe_lengths_sum_and_sticks
     rows = Bom.aggregate([pipe(4000), pipe(5500), pipe(3000, '4"')], waste: 0.05)
     two = rows.find { |r| r.size == '2"' }

@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.18.0**
-(`dist/artk_plant_pipe-1.18.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (323 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.19.0**
+(`dist/artk_plant_pipe-1.19.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (326 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -240,6 +240,12 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   settings `tag` (sanitize: ตัด control, strip, ≤ 40) · `context` tag = `H.tag(model, tag)` (โฟลเดอร์ Plant Piping) หรือ `service_tag` เมื่อว่าง ·
   ชื่อท่อเหมือนเดิม · `Builder.retag` + `Commands.retag_selection` (ปุ่มในหน้าตั้งค่า, คำสั่ง `retag`) · rebuild ไม่ยุ่ง tag (ไม่อยู่ใน
   `settings_for_rebuild`) · payload `tags` = แท็กในโมเดล ยกเว้น PP-…/Layer0/ของ Steel · readout แสดงแท็ก · stub `Layers` เป็น Enumerable
+- **Plant Piping 1.19.0 – แท็กแบบกดเพิ่ม/เลือก + จำชุดท่อ + ดูดค่าท่อ** ("ท่อมีหลายแบบ ต้องเปลี่ยนไปเปลี่ยนมา…ควรเป็นแบบกดเพิ่ม
+  แล้วมาเลือกใช้"): `Settings::PRESET_KEYS` (service catalog rating insulation_mm pipe_color hdpe_joint – ไม่มี size), `preset` /
+  `use_preset` / `sanitize_presets`, `H.load_presets`/`save_presets` (pref `presets_b64`), dialog payload `presets` + callback `presets` ·
+  UI: select `tagsel` (ตามระบบ / แท็กของผู้ใช้ / แท็กในโมเดล) + `newtag` + เพิ่ม / **จำค่า** (เปิดเมื่อค่าต่างจากที่จำ) / ลบ · **ไม่จำอัตโนมัติ**
+  (ลองแล้ว: ตั้งค่าท่อใหม่ก่อนกดเพิ่มจะทับแท็กที่เลือกอยู่) · `MatchPipeTool` (ใน color_pick_tool.rb; `KEYS` = PRESET_KEYS + size tag →
+  settings แล้วเปิด PipeTool) · คำสั่ง `match` (แถบเครื่องมือ ไอคอน match, เมนู, ปุ่มในหน้าตั้งค่า) · คลิกขวาท่อ 1 แนว "วาดท่อแบบนี้"
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

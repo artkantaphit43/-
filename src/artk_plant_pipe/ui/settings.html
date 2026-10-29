@@ -38,6 +38,10 @@
     background: var(--bg); color: var(--fg); font: inherit; min-width: 0;
   }
   .info { font-size: 12px; color: var(--mut); margin-top: 6px; }
+  .tagrow { display: flex; gap: 6px; align-items: stretch; margin: 6px 0; }
+  .tagrow input { flex: 1; min-width: 0; }
+  .tagrow .btn { flex: 1; }
+  .tagrow #addtag, .tagrow #savetag, .tagrow #deltag { flex: 0 0 auto; }
   .note { font-size: 12px; border-radius: 6px; padding: 6px 8px; margin-top: 6px; }
   .note.warn { background: var(--warnbg); color: var(--warn); }
   .note.tip { background: var(--panel); color: var(--mut); border: 1px dashed var(--line); }
@@ -80,13 +84,19 @@
 
 <section id="tab-pipe" class="on">
   <fieldset>
-    <legend>ระบบ – ท่อนี้ใช้กับงานอะไร (Service)</legend>
+    <legend>แท็ก + ระบบ – ท่อนี้ใช้กับงานอะไร (Tag / Service)</legend>
+    <label>แท็ก (Tag)<select id="tagsel"></select></label>
+    <div class="tagrow"><input type="text" id="newtag" maxlength="40" placeholder="ชื่อแท็กใหม่ เช่น สตีม, ลม">
+      <button class="btn sec" id="addtag" type="button">+ เพิ่ม</button>
+      <button class="btn sec" id="savetag" type="button" title="ให้แท็กที่เลือกจำค่าที่ตั้งอยู่ตอนนี้">จำค่า</button>
+      <button class="btn sec" id="deltag" type="button">ลบ</button></div>
+    <div class="info">เลือกแท็ก = ได้ระบบ วัสดุ ฉนวน สีตามที่แท็กจำไว้ (เลือกแค่ขนาด) · ท่อใหม่เข้าแท็กนั้นเลย ·
+      + เพิ่ม = แท็กใหม่จำค่าที่ตั้งอยู่ · จำค่า = แท็กที่เลือกจำค่าตอนนี้</div>
     <label>ระบบ<select id="service"></select></label>
     <div class="info" id="svcinfo"></div>
-    <label>แท็ก (Tag)<input type="text" id="tag" list="taglist" maxlength="40" placeholder="ว่าง = ตามระบบ"></label>
-    <datalist id="taglist"></datalist>
-    <div class="info">ท่อที่วาดใหม่ไปอยู่ในแท็กนี้เลย – เปิด/ปิดดูทีละหมวดได้ที่ Tags ของ SketchUp · พิมพ์ชื่อใหม่ หรือเลือกแท็กที่มี</div>
-    <button class="btn" data-cmd="retag">ย้ายท่อที่เลือกไปแท็กนี้<small>Move selected runs to this tag</small></button>
+    <div class="tagrow">
+      <button class="btn" data-cmd="retag">ย้ายท่อที่เลือกไปแท็กนี้<small>Move selected runs to this tag</small></button>
+      <button class="btn sec" data-cmd="match">ดูดค่าจากท่อที่วาดไว้<small>คลิกท่อ แล้ววาดต่อแบบเดียวกัน</small></button></div>
   </fieldset>
 
   <fieldset>
@@ -213,6 +223,8 @@
 const PP = (() => {
   let D = null;           // payload from Ruby
   let S = {};             // current settings
+  let P = [];             // the user's tags, each remembering its pipe (1.19.0)
+  const PK = ['service', 'catalog', 'rating', 'insulation_mm', 'pipe_color', 'hdpe_joint'];
   let recommended = null;
   const $ = (id) => document.getElementById(id);
   const call = (name, arg) => { if (window.sketchup && sketchup[name]) sketchup[name](arg); };
@@ -237,8 +249,14 @@ const PP = (() => {
     $('lod').value = S.lod;
     ['insulation_mm', 'slope_pct', 'waste_pct', 'support_group_mm'].forEach((k) => { $(k).value = S[k]; });
     ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
-    $('tag').value = S.tag || '';
-    $('taglist').innerHTML = (D.tags || []).map((t) => `<option value="${esc(t)}">`).join('');
+    // the user's tags (each remembers its pipe), then the model's other tags
+    const names = P.map((q) => q.name);
+    const others = (D.tags || []).concat(S.tag ? [S.tag] : []).filter((t, i, a) => !names.includes(t) && a.indexOf(t) === i);
+    fill($('tagsel'), [['', '— ตามระบบ (ไม่ใช้แท็กเอง) —']].concat(names.map((n) => [n, n]),
+      others.map((t) => [t, `${t} (แท็กในโมเดล)`])), S.tag || '');
+    $('deltag').disabled = !names.includes(S.tag);
+    const mine = P.find((q) => q.name === S.tag);
+    $('savetag').disabled = !mine || PK.every((k) => mine[k] === S[k]);
     $('hdpe_joint').value = S.hdpe_joint || 'auto';
     $('segments').value = String(S.segments);
     ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
@@ -301,6 +319,50 @@ const PP = (() => {
   }
 
   function save() { call('save', JSON.stringify(S)); }
+  function savePresets() { call('presets', JSON.stringify(P)); }
+  function presetOf(name) {
+    const p = { name };
+    PK.forEach((k) => { p[k] = S[k]; });
+    return p;
+  }
+  function addTag() {
+    const name = $('newtag').value.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 40);
+    if (!name) return;
+    if (!P.some((q) => q.name === name)) P.push(presetOf(name));
+    S.tag = name;
+    $('newtag').value = '';
+    savePresets(); render(); save();
+  }
+  // The picked tag remembers what is set now (only when asked: fields set
+  // up for a new tag must not change the one still picked).
+  function keepTag() {
+    const p = P.find((q) => q.name === S.tag);
+    if (!p) return;
+    PK.forEach((k) => { p[k] = S[k]; });
+    savePresets(); render();
+  }
+  function delTag() {
+    const i = P.findIndex((q) => q.name === S.tag);
+    if (i < 0) return;
+    P.splice(i, 1);
+    S.tag = '';
+    savePresets(); render(); save();
+  }
+  // Picked: the pipe the tag remembers; the size kept (or the nearest).
+  function useTag(name) {
+    const p = P.find((q) => q.name === name);
+    if (p && D.catalogs[p.catalog]) {
+      const oldOd = sizeRec().od;
+      PK.forEach((k) => { if (p[k] !== undefined) S[k] = p[k]; });
+      if (!cat().sizes.some((z) => z.size === S.size)) {
+        S.size = cat().sizes.reduce((a, z) => (Math.abs(z.od - oldOd) < Math.abs(a.od - oldOd) ? z : a)).size;
+      }
+      if (!(S.rating in sizeRec().walls)) {
+        S.rating = cat().default_rating in sizeRec().walls ? cat().default_rating : Object.keys(sizeRec().walls)[0];
+      }
+    }
+    S.tag = name;
+  }
 
   // ---- own colour picker: the browser's colour box has an eyedropper that
   // cannot read the SketchUp model, so the picker is drawn here and its
@@ -396,6 +458,10 @@ const PP = (() => {
     } else if (id === 'size') {
       S.size = e.target.value;
       if (!(S.rating in sizeRec().walls)) S.rating = Object.keys(sizeRec().walls)[0];
+    } else if (id === 'tagsel') {
+      useTag(e.target.value);
+    } else if (id === 'newtag') {
+      return;
     } else if (id === 'use_color') {
       S.pipe_color = e.target.checked ? $('pipe_color').value : '';
     } else if (id === 'pipe_hex') {
@@ -449,6 +515,7 @@ const PP = (() => {
   function init(data) {
     D = data;
     S = data.settings;
+    P = data.presets || [];
     $('ver').textContent = 'v' + data.version;
     render();
   }
@@ -464,6 +531,10 @@ const PP = (() => {
   }));
   document.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('click', () => call('command', b.dataset.cmd)));
   $('calc').addEventListener('click', calc);
+  $('addtag').addEventListener('click', addTag);
+  $('deltag').addEventListener('click', delTag);
+  $('savetag').addEventListener('click', keepTag);
+  $('newtag').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTag(); });
   initPicker();
   $('userec').addEventListener('click', () => {
     if (!recommended) return;

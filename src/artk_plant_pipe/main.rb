@@ -50,6 +50,8 @@ module ArtK
       cmds = {
         settings: command('Settings & Sizing / ตั้งค่า', 'เลือกระบบ วัสดุ ขนาด และคำนวณขนาดท่อ', 'settings') { SettingsDialog.show },
         draw: command('Draw Pipe / วาดท่อ', 'วาดแนวท่อพร้อมข้องอ/Tee อัตโนมัติ', 'draw') { Commands.draw_pipe },
+        match: command('Match Pipe / ดูดค่าท่อ', 'คลิกท่อที่วาดไว้ แล้ววาดต่อเป็นท่อแบบเดียวกัน (ขนาด วัสดุ ฉนวน สี แท็ก)',
+                       'match') { Commands.match_pipe },
         parts: command('Reference Library / คลังอุปกรณ์จริง',
                        'วาล์ว ข้อต่อ มิเตอร์ ก๊อก เกจ จากไฟล์ตัวอย่าง – เลือกแล้วชี้ที่ท่อ ขนาดปรับตามท่อ', 'library') { RefBrowser.show },
         stretch: command('Stretch / Move Pipe / ยืด-ย้ายท่อ', 'คลิกปลายท่อเพื่อยืด/หด หรือมุมท่อเพื่อย้าย – อุปกรณ์บนท่อตามไปเอง',
@@ -74,7 +76,7 @@ module ArtK
       }
 
       menu = UI.menu('Extensions').add_submenu('Plant Piping TH')
-      %i[settings draw stretch parts convert check].each { |k| menu.add_item(cmds[k]) }
+      %i[settings draw match stretch parts convert check].each { |k| menu.add_item(cmds[k]) }
       sync_item = menu.add_item('อ่านความยาวท่อที่ยืดเองอัตโนมัติ (Auto-read stretched pipes)') { Commands.toggle_auto_sync }
       menu.set_validation_proc(sync_item) { AutoSync.enabled? ? MF_CHECKED : MF_UNCHECKED }
       menu.add_separator
@@ -90,7 +92,7 @@ module ArtK
       menu.add_item(cmds[:diag])
 
       tb = UI::Toolbar.new('Plant Piping TH')
-      %i[settings draw stretch parts convert check auto_support support rebuild flow hydraulic clash bom style].each do |k|
+      %i[settings draw match stretch parts convert check auto_support support rebuild flow hydraulic clash bom style].each do |k|
         tb.add_item(cmds[k])
       end
       tb.get_last_state == TB_NEVER_SHOWN ? tb.show : tb.restore
@@ -104,6 +106,7 @@ module ArtK
         sub = ctx.add_submenu('Plant Piping')
         sub.add_item(cmds[:convert]) unless edges.empty?
         unless runs.empty?
+          sub.add_item('วาดท่อแบบนี้ (Draw like this)') { Commands.match_selection } if runs.size == 1
           %i[stretch check rebuild auto_support clear_support flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
         end
       end

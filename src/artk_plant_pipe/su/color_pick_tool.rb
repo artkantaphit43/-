@@ -117,5 +117,71 @@ module ArtK
         Sketchup.active_model.select_tool(nil)
       end
     end
+
+    # "ดูดค่า" from a pipe drawn before (1.19.0 – the user switches between
+    # kinds of pipe while drawing): its service, material, size, rating,
+    # insulation, colour and tag become the settings, and the pipe tool is
+    # back to draw on like it.
+    class MatchPipeTool
+      H = ModelHelpers
+      KEYS = (Settings::PRESET_KEYS + %w[size tag]).freeze
+
+      def activate
+        @run = nil
+        Sketchup.status_text = 'ดูดค่าท่อ: คลิกท่อที่วาดไว้ แล้ววาดต่อเป็นท่อแบบเดียวกัน (Esc = ยกเลิก)'
+      end
+
+      def deactivate(view)
+        view.invalidate
+      end
+
+      def onCancel(_reason, _view)
+        Sketchup.active_model.select_tool(nil)
+      end
+
+      def onSetCursor
+        id = ColorPickTool.cursor
+        id ? UI.set_cursor(id) : false
+      end
+
+      # The run of ours under the cursor.
+      def pick(view, x, y)
+        ph = view.pick_helper
+        ph.do_pick(x, y)
+        (0...ph.count).each do |i|
+          run = ph.path_at(i).to_a.find { |e| H.run?(e) }
+          return run if run
+        end
+        nil
+      end
+
+      def onMouseMove(_flags, x, y, view)
+        @run = pick(view, x, y)
+        view.tooltip = if @run
+                         s = Builder.run_settings(@run)
+                         tag = s['tag'].empty? ? '' : " · แท็ก #{s['tag']}"
+                         ins = s['insulation_mm'].positive? ? " · ฉนวน #{s['insulation_mm']}" : ''
+                         "#{@run.name}: #{Catalog.get(s['catalog'])[:material]} #{s['size']}#{ins}#{tag} – คลิกเพื่อวาดแบบนี้"
+                       else
+                         'ชี้ที่ท่อ (Plant Piping) ที่จะดูดค่า'
+                       end
+        view.invalidate
+      end
+
+      def onLButtonDown(_flags, x, y, view)
+        run = pick(view, x, y) or return UI.beep
+
+        self.class.take(run)
+      end
+
+      # +run+'s pipe as the settings; the pipe tool to draw on like it.
+      def self.take(run)
+        s = Settings.sanitize(H.load_settings.merge(Builder.run_settings(run).slice(*KEYS)))
+        H.save_settings(s)
+        SettingsDialog.refresh if defined?(SettingsDialog)
+        Sketchup.status_text = "ดูดค่า #{run.name} แล้ว – วาดท่อต่อได้เลย"
+        Sketchup.active_model.select_tool(PipeTool.new)
+      end
+    end
   end
 end

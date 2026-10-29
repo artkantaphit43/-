@@ -98,6 +98,17 @@ class TestSuIntegration < Minitest::Test
     assert_equal 'สตีม', Settings.sanitize('tag' => ' สตีม ')['tag']
   end
 
+  # The tags the user added, kept for every model (1.19.0).
+  def test_tag_presets_are_kept
+    pre = Settings.preset('สตีม', @settings.merge('service' => 'STM'))
+    SettingsDialog.send(:save_presets, JSON.generate([pre, { 'name' => '' }]))
+    assert_equal ['สตีม'], H.load_presets.map { |q| q['name'] }
+    H.reset_settings_cache!
+    assert_equal ['สตีม'], SettingsDialog.send(:payload)[:presets].map { |q| q['name'] }
+  ensure
+    Sketchup.write_default(H::PREF, 'presets_b64', nil)
+  end
+
   def test_line_numbers_increment_per_service
     r1, = Builder.create_run(@model, l_run, @settings)
     r2, = Builder.create_run(@model, l_run, @settings)

@@ -376,6 +376,34 @@ class TestPipeTool < Minitest::Test
     assert_in_delta 950.0, cl_points(runs.first)[1][2], 1e-6
   end
 
+  # The user (1.19.0, "วาดได้อันนึงกลับมาแก้อันนึง"): click a pipe drawn
+  # before – its service, material, size, insulation, colour and tag
+  # become the settings and the pipe tool is back to draw on like it.
+  def test_match_tool_takes_a_drawn_pipe_settings
+    t = tool_with('service' => 'STM', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 38.1,
+                  'pipe_color' => '#e08a2c', 'tag' => 'สตีม')
+    click(t, [0, 0, 0])
+    click(t, [3000, 0, 0])
+    t.onReturn(@view)
+    stm = runs.first
+    H.save_settings(Settings.sanitize('service' => 'CA', 'catalog' => 'GSP_BS1387', 'size' => '1"', 'tag' => 'ลม'))
+    m = MatchPipeTool.new
+    m.activate
+    @view.pick_paths = [[stm, stm.entities.find { |e| H.type_of(e) == 'pipe' }]]
+    m.onMouseMove(0, 10, 10, @view)
+    assert_match(/4"-STM-001/, @view.tooltip)
+    m.onLButtonDown(0, 10, 10, @view)
+    s = H.load_settings
+    assert_equal ['STM', 'CS_B36_10', '4"', 'สตีม', '#e08a2c'], s.values_at('service', 'catalog', 'size', 'tag', 'pipe_color')
+    assert_in_delta 38.1, s['insulation_mm'], 1e-6
+    assert_instance_of PipeTool, @model.tool, 'back to drawing'
+    @view.pick_paths = [[Sketchup::Group.new, Sketchup::Face.new]]
+    m.onMouseMove(0, 10, 10, @view)
+    assert_match(/ชี้ที่ท่อ/, @view.tooltip, 'not a pipe of ours')
+  ensure
+    @view.pick_paths = nil
+  end
+
   def test_eyedropper_reads_the_colour_shown_in_the_model
     green = @model.materials.add('g')
     green.color = Sketchup::Color.new(34, 79, 34)
