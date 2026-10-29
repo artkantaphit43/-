@@ -81,6 +81,18 @@ module ArtK
         raise
       end
 
+      # +runs+ onto +tag+ ('' = their service's) – nothing else changes
+      # (1.18.0: pipes sorted by the user's own kinds, shown / hidden by tag).
+      def retag(model, runs, tag)
+        tag = Settings.sanitize('tag' => tag)['tag']
+        model.start_operation('Plant Piping: ย้ายแท็ก', true)
+        runs.each { |run| render(model, run, run_settings(run).merge('tag' => tag)) }
+        model.commit_operation
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
       # Branch runs keep a copy of their main line's spec in their tee
       # records; after main lines change, update those copies and redraw the
       # branch tees (reducing tee sizes follow the new main size).
@@ -286,7 +298,7 @@ module ArtK
           line_no: line_no, steps: steps, ins: settings['insulation_mm'].to_f,
           lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps, joint: settings['hdpe_joint']),
           refs: refs_enabled?(settings), ext: {},
-          tag: H.service_tag(model, svc[:code]),
+          tag: settings['tag'].empty? ? H.service_tag(model, svc[:code]) : H.tag(model, settings['tag']),
           mat: H.pipe_material(model, svc[:code], spec.family, settings['color_scheme'], settings['pipe_color']),
           open_ends: [], mitres: [], cl: [],
           common: {

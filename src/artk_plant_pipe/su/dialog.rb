@@ -78,8 +78,20 @@ module ArtK
             material_colors: Services::MATERIAL_COLORS, painted: Services::PAINTED,
             supports: Supports::TYPES.reject { |k, v| v[:hidden] && k != H.load_settings['support_type'] }
                                      .map { |k, v| { type: k, th: v[:th], name: v[:name], multi: v[:multi] ? true : false } },
-            valves: FittingsData::VALVES.map { |k, v| { type: k, th: v[:th], name: v[:name] } }
+            valves: FittingsData::VALVES.map { |k, v| { type: k, th: v[:th], name: v[:name] } },
+            tags: user_tags
           }
+        end
+
+        # The model's tags to pick from: the user's, not the ones we keep
+        # inside (PP-…), the default one or Steel Supports'.
+        def user_tags
+          model = Sketchup.active_model or return []
+          model.layers.map(&:name).reject do |n|
+            n.start_with?('PP-') || ['Layer0', 'Untagged', 'ซัพพอร์ตเหล็ก (Steel supports)'].include?(n)
+          end.uniq.sort
+        rescue StandardError
+          []
         end
 
         def save(json)
@@ -133,6 +145,7 @@ module ArtK
           when 'stretch' then Commands.stretch_tool
           when 'check' then Commands.check_pipes
           when 'rebuild' then Commands.rebuild_selection
+          when 'retag' then Commands.retag_selection
           when 'flow' then Commands.set_design_flow
           when 'hydraulic' then Commands.hydraulic_report
           when 'bom' then Commands.bom

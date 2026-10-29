@@ -83,6 +83,10 @@
     <legend>ระบบ – ท่อนี้ใช้กับงานอะไร (Service)</legend>
     <label>ระบบ<select id="service"></select></label>
     <div class="info" id="svcinfo"></div>
+    <label>แท็ก (Tag)<input type="text" id="tag" list="taglist" maxlength="40" placeholder="ว่าง = ตามระบบ"></label>
+    <datalist id="taglist"></datalist>
+    <div class="info">ท่อที่วาดใหม่ไปอยู่ในแท็กนี้เลย – เปิด/ปิดดูทีละหมวดได้ที่ Tags ของ SketchUp · พิมพ์ชื่อใหม่ หรือเลือกแท็กที่มี</div>
+    <button class="btn" data-cmd="retag">ย้ายท่อที่เลือกไปแท็กนี้<small>Move selected runs to this tag</small></button>
   </fieldset>
 
   <fieldset>
@@ -233,6 +237,8 @@ const PP = (() => {
     $('lod').value = S.lod;
     ['insulation_mm', 'slope_pct', 'waste_pct', 'support_group_mm'].forEach((k) => { $(k).value = S[k]; });
     ['elbow_type', 'elevation_ref'].forEach((k) => { $(k).value = S[k]; });
+    $('tag').value = S.tag || '';
+    $('taglist').innerHTML = (D.tags || []).map((t) => `<option value="${esc(t)}">`).join('');
     $('hdpe_joint').value = S.hdpe_joint || 'auto';
     $('segments').value = String(S.segments);
     ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });

@@ -442,8 +442,14 @@ module Sketchup
   end
 
   class Layers
+    include Enumerable
+
     def initialize
       @h = {}
+    end
+
+    def each(&block)
+      @h.values.each(&block)
     end
 
     def [](n)

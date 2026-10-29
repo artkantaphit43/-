@@ -31,7 +31,8 @@ module ArtK
         'support_group_mm' => 600.0, # neighbouring pipes within this clear gap share a support (0 = off)
         'waste_pct'     => 5.0,
         'valve_type'    => 'gate',
-        'hdpe_joint'    => 'auto'     # auto (by size) | butt | ef | comp – HDPE fitting system
+        'hdpe_joint'    => 'auto',    # auto (by size) | butt | ef | comp – HDPE fitting system
+        'tag'           => ''         # the SketchUp tag new runs go on ('' = the service's, 1.18.0)
       }.freeze
 
       # Insulation of the user's BOQ (fiberglass pipe section 1-1/2", one
@@ -70,6 +71,7 @@ module ArtK
         s['support_group_mm'] = clamp(s['support_group_mm'].to_f, 0.0, 1500.0)
         s['valve_type'] = 'gate' unless FittingsData::VALVES.key?(s['valve_type'])
         s['hdpe_joint'] = 'auto' unless %w[auto butt ef comp].include?(s['hdpe_joint'].to_s)
+        s['tag'] = s['tag'].to_s.gsub(/[[:cntrl:]]/, ' ').strip[0, 40]
         s.select { |k, _| DEFAULTS.key?(k) }
       end
 

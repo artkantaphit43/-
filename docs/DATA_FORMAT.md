@@ -118,6 +118,9 @@ fusion spigot / … – shown in the BOM), `fitting_desc` on elbows, couplers an
 butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends` (count) and
 `stub_dn`. Tee and join records may carry `main_joint` – the main run's `hdpe_joint`.
 
+**Settings / run settings (1.18.0, new key):** `tag` – the SketchUp tag the run goes on ('' = its
+service's `PP-<code> <name>`, as before); `Builder.retag` moves runs, a rebuild with other settings keeps it.
+
 **Model:** `fmt` – the format the file was last upgraded to; `ins_spec` (1.17.0) – the file was drawn by 1.17+
 or its runs with insulation set as 2" × 2 layers (100 / 101.6) were offered the BOQ's 1-1/2" (38.1) once, on open
 (`Migrate.respec_runs`; yes = 38.1 and the run dropped by the difference unless tied to another run). Stored setting:

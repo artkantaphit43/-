@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.17.1**
-(`dist/artk_plant_pipe-1.17.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (322 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.18.0**
+(`dist/artk_plant_pipe-1.18.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (323 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -235,6 +235,11 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `from_top?` = hangs? || drops? (level_of → ใต้คานบน: ที่ของท่อลมถูกนับว่ามีท่อแล้ว, คานบนรับโหลด) · `rod_from_top` = `pipe_clamp` + เหล็กเส้น
   ทะลุปีกล่างคานบน น็อต 2 ข้าง (ขนาดตามโหลด ≥ `min_rod`) · ช่องเหนือท่อ < `clamp_ear` + 25 → `hung_u_bolt` + แผ่นรอง · `Builder::REV` 4
   (ซัพพอร์ตเดิมสร้างใหม่เองตอนเปิดไฟล์)
+- **Plant Piping 1.18.0 – แท็กเอง** (ผู้ใช้: "รายการเลือกท่อเยอะเกิน…เหลือแค่ GSP PVC HDPE" แล้วแก้เอง "ชื่อท่อน้ำเย็น ร้อน ยังคงอยู่
+  แต่อยากให้แยก tag ให้เลยเวลาวาดท่อ" – **ไม่ได้ตัดรายการระบบ/วัสดุ**; ผู้ใช้ไม่อยากตอบคำถามหลายข้อ – AskUserQuestion ถูกปฏิเสธ):
+  settings `tag` (sanitize: ตัด control, strip, ≤ 40) · `context` tag = `H.tag(model, tag)` (โฟลเดอร์ Plant Piping) หรือ `service_tag` เมื่อว่าง ·
+  ชื่อท่อเหมือนเดิม · `Builder.retag` + `Commands.retag_selection` (ปุ่มในหน้าตั้งค่า, คำสั่ง `retag`) · rebuild ไม่ยุ่ง tag (ไม่อยู่ใน
+  `settings_for_rebuild`) · payload `tags` = แท็กในโมเดล ยกเว้น PP-…/Layer0/ของ Steel · readout แสดงแท็ก · stub `Layers` เป็น Enumerable
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

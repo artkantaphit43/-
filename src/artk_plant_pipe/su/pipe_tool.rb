@@ -682,7 +682,8 @@ module ArtK
 
         if @points.empty?
           sc = view.screen_coords(H.to_pt(@cursor))
-          txt = "#{@spec.size} #{@settings['service']} · #{@spec.material} #{@spec.rating} – คลิกจุดเริ่ม (click start)"
+          tag = @settings['tag'].to_s.empty? ? '' : " · แท็ก #{@settings['tag']}"
+          txt = "#{@spec.size} #{@settings['service']} · #{@spec.material} #{@spec.rating}#{tag} – คลิกจุดเริ่ม (click start)"
           view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
           return
         end

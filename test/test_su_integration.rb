@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports library commands support_tool].each do |f|
+%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports library commands support_tool dialog].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
 
@@ -72,6 +72,30 @@ class TestSuIntegration < Minitest::Test
     assert_empty H.get_json(run, 'extras', []).select { |x| x['type'] == 'insulation' }, 'drawn, not BOM only'
     rows = Bom.aggregate(Collector.records(@model)).select { |r| r.category == 'insulation' }
     assert_in_delta (9000 - 2 * 152.4 + 152.4 * Math::PI / 2) / 1000.0, rows.sum(&:qty), 0.02, 'counted once'
+  end
+
+  # The user (1.18.0, "อยากให้แยก tag ให้เลยเวลาสร้างวาดท่อ"): pipes drawn
+  # straight onto a tag of their own (e.g. สตีม) to show / hide by kind;
+  # names stay (4"-CHWS-001). No tag given: the service's, as before.
+  # Selected runs move to the tag; changing their size keeps their tag.
+  def test_runs_go_on_the_tag_given
+    run, = Builder.create_run(@model, l_run, @settings.merge('tag' => 'สตีม'))
+    assert_equal 'สตีม', run.layer.name
+    assert_equal '4"-CHWS-001', run.name, 'names as before'
+    assert(children(run, 'pipe').all? { |e| e.layer.name == 'สตีม' })
+    assert(children(run, 'insulation').all? { |e| e.layer.name == H::TAG_INSULATION }, 'insulation on its own tag')
+    plain, = Builder.create_run(@model, l_run, @settings)
+    assert_match(/\APP-CHWS/, plain.layer.name)
+    Builder.retag(@model, [plain], 'ลม')
+    assert_equal 'ลม', plain.layer.name
+    assert_equal '4"-CHWS-002', plain.name
+    assert_equal 'ลม', Builder.run_settings(plain)['tag']
+    Builder.rebuild(@model, [run], @settings.merge('size' => '2"'))
+    assert_equal 'สตีม', run.layer.name, 'resized: still on its tag'
+    tags = SettingsDialog.send(:payload)[:tags]
+    assert_equal %w[ลม สตีม], tags.sort, 'tags to pick from (not ours inside)'
+    assert_equal '', Settings.sanitize('tag' => "  \n ")['tag']
+    assert_equal 'สตีม', Settings.sanitize('tag' => ' สตีม ')['tag']
   end
 
   def test_line_numbers_increment_per_service

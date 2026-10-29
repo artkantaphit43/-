@@ -111,6 +111,19 @@ module ArtK
         UI.messagebox("Plant Piping: แปลงเส้นไม่สำเร็จ (convert failed)\n#{e.message}")
       end
 
+      # The selected runs onto the tag in the settings (1.18.0).
+      def retag_selection
+        model = Sketchup.active_model
+        runs = H.selected_runs(model)
+        return UI.messagebox('เลือกแนวท่อที่จะย้ายแท็กก่อน (select pipe runs first)') if runs.empty?
+
+        tag = H.load_settings['tag']
+        Builder.retag(model, runs, tag)
+        Sketchup.status_text = "ย้าย #{runs.size} แนวท่อไปแท็ก #{tag.empty? ? '(ตามระบบ)' : tag} แล้ว"
+      rescue StandardError => e
+        UI.messagebox("Plant Piping: ย้ายแท็กไม่สำเร็จ\n#{e.message}")
+      end
+
       def rebuild_selection
         model = Sketchup.active_model
         runs = H.selected_runs(model)
