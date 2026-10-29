@@ -121,9 +121,12 @@ butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends`
 **Settings / run settings (1.18.0, new key):** `tag` – the SketchUp tag the run goes on ('' = its
 service's `PP-<code> <name>`, as before); `Builder.retag` moves runs, a rebuild with other settings keeps it.
 
-**Draft (1.20.0):** run setting `draft` (bool) – drawn as lines: pieces `type = draft_pipe` (geom a/b, od, size – read
-by Picker / Steel's crossing_pipes / clash and the deleted-piece tracking), `draft_node`, valves as bow-ties carrying the
-full valve record, end parts as markers carrying `end_part`; hangers stay in `supports`. `Builder.set_draft` switches.
+**Draft (1.20.0, isometric 1.20.1):** run setting `draft` (bool) – drawn as an isometric single line: pieces
+`type = draft_pipe` (a group holding one edge; geom a/b, od, size – read by Picker / Steel's crossing_pipes / clash and
+the deleted-piece tracking), `draft_mark` (weld dots 'Welds' with geom = points, reducer trapezoids), valves as their
+symbols (lines) carrying the full valve record, end parts as markers carrying `end_part`, linear dimensions and EL
+texts on tag `PP-Dimensions`; hangers stay in `supports`. `Builder.set_draft` switches. 1.20.0's rods (`draft_node`) are
+redrawn on open.
 
 **Tag list (1.19.0):** SketchUp pref `presets_b64` (base64 JSON, per computer) – `[{ name, service, catalog, rating,
 insulation_mm, pipe_color, hdpe_joint }]` (`Settings.preset` / `use_preset` / `sanitize_presets`); no model data.

@@ -20,6 +20,7 @@ module ArtK
       TAG_CENTERLINE = 'PP-Centerline'
       TAG_LABELS = 'PP-Labels'
       TAG_CLASH = 'PP-Clash'
+      TAG_DIMS = 'PP-Dimensions' # a draft's dimensions and EL tags (1.20.1)
       MM_PER_INCH = 25.4
 
       module_function
@@ -184,6 +185,11 @@ module ArtK
       def service_tag(model, code)
         s = Services.get(code)
         tag(model, "PP-#{code} #{s[:en]}")
+      end
+
+      # Drawing ink: a draft's weld dots and symbols.
+      def ink(model)
+        material(model, 'PP_Ink', [25, 25, 25])
       end
 
       def material(model, name, rgb, alpha = 1.0)

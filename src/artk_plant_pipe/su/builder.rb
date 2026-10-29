@@ -197,7 +197,7 @@ module ArtK
         ctx[:open_ends] = Collector.open_ends(cl).reject { |p| links.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
 
         extras = []
-        render_draft(ctx, cl) if ctx[:draft]
+        render_draft(ctx, cl, segs) if ctx[:draft]
         tees.each { |t| premark_branch(ctx, t) } unless ctx[:draft]
         unless segs.empty? || ctx[:draft]
           net = Network.new(segs, network_spec(spec, ctx[:opts]), tol: 1.0,
@@ -211,7 +211,9 @@ module ArtK
           net.pieces.sort_by { |pc| %i[pipe curve].include?(pc.type) ? 1 : 0 }.each { |pc| render_piece(ctx, pc, extras, warnings) }
           add_label(ctx, net) if settings['labels']
         end
-        unless ctx[:draft]
+        if ctx[:draft]
+          joins.each { |j| draft_reducer(ctx, j) }
+        else
           tees.each { |t| render_branch_tee(ctx, t, warnings) }
           joins.each { |j| render_join(ctx, j, warnings) }
         end
@@ -1231,35 +1233,91 @@ module ArtK
         H.set_attrs(g, 'type' => 'centerline')
       end
 
-      # ---- draft: the run as lines (1.20.0) ----
+      # ---- draft: the run as an isometric single line ----
       #
-      # Laying out an isometric is quicker on lines saying what each pipe
-      # is than on the full model: each straight a thin rod in the run's
-      # colour, a knuckle at each corner, valves as bow-ties (their records
-      # kept for the model), a label with the line number and tag.
+      # Laying out an isometric is quicker on lines than on the full model
+      # (1.20.0), drawn the way the user's isometrics are (1.20.1 – "อยากได้
+      # เส้นแบบนี้"): a thin line per straight (in the run's colour where the
+      # style colours edges by material), weld dots at fittings' ends,
+      # valves / flanges / reducers as their symbols (records kept for the
+      # model), each straight dimensioned, EL tags, the line number and tag.
 
-      DRAFT_R = 12.0
+      ISO_DIM = 250.0 # dimension lines this far off the pipe
 
-      def render_draft(ctx, cl)
+      def render_draft(ctx, cl, segs)
         cl.each do |a, b|
           len = Vec.dist(a, b)
           next if len < 1.0
 
-          g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:draft, Mesh.cylinder(a, b, DRAFT_R, steps: 6)),
-                               steps: 6)
-          finish_piece(ctx, g, "Draft #{ctx[:spec].size}", ctx[:mat],
+          g = ctx[:ents].add_group
+          e = g.entities.add_line(H.to_pt(a), H.to_pt(b))
+          e.material = ctx[:mat] if e && ctx[:mat]
+          finish_piece(ctx, g, "Draft #{ctx[:spec].size}", nil,
                        'type' => 'draft_pipe', 'length_mm' => len.round(1), 'geom' => JSON.generate('a' => a, 'b' => b))
         end
-        knuckles = cl.flatten(1).uniq { |p| p.map { |c| c.round(1) } }.select do |p|
-          cl.count { |a, b| Vec.dist(a, p) <= 1.0 || Vec.dist(b, p) <= 1.0 } >= 2
-        end
-        unless knuckles.empty?
-          part = Mesh::Part.new
-          knuckles.each { |p| part.add(:draft, Mesh.sphere(p, DRAFT_R * 1.2, steps: 6)) }
-          g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: 6)
-          finish_piece(ctx, g, 'Draft corners', ctx[:mat], 'type' => 'draft_node')
-        end
+        draft_welds(ctx, segs)
+        draft_dims(ctx, cl)
         draft_label(ctx, cl)
+      end
+
+      # The plane a symbol is drawn in: through the pipe and up (a riser:
+      # through it and x).
+      def iso_up(u)
+        u[2].abs > 0.9 ? [1.0, 0.0, 0.0] : [0.0, 0.0, 1.0]
+      end
+
+      # Weld dots at the ends of elbows and tees, and where a branch leaves
+      # its tee.
+      def draft_welds(ctx, segs)
+        return if segs.empty?
+
+        spec = ctx[:spec]
+        net = Network.new(segs, network_spec(spec, ctx[:opts]), tol: 1.0,
+                                radius_type: spec.flexible ? :lr : ctx[:settings]['elbow_type'].to_sym,
+                                takes: fitting_takes(ctx, spec), smooth: H.get_json(ctx[:run], 'smooth', [])).solve
+        pts = net.pieces.flat_map do |pc|
+          d = pc.data
+          case pc.type
+          when :elbow then [d[:start], d[:end]]
+          when :tee, :lateral, :cross, :manifold then d[:arms].map { |u| Vec.add(d[:center], Vec.scale(u, d[:c].to_f)) }
+          else []
+          end
+        end
+        H.get_json(ctx[:run], 'tees', []).each do |t|
+          near = segs.flatten(1).min_by { |p| Vec.dist(p, t['at']) }
+          pts << near if near && Vec.dist(near, t['at']) < 500.0
+        end
+        return if pts.empty?
+
+        r = (spec.od * 0.18).clamp(10.0, 25.0)
+        part = Mesh::Part.new
+        pts.each { |p| part.add(:ink, Mesh.sphere(p, r, steps: 8)) }
+        g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: 8)
+        finish_piece(ctx, g, 'Welds', H.ink(ctx[:model]),
+                     'type' => 'draft_mark', 'geom' => JSON.generate(pts.map { |p| p.map { |c| c.round(1) } }))
+      rescue StandardError
+        nil
+      end
+
+      # Each straight's length (dimension line beside it) and EL tags at the
+      # open ends and the ends of risers – on their own tag.
+      def draft_dims(ctx, cl)
+        tag = H.tag(ctx[:model], H::TAG_DIMS)
+        ents = ctx[:ents]
+        cl.each do |a, b|
+          len = Vec.dist(a, b)
+          next if len < 100.0 || !ents.respond_to?(:add_dimension_linear)
+
+          u = Vec.scale(Vec.sub(b, a), 1.0 / len)
+          side = u[2].abs > 0.9 ? [1.0, 0.0, 0.0] : Vec.unit(Vec.cross(u, [0.0, 0.0, 1.0]))
+          dim = ents.add_dimension_linear(H.to_pt(a), H.to_pt(b), Geom::Vector3d.new(*side.map { |c| H.mm(c * ISO_DIM) }))
+          dim.layer = tag if dim
+        end
+        risers = cl.select { |a, b| (b[2] - a[2]).abs > 0.9 * Vec.dist(a, b) }.flatten(1)
+        (Collector.open_ends(cl) + risers).uniq { |p| p.map(&:round) }.each do |p|
+          t = ents.add_text(format('EL%+d', p[2].round), H.to_pt(p), Geom::Vector3d.new(H.mm(200.0), H.mm(200.0), 0))
+          t.layer = tag
+        end
       end
 
       def draft_label(ctx, cl)
@@ -1272,7 +1330,10 @@ module ArtK
         txt.layer = H.tag(ctx[:model], H::TAG_LABELS)
       end
 
-      # A valve on a draft: a bow-tie, carrying the valve's record.
+      # A valve on a draft: its isometric symbol as lines – bow-tie (gate),
+      # with a dot (globe), a circle (ball), a bar (butterfly), an arrow
+      # (PRV); check, strainer, flange pair; a stem with its handwheel bar;
+      # flanges either side of a flanged one – carrying the valve's record.
       def draft_valve(ctx, type, at, dir, model_key)
         spec = ctx[:spec]
         info = FittingsData.valve(type)
@@ -1281,23 +1342,71 @@ module ArtK
         fam = stubs ? :flanged : ValveModels.family(o, spec.density > 5000)
         len = stubs ? Parts.valve_length(type, o) : FittingsData.face_to_face(type, spec.od, fam)
         u = Vec.unit(dir)
-        r = [spec.od * 0.6, 3.0 * DRAFT_R].max
-        half = [len / 2.0, r].max
-        part = Mesh::Part.new
-        part.add(:draft, Mesh.frustum(Vec.add(at, Vec.scale(u, -half)), at, r, 1.0, steps: 6))
-        part.add(:draft, Mesh.frustum(at, Vec.add(at, Vec.scale(u, half)), 1.0, r, steps: 6))
-        g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: 6)
-        finish_piece(ctx, g, "#{info[:name]} #{spec.size} (draft)", ctx[:mat],
+        w = iso_up(u)
+        half = [len / 2.0, spec.od * 0.7].max
+        h = [spec.od * 0.6, 30.0].max
+        g = ctx[:ents].add_group
+        pt = ->(s, t) { Vec.add(at, Vec.add(Vec.scale(u, s), Vec.scale(w, t))) }
+        pen = ->(*ps) { ps.each_cons(2) { |p, q| g.entities.add_line(H.to_pt(p), H.to_pt(q)) } }
+        case type
+        when 'check'
+          pen.call(pt.call(-half, h), pt.call(-half, -h), pt.call(half, 0.0), pt.call(-half, h))
+          pen.call(pt.call(half, h), pt.call(half, -h))
+        when 'strainer'
+          pen.call(pt.call(-half * 0.6, 0.0), pt.call(half * 0.6, -h * 1.5))
+          pen.call(pt.call(half * 0.6 - h * 0.4, -h * 1.5), pt.call(half * 0.6 + h * 0.4, -h * 1.5))
+        when 'flange'
+          [-6.0, 6.0].each { |s| pen.call(pt.call(s, h * 1.1), pt.call(s, -h * 1.1)) }
+        else
+          pen.call(pt.call(-half, h), pt.call(-half, -h), pt.call(half, h), pt.call(half, -h), pt.call(-half, h))
+          pen.call(pt.call(0.0, 0.0), pt.call(0.0, h * 1.8))
+          pen.call(pt.call(-h * 0.6, h * 1.8), pt.call(h * 0.6, h * 1.8))
+          case type
+          when 'globe'
+            dot = g.entities.add_group
+            H.add_part(ctx[:model], dot.entities, Mesh::Part.new.add(:ink, Mesh.sphere(at, h * 0.3, steps: 8)), steps: 8)
+            dot.material = H.ink(ctx[:model])
+          when 'ball'
+            g.entities.add_circle(H.to_pt(at), Geom::Vector3d.new(*Vec.cross(u, w)), H.mm(h * 0.45), 12)
+          when 'butterfly' then pen.call(pt.call(0.0, -h), pt.call(0.0, h))
+          when 'prv' then pen.call(pt.call(-half * 0.6, -h * 1.2), pt.call(half * 0.6, h * 1.2))
+          end
+        end
+        if fam == :flanged && type != 'flange'
+          [-1.0, 1.0].each do |k|
+            [5.0, 12.0].each { |off| pen.call(pt.call(k * (half + off), h * 1.1), pt.call(k * (half + off), -h * 1.1)) }
+          end
+        end
+        finish_piece(ctx, g, "#{info[:name]} #{spec.size} (draft)", nil,
                      valve_attrs(type, info, fam, spec, len, at, u).merge('model' => model_key))
+      end
+
+      # A reducer between this run and the one it joins: its trapezoid.
+      def draft_reducer(ctx, j)
+        main = main_spec(j)
+        spec = ctx[:spec]
+        u = Vec.unit(j['dir'])
+        w = iso_up(u)
+        len = [[main.od, spec.od].max, 60.0].max
+        a = j['at']
+        b = Vec.add(a, Vec.scale(u, len))
+        h1 = [main.od * 0.5, 20.0].max
+        h2 = [spec.od * 0.5, 12.0].max
+        pts = [Vec.add(a, Vec.scale(w, h1)), Vec.add(b, Vec.scale(w, h2)), Vec.add(b, Vec.scale(w, -h2)), Vec.add(a, Vec.scale(w, -h1))]
+        g = ctx[:ents].add_group
+        (pts + [pts.first]).each_cons(2) { |p, q| g.entities.add_line(H.to_pt(p), H.to_pt(q)) }
+        finish_piece(ctx, g, "Reducer #{main.size} x #{spec.size} (draft)", nil, 'type' => 'draft_mark')
+      rescue StandardError
+        nil
       end
 
       # A library part on an open end, on a draft: a marker carrying its record.
       def draft_end_part(ctx, rec)
-        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:draft, Mesh.sphere(rec['at'], 2.0 * DRAFT_R, steps: 6)),
-                             steps: 6)
+        r = (ctx[:spec].od * 0.3).clamp(15.0, 40.0)
+        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:ink, Mesh.sphere(rec['at'], r, steps: 8)), steps: 8)
         g.name = 'Draft end part'
         g.layer = ctx[:tag]
-        g.material = ctx[:mat]
+        g.material = H.ink(ctx[:model])
         g.set_attribute(H::DICT, 'end_part', JSON.generate(rec))
       end
 

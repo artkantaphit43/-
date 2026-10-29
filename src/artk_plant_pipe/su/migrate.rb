@@ -18,7 +18,9 @@ module ArtK
         res = { upgraded: 0, newer: 0, rebuilt: 0, parts: 0, insulated: 0, respec: 0 }
         recs = records(model.entities)
         todo = recs.reject { |e| DataFormat.version(H.attrs(e)) == DataFormat::CURRENT }
-        bare = recs.select { |e| H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT && bare_elbows?(e) }
+        bare = recs.select do |e|
+          H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT && (bare_elbows?(e) || rod_draft?(e))
+        end
         respec = respec_runs(model, recs)
         parts, mats = RefModels.stale(model)
         return res if todo.empty? && parts.empty? && mats.empty? && bare.empty? && respec.empty?
@@ -33,7 +35,7 @@ module ArtK
           res[st] += 1 if res.key?(st)
           res[:upgraded] += 1 if st == :rebuilt
         end
-        bare.select { |e| bare_elbows?(e) }.each do |run|
+        bare.select { |e| bare_elbows?(e) || rod_draft?(e) }.each do |run|
           Builder.render(model, run, Builder.run_settings(run))
           res[:insulated] += 1
         end
@@ -95,6 +97,12 @@ module ArtK
         Collector.all_runs(model).any? do |r, _|
           r != run && (H.get_json(r, 'tees', []) + H.get_json(r, 'joins', [])).any? { |t| t['main_pid'] == pid }
         end
+      end
+
+      # A draft drawn by 1.20.0 as coloured rods (its corner knuckles): drawn
+      # again as the isometric single line (1.20.1).
+      def rod_draft?(run)
+        run.entities.any? { |e| H.instance?(e) && H.type_of(e) == 'draft_node' }
       end
 
       # Drawn with 1.16.4 or before: insulation thicker than an elbow's

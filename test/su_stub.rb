@@ -257,7 +257,19 @@ module Sketchup
     def orient_connected_faces; end
   end
 
-  class Text < Entity; end
+  class Text < Entity
+    attr_accessor :text, :point
+  end
+
+  class DimensionLinear < Entity
+    attr_reader :start, :end, :offset
+
+    def initialize(a, b, off)
+      @start = a
+      @end = b
+      @offset = off
+    end
+  end
   class ConstructionPoint < Entity
     attr_accessor :position
   end
@@ -319,8 +331,15 @@ module Sketchup
       self << inst
     end
 
-    def add_text(_s, _p, _v = nil)
-      self << Text.new
+    def add_text(s, p, _v = nil)
+      t = self << Text.new
+      t.text = s
+      t.point = p
+      t
+    end
+
+    def add_dimension_linear(a, b, off)
+      self << DimensionLinear.new(a, b, off)
     end
 
     def add_cpoint(p)

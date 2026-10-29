@@ -118,11 +118,27 @@ class TestSuIntegration < Minitest::Test
     run, w = Builder.create_run(@model, l_run, @settings.merge('draft' => true, 'tag' => 'สตีม'))
     assert_empty w
     assert_equal 2, children(run, 'draft_pipe').size
+    # an engineering single line ("อยากได้เส้นแบบนี้" – the isometric):
+    # thin lines, weld dots at the elbow's ends, dimensions, EL tags
+    children(run, 'draft_pipe').each do |g|
+      assert_equal 1, g.entities.grep(Sketchup::Edge).size, 'a line, not a rod'
+      assert_empty g.entities.grep(Sketchup::Face)
+    end
+    welds = JSON.parse(children(run, 'draft_mark').find { |g| g.name == 'Welds' }.get_attribute(H::DICT, 'geom'))
+    assert_equal 2, welds.size, 'both ends of the elbow'
+    assert(welds.all? { |p| Vec.dist(p, [5000, 0, 3000]) < 200.0 })
+    dims = run.entities.grep(Sketchup::DimensionLinear)
+    assert_equal 2, dims.size
+    texts = run.entities.grep(Sketchup::Text).map(&:text)
+    assert_includes texts, 'EL+3000'
+    assert(texts.any? { |t| t.include?('4"-CHWS-001') && t.include?('สตีม') }, texts.inspect)
     %w[pipe elbow insulation centerline].each { |t| assert_empty children(run, t), t }
     assert_equal 'สตีม', run.layer.name
     Builder.add_valve(@model, run, 'gate', [2500.0, 0.0, 3000.0], [1.0, 0, 0])
     assert_equal 1, children(run, 'valve').size
-    assert_match(/draft/, children(run, 'valve').first.name, 'a bow-tie on a draft')
+    valve = children(run, 'valve').first
+    assert_match(/draft/, valve.name, 'a bow-tie on a draft')
+    assert_operator valve.entities.grep(Sketchup::Edge).size, :>=, 8, 'bow-tie, stem, flanges as lines'
     hit = Picker.nearest_pipe(@model, [2000, 40, 3000])
     assert_equal run, hit && hit[:run], 'a branch finds the line'
     across = SupportBuilder.crossing_pipes(@model, [1500.0, -200.0, 2900.0], [1.0, 0, 0], reach: 400.0)

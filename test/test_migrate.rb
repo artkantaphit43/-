@@ -194,6 +194,19 @@ class TestMigrate < Minitest::Test
     H.reset_settings_cache!
   end
 
+  # Drafts drawn by 1.20.0 as coloured rods become the isometric single
+  # line on open (1.20.1, "เส้นแบบที่ทำมาให้ดูไม่มืออาชีพ").
+  def test_rod_drafts_redrawn_as_lines_on_open
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'CS_B36_10', 'size' => '1"', 'draft' => true)
+    run, = Builder.create_run(@model, [[[0, 0, 3000], [5000, 0, 3000]], [[5000, 0, 3000], [5000, 3000, 3000]]], s)
+    knuckle = run.entities.add_group
+    H.set_attrs(knuckle, 'type' => 'draft_node') # as 1.20.0 left it
+    assert_equal 1, Migrate.model(@model)[:insulated]
+    assert(run.entities.none? { |e| e.valid? && H.type_of(e) == 'draft_node' })
+    assert_equal 2, count(run, 'draft_pipe')
+    assert_equal 0, Migrate.model(@model)[:insulated], 'once'
+  end
+
   # Drawn with 1.17 on purpose: 100 stays 100.
   def test_new_100_insulation_is_left_alone
     s = Settings.sanitize('service' => 'HW', 'catalog' => 'CS_B36_10', 'size' => '4"', 'insulation_mm' => 100)

@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.20.0**
-(`dist/artk_plant_pipe-1.20.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (327 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.20.1**
+(`dist/artk_plant_pipe-1.20.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (328 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -252,6 +252,12 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `place_valve` → `draft_valve` (หูกระต่าย, attrs วาล์วครบ) · end part → `draft_end_part` · `drawn_pieces` นับ draft_pipe (ลบเส้น = ตัด cl) ·
   Picker.nearest_pipe / SupportBuilder.crossing_pipes / clash_items รู้จัก draft_pipe · `Builder.set_draft` + `Commands.set_draft(on)`
   (เลือก หรือทั้งหมด + ยืนยัน) · ปุ่มแถบ to_draft / to_model, คลิกขวา, หน้าตั้งค่า (checkbox + 2 ปุ่ม) · BOM แจ้งแนวที่ยังเป็นดราฟ
+- **Plant Piping 1.20.1 – ดราฟแบบ isometric** (ผู้ใช้: แท่งสี "ดูไม่มืออาชีพ ดูไม่เป็นวิศวกร" + ภาพ iso ที่อยากได้): `render_draft(ctx, cl, segs)` =
+  edge 1 เส้น/ช่วงใน group `draft_pipe` (material สีท่อ – โชว์เมื่อ style สีขอบตาม material) · `draft_welds` (Network.solve บน segs → จุดที่
+  ปลายข้องอ/แขนสามทาง + จุดออกของท่อแยก, ทรงกลม `H.ink`) · `draft_dims` (`add_dimension_linear` ห่าง `ISO_DIM` 250 + ข้อความ EL±z ที่ปลายเปิด/
+  ปลาย riser, แท็ก `TAG_DIMS` PP-Dimensions) · `draft_valve` สัญลักษณ์เป็นเส้นในระนาบ `iso_up` (gate/globe จุด/ball วง/butterfly/check/
+  strainer/prv/flange + ก้าน + หน้าแปลนคู่ถ้า :flanged) · `draft_reducer` (สี่เหลี่ยมคางหมูที่ join) · Migrate: ดราฟแบบแท่ง (`draft_node`) วาดใหม่ ·
+  stub: Text เก็บ text/point, `add_dimension_linear` → DimensionLinear
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
