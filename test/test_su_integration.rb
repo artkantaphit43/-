@@ -165,6 +165,20 @@ class TestSuIntegration < Minitest::Test
     assert_equal 1, H.get_json(run, 'cl').size
   end
 
+  # The user (1.20.2, screenshot – "เลขลายตา"): dimensions read in mm
+  # whole numbers along their lines whatever the model's units ("2.0 m"
+  # was 2000), and one EL tag per level nearby, not one at every corner.
+  def test_draft_dimensions_and_el_tags_are_not_cluttered
+    s = @settings.merge('draft' => true, 'size' => '1"', 'insulation_mm' => 0)
+    run, = Builder.create_run(@model, [[[0, 0, 6930], [500, 0, 6930]], [[500, 0, 6930], [500, 0, 5730]],
+                                       [[500, 0, 5730], [500, 1000, 5730]]], s)
+    dims = run.entities.grep(Sketchup::DimensionLinear)
+    assert_equal %w[1000 1200 500], dims.map(&:text).sort
+    assert(dims.all?(&:has_aligned_text), 'along the dimension line')
+    els = run.entities.grep(Sketchup::Text).map(&:text).select { |t| t.start_with?('EL') }
+    assert_equal %w[EL+5730 EL+6930], els.sort, 'one per level here'
+  end
+
   def test_line_numbers_increment_per_service
     r1, = Builder.create_run(@model, l_run, @settings)
     r2, = Builder.create_run(@model, l_run, @settings)

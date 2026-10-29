@@ -262,7 +262,9 @@ module Sketchup
   end
 
   class DimensionLinear < Entity
+    ALIGNED_TEXT_ABOVE = 0
     attr_reader :start, :end, :offset
+    attr_accessor :text, :has_aligned_text, :aligned_text_position, :arrow_type
 
     def initialize(a, b, off)
       @start = a

@@ -19,7 +19,7 @@ module ArtK
         recs = records(model.entities)
         todo = recs.reject { |e| DataFormat.version(H.attrs(e)) == DataFormat::CURRENT }
         bare = recs.select do |e|
-          H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT && (bare_elbows?(e) || rod_draft?(e))
+          H.run?(e) && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT && (bare_elbows?(e) || stale_draft?(e))
         end
         respec = respec_runs(model, recs)
         parts, mats = RefModels.stale(model)
@@ -35,7 +35,7 @@ module ArtK
           res[st] += 1 if res.key?(st)
           res[:upgraded] += 1 if st == :rebuilt
         end
-        bare.select { |e| bare_elbows?(e) || rod_draft?(e) }.each do |run|
+        bare.select { |e| bare_elbows?(e) || stale_draft?(e) }.each do |run|
           Builder.render(model, run, Builder.run_settings(run))
           res[:insulated] += 1
         end
@@ -99,10 +99,10 @@ module ArtK
         end
       end
 
-      # A draft drawn by 1.20.0 as coloured rods (its corner knuckles): drawn
-      # again as the isometric single line (1.20.1).
-      def rod_draft?(run)
-        run.entities.any? { |e| H.instance?(e) && H.type_of(e) == 'draft_node' }
+      # A draft drawn the way an older version drew it (1.20.0's coloured
+      # rods, 1.20.1's dimensions in the model's units): drawn again.
+      def stale_draft?(run)
+        Builder.run_settings(run)['draft'] && run.get_attribute(H::DICT, 'draft_rev').to_i < Builder::DRAFT_REV
       end
 
       # Drawn with 1.16.4 or before: insulation thicker than an elbow's

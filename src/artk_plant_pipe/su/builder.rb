@@ -1243,6 +1243,8 @@ module ArtK
       # model), each straight dimensioned, EL tags, the line number and tag.
 
       ISO_DIM = 250.0 # dimension lines this far off the pipe
+      # How a draft is drawn; older drafts are drawn again on open (2: 1.20.2).
+      DRAFT_REV = 2
 
       def render_draft(ctx, cl, segs)
         cl.each do |a, b|
@@ -1258,6 +1260,7 @@ module ArtK
         draft_welds(ctx, segs)
         draft_dims(ctx, cl)
         draft_label(ctx, cl)
+        ctx[:run].set_attribute(H::DICT, 'draft_rev', DRAFT_REV)
       end
 
       # The plane a symbol is drawn in: through the pipe and up (a riser:
@@ -1311,13 +1314,35 @@ module ArtK
           u = Vec.scale(Vec.sub(b, a), 1.0 / len)
           side = u[2].abs > 0.9 ? [1.0, 0.0, 0.0] : Vec.unit(Vec.cross(u, [0.0, 0.0, 1.0]))
           dim = ents.add_dimension_linear(H.to_pt(a), H.to_pt(b), Geom::Vector3d.new(*side.map { |c| H.mm(c * ISO_DIM) }))
-          dim.layer = tag if dim
+          next unless dim
+
+          iso_dim_style(dim, len)
+          dim.layer = tag
         end
+        # one EL per level nearby (1.20.2 – at every corner they piled up)
         risers = cl.select { |a, b| (b[2] - a[2]).abs > 0.9 * Vec.dist(a, b) }.flatten(1)
-        (Collector.open_ends(cl) + risers).uniq { |p| p.map(&:round) }.each do |p|
+        shown = []
+        (risers + Collector.open_ends(cl)).uniq { |p| p.map(&:round) }.each do |p|
+          next if shown.any? { |q| (q[2] - p[2]).abs < 1.0 && Vec.dist(q, p) < EL_NEAR }
+
+          shown << p
           t = ents.add_text(format('EL%+d', p[2].round), H.to_pt(p), Geom::Vector3d.new(H.mm(200.0), H.mm(200.0), 0))
           t.layer = tag
         end
+      end
+
+      EL_NEAR = 1500.0 # an EL tag this near one of the same level is left out
+
+      # As on an isometric (1.20.2): the length in whole mm whatever the
+      # model's units ("2.0 m" read as 2000), along the dimension line.
+      def iso_dim_style(dim, len)
+        dim.text = len.round.to_s if dim.respond_to?(:text=)
+        dim.has_aligned_text = true if dim.respond_to?(:has_aligned_text=)
+        if dim.respond_to?(:aligned_text_position=) && defined?(Sketchup::DimensionLinear::ALIGNED_TEXT_ABOVE)
+          dim.aligned_text_position = Sketchup::DimensionLinear::ALIGNED_TEXT_ABOVE
+        end
+      rescue StandardError
+        nil
       end
 
       def draft_label(ctx, cl)

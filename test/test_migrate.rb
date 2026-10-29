@@ -201,6 +201,7 @@ class TestMigrate < Minitest::Test
     run, = Builder.create_run(@model, [[[0, 0, 3000], [5000, 0, 3000]], [[5000, 0, 3000], [5000, 3000, 3000]]], s)
     knuckle = run.entities.add_group
     H.set_attrs(knuckle, 'type' => 'draft_node') # as 1.20.0 left it
+    run.delete_attribute(H::DICT, 'draft_rev')
     assert_equal 1, Migrate.model(@model)[:insulated]
     assert(run.entities.none? { |e| e.valid? && H.type_of(e) == 'draft_node' })
     assert_equal 2, count(run, 'draft_pipe')

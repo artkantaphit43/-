@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.20.1**
-(`dist/artk_plant_pipe-1.20.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (328 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.20.2**
+(`dist/artk_plant_pipe-1.20.2.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (329 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -258,6 +258,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   ปลาย riser, แท็ก `TAG_DIMS` PP-Dimensions) · `draft_valve` สัญลักษณ์เป็นเส้นในระนาบ `iso_up` (gate/globe จุด/ball วง/butterfly/check/
   strainer/prv/flange + ก้าน + หน้าแปลนคู่ถ้า :flanged) · `draft_reducer` (สี่เหลี่ยมคางหมูที่ join) · Migrate: ดราฟแบบแท่ง (`draft_node`) วาดใหม่ ·
   stub: Text เก็บ text/point, `add_dimension_linear` → DimensionLinear
+- **Plant Piping 1.20.2 – เลขลายตา** (ภาพ: EL+6930 ซ้อน 3 อัน, มิติ "0.5 m/2.0 m"): `iso_dim_style` (dim.text = มม. เต็ม, has_aligned_text,
+  ALIGNED_TEXT_ABOVE – มี respond_to? กัน) · EL ซ้ำระดับเดียวกันภายใน `EL_NEAR` 1500 ไม่ใส่ (riser ก่อน ปลายเปิดทีหลัง) · `DRAFT_REV` 2 stamp
+  `draft_rev` บนแนว → `Migrate.stale_draft?` วาดดราฟเก่าใหม่ตอนเปิดไฟล์ · ข้อความ/มิติ SketchUp ขนาดคงที่บนจอ – แนะนำผู้ใช้ตั้ง Model Info
+  (ขนาดตัวอักษร, Hide when foreshortened, หน่วย มม.), ซ่อนแท็ก PP-Dimensions ตอนซูมออก, มุม Iso + Parallel Projection
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
