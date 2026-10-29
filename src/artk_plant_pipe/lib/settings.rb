@@ -32,7 +32,8 @@ module ArtK
         'waste_pct'     => 5.0,
         'valve_type'    => 'gate',
         'hdpe_joint'    => 'auto',    # auto (by size) | butt | ef | comp – HDPE fitting system
-        'tag'           => ''         # the SketchUp tag new runs go on ('' = the service's, 1.18.0)
+        'tag'           => '',        # the SketchUp tag new runs go on ('' = the service's, 1.18.0)
+        'draft'         => false      # drawn as a draft line, not the pipe model (1.20.0)
       }.freeze
 
       # Insulation of the user's BOQ (fiberglass pipe section 1-1/2", one
@@ -84,7 +85,7 @@ module ArtK
         s['elevation_ref'] = %w[cl bop].include?(s['elevation_ref']) ? s['elevation_ref'] : 'cl'
         s['segments'] = clamp(s['segments'].to_i, 8, 48)
         s['segments'] += 1 if s['segments'].odd? # even count keeps sections symmetric
-        %w[snap45 centerline labels].each { |k| s[k] = truthy(s[k]) }
+        %w[snap45 centerline labels draft].each { |k| s[k] = truthy(s[k]) }
         s['color_scheme'] = Services::SCHEMES.key?(s['color_scheme']) ? s['color_scheme'] : 'material'
         s['pipe_color'] = s['pipe_color'].to_s.downcase.match?(/\A#\h{6}\z/) ? s['pipe_color'].to_s.downcase : ''
         s['lod'] = %w[detailed light].include?(s['lod']) ? s['lod'] : 'detailed'

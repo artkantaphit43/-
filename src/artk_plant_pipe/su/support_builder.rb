@@ -185,7 +185,7 @@ module ArtK
         H.active_runs(model).each do |run, tr|
           ins = Builder.run_settings(run)['insulation_mm'].to_f
           run.entities.each do |e|
-            next unless H.instance?(e) && H.type_of(e) == 'pipe'
+            next unless H.instance?(e) && %w[pipe draft_pipe].include?(H.type_of(e))
 
             g = H.get_json(e, 'geom')
             H.pipe_path(g).map { |p| H.transform_mm(tr, p) }.each_cons(2) do |a, b|

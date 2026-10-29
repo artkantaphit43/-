@@ -118,7 +118,7 @@ module ArtK
             g = JSON.parse(a['geom'])
             od = a['od'].to_f
             case a['type']
-            when 'pipe'
+            when 'pipe', 'draft_pipe'
               H.pipe_path(g).each_cons(2) do |p, q|
                 items << Clash::Item.new(owner: owner, label: label, a: w.call(p), b: w.call(q), r: od / 2.0 + ins)
               end

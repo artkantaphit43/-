@@ -93,6 +93,22 @@ module ArtK
         raise
       end
 
+      # +runs+ drawn as draft lines (on) or as the pipe model (off) – their
+      # data (centre line, valves, branches, hangers, tag) as it is (1.20.0).
+      def set_draft(model, runs, on)
+        model.start_operation(on ? 'Plant Piping: แปลงเป็นเส้น' : 'Plant Piping: แปลงเป็นโมเดลท่อ', true)
+        warnings = runs.flat_map do |run|
+          render(model, run, run_settings(run).merge('draft' => on)).map { |w| "#{run.name}: #{w}" }
+        end
+        warnings.concat(refresh_branches(model, runs)) unless on
+        H.purge_parts(model)
+        model.commit_operation
+        warnings
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
       # Branch runs keep a copy of their main line's spec in their tee
       # records; after main lines change, update those copies and redraw the
       # branch tees (reducing tee sizes follow the new main size).
@@ -181,8 +197,9 @@ module ArtK
         ctx[:open_ends] = Collector.open_ends(cl).reject { |p| links.any? { |t| Vec.dist(p, t['at']) <= 1.0 } }
 
         extras = []
-        tees.each { |t| premark_branch(ctx, t) }
-        unless segs.empty?
+        render_draft(ctx, cl) if ctx[:draft]
+        tees.each { |t| premark_branch(ctx, t) } unless ctx[:draft]
+        unless segs.empty? || ctx[:draft]
           net = Network.new(segs, network_spec(spec, ctx[:opts]), tol: 1.0,
                                         radius_type: spec.flexible ? :lr : settings['elbow_type'].to_sym,
                                         takes: fitting_takes(ctx, spec),
@@ -194,20 +211,24 @@ module ArtK
           net.pieces.sort_by { |pc| %i[pipe curve].include?(pc.type) ? 1 : 0 }.each { |pc| render_piece(ctx, pc, extras, warnings) }
           add_label(ctx, net) if settings['labels']
         end
-        tees.each { |t| render_branch_tee(ctx, t, warnings) }
-        joins.each { |j| render_join(ctx, j, warnings) }
+        unless ctx[:draft]
+          tees.each { |t| render_branch_tee(ctx, t, warnings) }
+          joins.each { |j| render_join(ctx, j, warnings) }
+        end
         valves.each do |v|
           place_valve(ctx, v['valve_type'], JSON.parse(v['at']), JSON.parse(v['dir']), model: v['model'])
         rescue StandardError => e
           warnings << "Valve could not be rebuilt: #{e.message}"
         end
-        end_parts.each { |rec| place_end_part(ctx, rec, warnings) }
-        H.get_json(run, 'supports', []).each do |rec|
-          SupportBuilder.render(ctx, rec)
-        rescue StandardError => e
-          warnings << "Support: #{e.message}"
+        end_parts.each { |rec| ctx[:draft] ? draft_end_part(ctx, rec) : place_end_part(ctx, rec, warnings) }
+        unless ctx[:draft] # its hangers stay in its data
+          H.get_json(run, 'supports', []).each do |rec|
+            SupportBuilder.render(ctx, rec)
+          rescue StandardError => e
+            warnings << "Support: #{e.message}"
+          end
         end
-        add_centerline(ctx, cl) if settings['centerline']
+        add_centerline(ctx, cl) if settings['centerline'] && !ctx[:draft]
 
         extras.each { |x| x['remark'] ||= 'wall thickness estimated' } if spec.estimated
         H.set_attrs(run, ctx[:common].merge('type' => 'run', 'seq' => seq, 'joint' => spec.joint,
@@ -246,6 +267,8 @@ module ArtK
             pipes << H.pipe_path(g) if g['a'] && g['b'] && !bend
           when 'elbow'
             fittings << [g['vertex'], [g['start'], g['end']]] if g['vertex']
+          when 'draft_pipe'
+            pipes << [g['a'], g['b']] if g['a'] && g['b']
           when 'tee'
             next unless e.get_attribute(H::DICT, 'role') == 'run'
 
@@ -295,7 +318,7 @@ module ArtK
         steps = settings['segments']
         {
           model: model, run: run, ents: run.entities, spec: spec, settings: settings, svc: svc,
-          line_no: line_no, steps: steps, ins: settings['insulation_mm'].to_f,
+          line_no: line_no, steps: steps, ins: settings['insulation_mm'].to_f, draft: settings['draft'],
           lod: settings['lod'].to_sym, opts: Parts.opts(spec, lod: settings['lod'], steps: steps, joint: settings['hdpe_joint']),
           refs: refs_enabled?(settings), ext: {},
           tag: settings['tag'].empty? ? H.service_tag(model, svc[:code]) : H.tag(model, settings['tag']),
@@ -965,6 +988,8 @@ module ArtK
 
       # model: a reference-library key chosen by the user (kept on rebuild).
       def place_valve(ctx, type, at, dir, model: nil)
+        return draft_valve(ctx, type, at, dir, model) if ctx[:draft]
+
         spec = ctx[:spec]
         chosen = model && Refs.get(model)
         if chosen && Refs.sized_type?(chosen)
@@ -1204,6 +1229,76 @@ module ArtK
         g.name = 'Centerline'
         g.layer = H.tag(ctx[:model], H::TAG_CENTERLINE)
         H.set_attrs(g, 'type' => 'centerline')
+      end
+
+      # ---- draft: the run as lines (1.20.0) ----
+      #
+      # Laying out an isometric is quicker on lines saying what each pipe
+      # is than on the full model: each straight a thin rod in the run's
+      # colour, a knuckle at each corner, valves as bow-ties (their records
+      # kept for the model), a label with the line number and tag.
+
+      DRAFT_R = 12.0
+
+      def render_draft(ctx, cl)
+        cl.each do |a, b|
+          len = Vec.dist(a, b)
+          next if len < 1.0
+
+          g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:draft, Mesh.cylinder(a, b, DRAFT_R, steps: 6)),
+                               steps: 6)
+          finish_piece(ctx, g, "Draft #{ctx[:spec].size}", ctx[:mat],
+                       'type' => 'draft_pipe', 'length_mm' => len.round(1), 'geom' => JSON.generate('a' => a, 'b' => b))
+        end
+        knuckles = cl.flatten(1).uniq { |p| p.map { |c| c.round(1) } }.select do |p|
+          cl.count { |a, b| Vec.dist(a, p) <= 1.0 || Vec.dist(b, p) <= 1.0 } >= 2
+        end
+        unless knuckles.empty?
+          part = Mesh::Part.new
+          knuckles.each { |p| part.add(:draft, Mesh.sphere(p, DRAFT_R * 1.2, steps: 6)) }
+          g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: 6)
+          finish_piece(ctx, g, 'Draft corners', ctx[:mat], 'type' => 'draft_node')
+        end
+        draft_label(ctx, cl)
+      end
+
+      def draft_label(ctx, cl)
+        a, b = cl.max_by { |p, q| Vec.dist(p, q) }
+        return unless a
+
+        tag = ctx[:settings]['tag'].to_s
+        txt = ctx[:ents].add_text("#{ctx[:line_no]}#{tag.empty? ? '' : "  #{tag}"}", H.to_pt(Vec.lerp(a, b, 0.5)),
+                                  Geom::Vector3d.new(0, 0, H.mm(300.0)))
+        txt.layer = H.tag(ctx[:model], H::TAG_LABELS)
+      end
+
+      # A valve on a draft: a bow-tie, carrying the valve's record.
+      def draft_valve(ctx, type, at, dir, model_key)
+        spec = ctx[:spec]
+        info = FittingsData.valve(type)
+        o = ctx[:opts]
+        stubs = Hdpe.style?(o) && o.style != :compression
+        fam = stubs ? :flanged : ValveModels.family(o, spec.density > 5000)
+        len = stubs ? Parts.valve_length(type, o) : FittingsData.face_to_face(type, spec.od, fam)
+        u = Vec.unit(dir)
+        r = [spec.od * 0.6, 3.0 * DRAFT_R].max
+        half = [len / 2.0, r].max
+        part = Mesh::Part.new
+        part.add(:draft, Mesh.frustum(Vec.add(at, Vec.scale(u, -half)), at, r, 1.0, steps: 6))
+        part.add(:draft, Mesh.frustum(at, Vec.add(at, Vec.scale(u, half)), 1.0, r, steps: 6))
+        g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: 6)
+        finish_piece(ctx, g, "#{info[:name]} #{spec.size} (draft)", ctx[:mat],
+                     valve_attrs(type, info, fam, spec, len, at, u).merge('model' => model_key))
+      end
+
+      # A library part on an open end, on a draft: a marker carrying its record.
+      def draft_end_part(ctx, rec)
+        g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:draft, Mesh.sphere(rec['at'], 2.0 * DRAFT_R, steps: 6)),
+                             steps: 6)
+        g.name = 'Draft end part'
+        g.layer = ctx[:tag]
+        g.material = ctx[:mat]
+        g.set_attribute(H::DICT, 'end_part', JSON.generate(rec))
       end
 
       def add_label(ctx, net)

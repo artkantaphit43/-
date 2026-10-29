@@ -17,7 +17,7 @@ module ArtK
           next if exclude_run && run == exclude_run
 
           run.entities.each do |e|
-            next unless H.instance?(e) && H.type_of(e) == 'pipe'
+            next unless H.instance?(e) && %w[pipe draft_pipe].include?(H.type_of(e))
 
             g = H.get_json(e, 'geom')
             next unless g

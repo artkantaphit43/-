@@ -156,6 +156,8 @@ module ArtK
           when 'rebuild' then Commands.rebuild_selection
           when 'retag' then Commands.retag_selection
           when 'match' then Commands.match_pipe
+          when 'to_draft' then Commands.set_draft(true)
+          when 'to_model' then Commands.set_draft(false)
           when 'flow' then Commands.set_design_flow
           when 'hydraulic' then Commands.hydraulic_report
           when 'bom' then Commands.bom

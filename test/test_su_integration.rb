@@ -109,6 +109,46 @@ class TestSuIntegration < Minitest::Test
     Sketchup.write_default(H::PREF, 'presets_b64', nil)
   end
 
+  # The user (1.20.0, an isometric to issue: "วาดเส้นท่อไปก่อน แล้วกดแปลง
+  # กลับไปกลับมาได้"): a run drawn as a draft – a thin line per straight in
+  # its colour on its tag, valves as bow-ties, a label – is quick; turned
+  # into the pipe model and back nothing is lost (valves, tag, name), and
+  # pipes, tees and steel supports still find its line.
+  def test_draft_runs_turn_into_the_model_and_back
+    run, w = Builder.create_run(@model, l_run, @settings.merge('draft' => true, 'tag' => 'สตีม'))
+    assert_empty w
+    assert_equal 2, children(run, 'draft_pipe').size
+    %w[pipe elbow insulation centerline].each { |t| assert_empty children(run, t), t }
+    assert_equal 'สตีม', run.layer.name
+    Builder.add_valve(@model, run, 'gate', [2500.0, 0.0, 3000.0], [1.0, 0, 0])
+    assert_equal 1, children(run, 'valve').size
+    assert_match(/draft/, children(run, 'valve').first.name, 'a bow-tie on a draft')
+    hit = Picker.nearest_pipe(@model, [2000, 40, 3000])
+    assert_equal run, hit && hit[:run], 'a branch finds the line'
+    across = SupportBuilder.crossing_pipes(@model, [1500.0, -200.0, 2900.0], [1.0, 0, 0], reach: 400.0)
+    assert(across.any? { |q| q[4] == run.persistent_id }, 'supports find it')
+    cl = H.get_json(run, 'cl')
+    name = run.name
+
+    Builder.set_draft(@model, [run], false)
+    assert_equal 2, children(run, 'pipe').size
+    assert_equal 1, children(run, 'elbow').size
+    assert_equal 3, children(run, 'insulation').size
+    assert_equal 1, children(run, 'valve').size, 'the valve kept'
+    assert_empty children(run, 'draft_pipe')
+    assert_equal [name, 'สตีม', cl], [run.name, run.layer.name, H.get_json(run, 'cl')]
+    refute Builder.run_settings(run)['draft']
+
+    Builder.set_draft(@model, [run], true)
+    assert_equal 2, children(run, 'draft_pipe').size
+    assert_equal 1, children(run, 'valve').size
+    assert_equal cl, H.get_json(run, 'cl')
+    # a line deleted to re-route is given up, as a pipe is
+    children(run, 'draft_pipe').find { |g| JSON.parse(g.get_attribute(H::DICT, 'geom'))['b'][1].to_f > 1000 }.erase!
+    Builder.render(@model, run, Builder.run_settings(run))
+    assert_equal 1, H.get_json(run, 'cl').size
+  end
+
   def test_line_numbers_increment_per_service
     r1, = Builder.create_run(@model, l_run, @settings)
     r2, = Builder.create_run(@model, l_run, @settings)

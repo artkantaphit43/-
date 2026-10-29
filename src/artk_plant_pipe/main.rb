@@ -50,6 +50,10 @@ module ArtK
       cmds = {
         settings: command('Settings & Sizing / ตั้งค่า', 'เลือกระบบ วัสดุ ขนาด และคำนวณขนาดท่อ', 'settings') { SettingsDialog.show },
         draw: command('Draw Pipe / วาดท่อ', 'วาดแนวท่อพร้อมข้องอ/Tee อัตโนมัติ', 'draw') { Commands.draw_pipe },
+        to_draft: command('To Draft Lines / แปลงเป็นเส้น', 'ท่อที่เลือก (ไม่เลือก = ทั้งหมด) เป็นเส้นดราฟ – เบา แก้แนวเร็ว',
+                          'to_draft') { Commands.set_draft(true) },
+        to_model: command('To Pipe Model / แปลงเป็นโมเดลท่อ', 'เส้นที่เลือก (ไม่เลือก = ทั้งหมด) เป็นโมเดลท่อเต็ม – ไว้โชว์/ถอดวัสดุ',
+                          'to_model') { Commands.set_draft(false) },
         match: command('Match Pipe / ดูดค่าท่อ', 'คลิกท่อที่วาดไว้ แล้ววาดต่อเป็นท่อแบบเดียวกัน (ขนาด วัสดุ ฉนวน สี แท็ก)',
                        'match') { Commands.match_pipe },
         parts: command('Reference Library / คลังอุปกรณ์จริง',
@@ -76,7 +80,7 @@ module ArtK
       }
 
       menu = UI.menu('Extensions').add_submenu('Plant Piping TH')
-      %i[settings draw match stretch parts convert check].each { |k| menu.add_item(cmds[k]) }
+      %i[settings draw match to_draft to_model stretch parts convert check].each { |k| menu.add_item(cmds[k]) }
       sync_item = menu.add_item('อ่านความยาวท่อที่ยืดเองอัตโนมัติ (Auto-read stretched pipes)') { Commands.toggle_auto_sync }
       menu.set_validation_proc(sync_item) { AutoSync.enabled? ? MF_CHECKED : MF_UNCHECKED }
       menu.add_separator
@@ -92,7 +96,8 @@ module ArtK
       menu.add_item(cmds[:diag])
 
       tb = UI::Toolbar.new('Plant Piping TH')
-      %i[settings draw match stretch parts convert check auto_support support rebuild flow hydraulic clash bom style].each do |k|
+      %i[settings draw match to_draft to_model stretch parts convert check auto_support support rebuild flow hydraulic clash bom
+         style].each do |k|
         tb.add_item(cmds[k])
       end
       tb.get_last_state == TB_NEVER_SHOWN ? tb.show : tb.restore
@@ -107,6 +112,7 @@ module ArtK
         sub.add_item(cmds[:convert]) unless edges.empty?
         unless runs.empty?
           sub.add_item('วาดท่อแบบนี้ (Draw like this)') { Commands.match_selection } if runs.size == 1
+          %i[to_draft to_model].each { |k| sub.add_item(cmds[k]) }
           %i[stretch check rebuild auto_support clear_support flow hydraulic bom].each { |k| sub.add_item(cmds[k]) }
         end
       end

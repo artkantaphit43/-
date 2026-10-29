@@ -111,6 +111,24 @@ module ArtK
         UI.messagebox("Plant Piping: แปลงเส้นไม่สำเร็จ (convert failed)\n#{e.message}")
       end
 
+      # The selected runs (none: every run the other way) as draft lines
+      # (on) or as the pipe model (off) – 1.20.0.
+      def set_draft(on)
+        model = Sketchup.active_model
+        runs = H.selected_runs(model)
+        if runs.empty?
+          runs = Collector.all_runs(model).map(&:first).select { |r| Builder.run_settings(r)['draft'] != on }
+          return UI.messagebox(on ? 'ไม่มีท่อที่เป็นโมเดลให้แปลง' : 'ไม่มีท่อที่เป็นเส้นให้แปลง') if runs.empty?
+
+          q = on ? "แปลงท่อทั้งหมด #{runs.size} แนวเป็นเส้น (ดราฟ)?" : "แปลงเส้นทั้งหมด #{runs.size} แนวเป็นโมเดลท่อ?\n(ท่อเยอะอาจใช้เวลาสักครู่)"
+          return unless UI.messagebox(q, MB_OKCANCEL) == IDOK
+        end
+        warnings = Builder.set_draft(model, runs, on)
+        show_warnings(warnings, on ? "แปลง #{runs.size} แนวเป็นเส้นแล้ว" : "แปลง #{runs.size} แนวเป็นโมเดลท่อแล้ว")
+      rescue StandardError => e
+        UI.messagebox("Plant Piping: แปลงไม่สำเร็จ\n#{e.message}")
+      end
+
       # Click a pipe drawn before, draw on like it (1.19.0).
       def match_pipe
         Sketchup.active_model.select_tool(MatchPipeTool.new)
@@ -267,6 +285,11 @@ module ArtK
         end
         note = "<p class='mut'>#{Reports.esc(scope)} · เผื่อเศษตัด (cutting waste) #{settings['waste_pct']}% " \
                "สำหรับจำนวนท่อน · รอยต่อหน้างานโดยประมาณ (est. field joints): <b>#{joints}</b></p>"
+        drafts = (runs.empty? ? Collector.all_runs(model).map(&:first) : runs).count { |r| Builder.run_settings(r)['draft'] }
+        if drafts.positive?
+          note += "<p><b>ยังเป็นเส้น (ดราฟ) #{drafts} แนว – ไม่ได้นับท่อ/ข้อต่อของแนวนั้น</b> " \
+                  '(นับแค่วาล์ว) แปลงเป็นโมเดลท่อก่อนถอดวัสดุ</p>'
+        end
         Reports.show('Bill of Materials – รายการวัสดุ', note + Reports.table(Bom::HEADER, table_rows),
                      csv: csv, csv_name: 'PlantPiping_BOM.csv')
       end

@@ -118,6 +118,10 @@
 
   <fieldset>
     <legend>การวาด (Drawing)</legend>
+    <label class="chk"><input type="checkbox" id="draft"><span>วาดเป็นเส้น (ดราฟ) – เบา จัดแนวเร็ว แปลงเป็นโมเดลท่อทีหลัง</span></label>
+    <div class="tagrow">
+      <button class="btn sec" data-cmd="to_draft">แปลงเป็นเส้น<small>ท่อที่เลือก (ไม่เลือก = ทั้งหมด)</small></button>
+      <button class="btn sec" data-cmd="to_model">แปลงเป็นโมเดลท่อ<small>ไว้โชว์ลูกค้า / ถอดวัสดุ</small></button></div>
     <label>ฉนวน (mm)<input type="number" id="insulation_mm" min="0" max="200" step="0.1" list="insopts"></label>
     <datalist id="insopts"><option value="25.4" label='1"'><option value="38.1" label='1-1/2"'>
       <option value="50.8" label='2"'><option value="76.2" label='3"'></datalist>
@@ -259,7 +263,7 @@ const PP = (() => {
     $('savetag').disabled = !mine || PK.every((k) => mine[k] === S[k]);
     $('hdpe_joint').value = S.hdpe_joint || 'auto';
     $('segments').value = String(S.segments);
-    ['snap45', 'centerline', 'labels'].forEach((k) => { $(k).checked = !!S[k]; });
+    ['snap45', 'centerline', 'labels', 'draft'].forEach((k) => { $(k).checked = !!S[k]; });
     $('use_color').checked = !!S.pipe_color;
     if (S.pipe_color) $('pipe_color').value = S.pipe_color;
     $('pipe_hex').value = S.pipe_color || '';
@@ -472,7 +476,7 @@ const PP = (() => {
       $('pipe_color').value = v;
       $('use_color').checked = true;
       if (!$('cpop').hidden) syncPicker();
-    } else if (['snap45', 'centerline', 'labels'].includes(id)) {
+    } else if (['snap45', 'centerline', 'labels', 'draft'].includes(id)) {
       S[id] = e.target.checked;
     } else if (['insulation_mm', 'slope_pct', 'waste_pct', 'segments', 'support_group_mm'].includes(id)) {
       S[id] = Number(e.target.value);

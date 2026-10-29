@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.19.0**
-(`dist/artk_plant_pipe-1.19.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (326 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.20.0**
+(`dist/artk_plant_pipe-1.20.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (327 runs, all green).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -246,6 +246,12 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   UI: select `tagsel` (ตามระบบ / แท็กของผู้ใช้ / แท็กในโมเดล) + `newtag` + เพิ่ม / **จำค่า** (เปิดเมื่อค่าต่างจากที่จำ) / ลบ · **ไม่จำอัตโนมัติ**
   (ลองแล้ว: ตั้งค่าท่อใหม่ก่อนกดเพิ่มจะทับแท็กที่เลือกอยู่) · `MatchPipeTool` (ใน color_pick_tool.rb; `KEYS` = PRESET_KEYS + size tag →
   settings แล้วเปิด PipeTool) · คำสั่ง `match` (แถบเครื่องมือ ไอคอน match, เมนู, ปุ่มในหน้าตั้งค่า) · คลิกขวาท่อ 1 แนว "วาดท่อแบบนี้"
+- **Plant Piping 1.20.0 – เส้นดราฟ ↔ โมเดลท่อ** (ภาพ isometric; "วาดท่อเลย…ประมวลผล 1 วันไม่เสร็จ…ควรวาดเส้นท่อไปก่อนแล้วกด
+  แปลงกลับไปกลับมาได้"): settings `draft` · `render` เมื่อ `ctx[:draft]` (ตั้งใน `context`): `render_draft` (แท่ง 6 เหลี่ยม r `DRAFT_R` 12
+  ต่อ cl segment = `draft_pipe` + `draft_node` ที่มุม + ป้าย `draft_label` บน TAG_LABELS) แทน Network/branch tee/join/hanger/centerline ·
+  `place_valve` → `draft_valve` (หูกระต่าย, attrs วาล์วครบ) · end part → `draft_end_part` · `drawn_pieces` นับ draft_pipe (ลบเส้น = ตัด cl) ·
+  Picker.nearest_pipe / SupportBuilder.crossing_pipes / clash_items รู้จัก draft_pipe · `Builder.set_draft` + `Commands.set_draft(on)`
+  (เลือก หรือทั้งหมด + ยืนยัน) · ปุ่มแถบ to_draft / to_model, คลิกขวา, หน้าตั้งค่า (checkbox + 2 ปุ่ม) · BOM แจ้งแนวที่ยังเป็นดราฟ
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ
