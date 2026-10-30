@@ -598,9 +598,113 @@ def sensors():
     return svg(W_, H_, "".join(b), "ตำแหน่งติดตั้งเซนเซอร์")
 
 
+# ---------------------------------------------------------------- Folded layouts (แบบตรง / U / L)
+def folded():
+    S = 105
+    W_ = 1180
+    b = []
+    L1A, L2A = 1.00, 1.00            # ช่อง 2 ยาว / โซนรับน้ำตก (= ความยาวสัน)
+    LA, LD = 2.10, 0.95
+    row1 = (X_C1_END) + L1A          # 2.60
+    lin = L2A + LA + T_WW + LD       # 4.25
+    wl = B                           # ความกว้างแต่ละแถว
+    win = 2 * wl + WALL
+
+    def panel(x0, y0, kind):
+        X = lambda x: x0 + (x + WALL) * S
+        Y = lambda y: y0 + (win + WALL - y) * S       # y = 0 ที่ผิวในผนังล่าง (แถว 2)
+        g = []
+        # เปลือกนอก
+        if kind == "L":
+            pts = [(-WALL, -WALL), (lin + WALL, -WALL), (lin + WALL, wl + WALL), (row1 + WALL, wl + WALL),
+                   (row1 + WALL, win + WALL), (-WALL, win + WALL)]
+        else:
+            pts = [(-WALL, -WALL), (lin + WALL, -WALL), (lin + WALL, win + WALL), (-WALL, win + WALL)]
+        g.append(poly([(X(x), Y(y)) for x, y in pts], "url(#rc)", "#333", 1.2))
+        # แถว 2 (ล่าง): รับน้ำตก + ช่วงตรง | กำแพงเวียร์ | ท้ายเวียร์
+        g.append(rect(X(0), Y(wl), (L2A + LA) * S, wl * S, fill="#dbeefa", stroke="none"))
+        g.append(rect(X(L2A + LA + T_WW), Y(wl), LD * S, wl * S, fill="#dbeefa", stroke="none"))
+        g.append(rect(X(L2A + LA) - 2, Y(wl + 0.08), 4, (wl + 0.16) * S, fill="#333"))
+        # แถว 1 (บน): ช่อง 2 พื้นยก (ซ้าย) | ช่อง 1 (ขวา)
+        yb1 = wl + WALL
+        g.append(rect(X(0), Y(win), L1A * S, (wl + WALL) * S, fill="#ffffff", stroke="#999", sw=0.6))   # พื้นยกรวมแนวสัน
+        g.append(rect(X(L1A), Y(win), X_C1_END * S, wl * S, fill="#dbeefa", stroke="none"))
+        g.append(rect(X(L1A + 1.00), Y(win), 0.10 * S, wl * S))                                  # ผนังกั้นช่อง 1
+        g.append(rect(X(0), Y(wl) - 2, L1A * S, 3, fill="#555"))                                  # สันข้าง SS
+        if kind == "U":
+            g.append(rect(X(row1 + WALL), Y(win), (lin - row1 - WALL) * S, wl * S, fill="#f1f1f1", stroke="none"))
+            g.append(text(X((row1 + WALL + lin) / 2), Y(yb1 + 0.20), "พื้นที่ว่าง / ตู้คอนโทรล", 11, "middle", "#777"))
+            g.append(text(X((row1 + WALL + lin) / 2), Y(yb1 + 0.20) + 14, "(ท่อเข้าต้องลอดผ่าน)", 10, "middle", "#999"))
+        # ปั๊ม ท่อ เซนเซอร์
+        g.append(f"<circle cx='{X(L1A + 0.5):.1f}' cy='{Y(yb1 + wl/2):.1f}' r='{0.17*S:.1f}' fill='#f2a541' stroke='#333'/>")
+        g.append(text(X(L1A + 0.5), Y(yb1 + wl / 2) + 4, "P", 12, "middle", weight="bold"))
+        g.append(rect(X(row1), Y(yb1 + wl / 2) - 8, WALL * S + 34, 16, fill="#bbb"))
+        g.append(text(X(row1 + WALL) + 38, Y(yb1 + wl / 2) + 4, "ท่อเข้า 6\"", 11))
+        g.append(rect(X(lin), Y(wl / 2) - 10, WALL * S + 34, 20, fill="#bbb"))
+        g.append(text(X(lin + WALL) + 38, Y(wl / 2) + 4, "ท่อออก 8\"", 11))
+        xt = L2A + LA - 0.95
+        g.append(rect(X(xt) - 4, Y(wl + 0.02), 8, (wl + 0.04) * S, fill="#9aa4ab", stroke="#555", sw=0.6))
+        g.append(rect(X(xt) - 8, Y(wl / 2) - 8, 16, 16, fill="#fff", stroke="#c00", sw=2))
+        g.append(f"<circle cx='{X(L2A + 0.30):.1f}' cy='{Y(0.15):.1f}' r='7' fill='#e8eef2' stroke='#333' stroke-width='1.5'/>")
+        g.append(text(X(L2A + 0.30) + 10, Y(0.15) + 4, "BOD", 10))
+        g.append(text(X(xt) + 12, Y(wl / 2) - 12, "Flow meter", 10, "start", "#c00"))
+        # ลูกศรทางน้ำ
+        arr = "stroke='#2f7fb3' stroke-width='3' fill='none' marker-end='url(#a)'"
+        g.append(f"<path d='M{X(row1 - 0.15):.1f},{Y(yb1 + 0.25):.1f} H{X(L1A + 0.9):.1f}' {arr}/>")
+        g.append(f"<path d='M{X(L1A - 0.05):.1f},{Y(yb1 + 0.25):.1f} H{X(0.5):.1f} V{Y(wl - 0.15):.1f}' {arr}/>")
+        g.append(f"<path d='M{X(0.5):.1f},{Y(wl - 0.35):.1f} V{Y(0.45):.1f} H{X(L2A + LA - 0.15):.1f}' {arr}/>")
+        g.append(f"<path d='M{X(L2A + LA + T_WW + 0.1):.1f},{Y(0.45):.1f} H{X(lin - 0.1):.1f}' {arr}/>")
+        # ป้ายช่อง
+        g.append(text(X(L1A / 2), Y(yb1 + wl) + 16, "ช่อง 2 พื้นยก", 11, "middle", "#1f5f8b", "bold"))
+        g.append(text(X(L1A / 2), Y(yb1 + wl) + 30, "(น้ำไหลขวาง)", 10, "middle", "#1f5f8b"))
+        g.append(text(X(L1A + 1.3), Y(yb1 + wl) + 16, "ช่อง 1", 11, "middle", "#1f5f8b", "bold"))
+        g.append(text(X(L2A / 2), Y(0.12), "รับน้ำตก", 10, "middle", "#1f5f8b", "bold"))
+        g.append(text(X(L2A + LA / 2), Y(0.12), "ช่วงตรง 2.10", 10, "middle", "#1f5f8b", "bold"))
+        # มิติ
+        yt = Y(win + WALL)
+        for a, c, t in [(0, L1A, "1.00"), (L1A, L1A + 1.00, "1.00"), (L1A + 1.00, L1A + 1.10, "0.10"), (L1A + 1.10, row1, "0.50")]:
+            hdim(g, X(a), X(c), yt - 16, t, ext=yt, size=9)
+        yb_ = Y(-WALL)
+        for a, c, t in [(0, L2A, "1.00"), (L2A, L2A + LA, "2.10"), (L2A + LA, L2A + LA + T_WW, "0.20"), (L2A + LA + T_WW, lin, "0.95")]:
+            hdim(g, X(a), X(c), yb_ + 18, t, ext=yb_, size=9)
+        hdim(g, X(-WALL), X(lin + WALL), yb_ + 42, f"ยาวภายนอก {lin + 2*WALL:.2f}", ext=yb_ + 18, size=12)
+        xr = X(lin + WALL) + 14 if kind == "U" else X(lin + WALL) + 14
+        vdim(g, Y(-WALL), Y(win + WALL), X(-WALL) - 18, f"กว้าง {win + 2*WALL:.2f}", ext=X(-WALL))
+        vdim(g, Y(0), Y(wl), X(-WALL) - 44, f"{wl:.2f}", ext=X(-WALL) - 18, size=9)
+        vdim(g, Y(wl), Y(wl + WALL), X(-WALL) - 44, "0.20", ext=X(-WALL) - 18, size=8)
+        vdim(g, Y(wl + WALL), Y(win), X(-WALL) - 44, f"{wl:.2f}", ext=X(-WALL) - 18, size=9)
+        return g, Y(-WALL) + 60
+
+    # แบบตรง (ย่อ)
+    y = 90
+    b.append(text(60, y - 30, "แบบตรง (ปัจจุบัน) — ภายนอก 6.75 × 1.45 m", 15, "start", weight="bold"))
+    X = lambda x: 100 + (x + WALL) * S
+    Y0 = lambda yy: y + (B + WALL - yy) * S
+    b.append(rect(X(-WALL), Y0(B + WALL), (X_END + 2 * WALL) * S, (B + 2 * WALL) * S))
+    for a, c, fill in [(0, X_C1_END, "#dbeefa"), (X_C1_END, X_C2_END, "#ffffff"), (X_C2_END, X_WEIR, "#dbeefa"), (X_WEIR + T_WW, X_END, "#dbeefa")]:
+        b.append(rect(X(a), Y0(B), (c - a) * S, B * S, fill=fill, stroke="#999", sw=0.4))
+    b.append(rect(X(X_BAFFLE), Y0(B), 0.10 * S, B * S))
+    b.append(f"<circle cx='{X(X_PUMP):.1f}' cy='{Y0(B/2):.1f}' r='{0.17*S:.1f}' fill='#f2a541' stroke='#333'/>")
+    b.append(rect(X(X_WEIR) - 2, Y0(B + 0.08), 4, (B + 0.16) * S, fill="#333"))
+    b.append(f"<path d='M{X(0.1):.1f},{Y0(0.25):.1f} H{X(X_END - 0.1):.1f}' stroke='#2f7fb3' stroke-width='3' fill='none' marker-end='url(#a)'/>")
+    for a, c, t in [(0, X_C1_END, "ช่อง 1  1.60"), (X_C1_END, X_C2_END, "ช่อง 2  1.00"), (X_C2_END, X_END, "ช่อง 3  3.75")]:
+        hdim(b, X(a), X(c), Y0(-WALL) + 18, t, ext=Y0(-WALL), size=10)
+    hdim(b, X(-WALL), X(X_END + WALL), Y0(-WALL) + 42, "ยาวภายนอก 6.75", ext=Y0(-WALL) + 18, size=12)
+    y = Y0(-WALL) + 110
+
+    for kind, ttl in [("U", "แบบ U (สี่เหลี่ยม) — ภายนอก 4.65 × 2.70 m"), ("L", "แบบ L (ตัดมุมว่าง) — ภายนอก 4.65 × 2.70 m  ← แนะนำ")]:
+        b.append(text(60, y - 6, ttl, 15, "start", weight="bold"))
+        g, y_end = panel(150, y + 40, kind)
+        b.extend(g)
+        y = y_end + 70
+    H_ = int(y - 20)
+    b.insert(0, text(W_ / 2, 30, "แบบพับบ่อ: เทียบแบบตรง / U / L (แปลน, หน่วย m)", 18, "middle", weight="bold"))
+    return svg(W_, H_, "".join(b), "แบบพับบ่อ U และ L")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors)]:
+    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors), ("folded", folded)]:
         with open(os.path.join(OUT, f"{name}.svg"), "w", encoding="utf-8") as f:
             f.write(fn())
         print(f"{OUT}/{name}.svg")
