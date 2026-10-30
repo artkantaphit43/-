@@ -12,8 +12,8 @@
     => Q [m³/s] ≈ 1.365 * (h + 0.00085)^2.5
 
 ใช้งาน:
-    python3 weir_design.py                     # Qmax 100 m³/h, ปกติ 52 m³/h
-    python3 weir_design.py --qmax 120 --qnormal 60
+    python3 weir_design.py                     # Qmax 62 m³/h, ปกติ 52 m³/h
+    python3 weir_design.py --qmax 70 --qnormal 60
     python3 weir_design.py --csv rating_table.csv
 """
 import argparse
@@ -67,7 +67,7 @@ def design(args):
     print(" บ่อเวียร์ V-notch 90° (fully contracted)")
     print("=" * 66)
     print(" ระดับน้ำเหนือยอด V (h)")
-    for name, qh in [("สูงสุด", args.qmax), ("เฉลี่ย", args.qavg), ("ปกติ", args.qnormal)]:
+    for name, qh in [("สูงสุด", args.qmax), ("ปกติ", args.qnormal)]:
         print(f"  Q {name:<7} {qh:6.1f} m³/h  ->  h = {h_from_q(qh/3600)*100:5.1f} cm")
     print("-" * 66)
     print(" ขนาด")
@@ -128,14 +128,13 @@ def design(args):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--qmax", type=float, default=100.0, help="อัตราการไหลสูงสุดผ่านเวียร์ [m³/h]")
-    p.add_argument("--qavg", type=float, default=62.0, help="อัตราการไหลเฉลี่ย [m³/h]")
+    p.add_argument("--qmax", type=float, default=62.0, help="อัตราการไหลสูงสุดผ่านเวียร์ [m³/h] (ปั๊ม recycle หยุด)")
     p.add_argument("--qnormal", type=float, default=52.0, help="อัตราการไหลปกติ [m³/h]")
-    p.add_argument("--p", type=float, default=0.60, help="ความสูงยอด V จากพื้นบ่อ [m]")
-    p.add_argument("--b", type=float, default=1.20, help="ความกว้างภายในบ่อ [m]")
+    p.add_argument("--p", type=float, default=0.50, help="ความสูงยอด V จากพื้นบ่อ [m]")
+    p.add_argument("--b", type=float, default=1.00, help="ความกว้างภายในบ่อ [m]")
     p.add_argument("--notch-depth", type=float, default=0.30, help="ความลึกร่อง V [m]")
-    p.add_argument("--l-approach", type=float, default=2.20, help="ความยาวช่วงตรงหน้าเวียร์ [m]")
-    p.add_argument("--x-tap", type=float, default=1.00, help="ระยะจุดวัดระดับเหนือแผ่นเวียร์ [m]")
+    p.add_argument("--l-approach", type=float, default=1.80, help="ความยาวช่วงตรงหน้าเวียร์ [m]")
+    p.add_argument("--x-tap", type=float, default=0.80, help="ระยะจุดวัดระดับเหนือแผ่นเวียร์ [m]")
     p.add_argument("--baffle-gap", type=float, default=0.25, help="ช่องลอดใต้ผนังกั้น [m]")
     p.add_argument("--freeboard", type=float, default=0.20, help="ระยะเผื่อเหนือขอบบนร่อง V [m]")
     p.add_argument("--d-out", type=float, default=0.200, help="เส้นผ่านศูนย์กลางท่อออก [m] (8\" ≈ 0.200)")

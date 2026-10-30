@@ -10,20 +10,20 @@ FONT = "font-family='Sarabun, Tahoma, sans-serif'"
 
 # ---- ค่าออกแบบ (ตรงกับ weir_design.py ค่า default) ----
 WALL = 0.20
-B = 1.20                # ความกว้างภายใน
+B = 1.00                # ความกว้างภายใน
 X_BAFFLE = 0.60         # ผนังกั้นลอดใต้ หนา 0.10
 X_PERF = 1.00           # แผ่นกันคลื่นรูพรุน (ต้นช่วงตรง)
-X_WEIR = 3.20           # แผ่นเวียร์
-X_TAP = X_WEIR - 1.00   # จุดวัดระดับ
-X_END = 4.00            # ผิวในผนังท้าย
-Z_VERTEX = 0.60
-Z_NOTCH_TOP = 0.90
-Z_WALL_TOP = 1.10
-Z_MAX = 0.810           # 100 m³/h
-Z_NORMAL = 0.761        # 52 m³/h
+X_WEIR = 2.80           # แผ่นเวียร์
+X_TAP = X_WEIR - 0.80   # จุดวัดระดับ
+X_END = 3.60            # ผิวในผนังท้าย
+Z_VERTEX = 0.50
+Z_NOTCH_TOP = 0.80
+Z_WALL_TOP = 1.00
+Z_MAX = 0.673           # 62 m³/h (ปั๊ม recycle หยุด)
+Z_NORMAL = 0.661        # 52 m³/h
 Z_GAP = 0.25            # ขอบล่างผนังกั้น
-Z_TAIL = 0.21           # น้ำท้ายโดยประมาณที่ Qmax
-Z_INLET = 0.40          # ท้องท่อน้ำเข้า
+Z_TAIL = 0.15           # น้ำท้ายโดยประมาณที่ Qmax
+Z_INLET = 0.30          # ท้องท่อน้ำเข้า
 D_IN = 0.20
 D_OUT = 0.20
 
@@ -66,7 +66,7 @@ def flow_arrow(x, y, length=35):
 def section():
     S = 165
     X = lambda x: 110 + (x + WALL) * S
-    Y = lambda z: 80 + (1.35 - z) * S
+    Y = lambda z: 80 + (1.25 - z) * S
     b = []
     water = "#9ecae1"
     b.append(rect(X(0), Y(Z_MAX), X(X_WEIR) - X(0), Y(0) - Y(Z_MAX), fill=water, stroke="none"))
@@ -105,7 +105,7 @@ def section():
     b.append(text(X(X_END + WALL) + 4, Y(D_OUT) - 6, "ท่อออก 8\"", 12))
     # elevations (left of measuring point)
     for z, name, c in [(Z_WALL_TOP, "สันกำแพง", "#333"), (Z_NOTCH_TOP, "ขอบบนร่อง V", "#333"),
-                       (Z_MAX, "น้ำสูงสุด 100 m³/h", "#1f5f8b"), (Z_NORMAL, "น้ำปกติ 52 m³/h", "#1f5f8b"),
+                       (Z_MAX, "น้ำสูงสุด 62 m³/h", "#1f5f8b"), (Z_NORMAL, "น้ำปกติ 52 m³/h", "#1f5f8b"),
                        (Z_VERTEX, "ยอด V (h = 0)", "#c00"), (0.0, "พื้นบ่อ", "#333")]:
         dy = 11 if z in (Z_NORMAL, 0.0) else -3
         b.append(line(X(1.10), Y(z), X(X_WEIR) - 4, Y(z), c, 0.8, "3 2"))
@@ -114,21 +114,21 @@ def section():
     # dims
     xv = X(X_WEIR) - 14
     b.append(line(xv, Y(Z_VERTEX), xv, Y(0), arrow=True))
-    b.append(text(xv - 4, Y(0.30), "P = 0.60", 12, "end"))
-    b.append(line(X(X_TAP), Y(0.42), X(X_WEIR), Y(0.42), arrow=True))
-    b.append(text((X(X_TAP) + X(X_WEIR)) / 2 - 20, Y(0.42) - 4, "1.00", 12, "middle"))
+    b.append(text(xv - 4, Y(0.30), f"P = {Z_VERTEX:.2f}", 12, "end"))
+    b.append(line(X(X_TAP), Y(0.28), X(X_WEIR), Y(0.28), arrow=True))
+    b.append(text((X(X_TAP) + X(X_WEIR)) / 2 - 20, Y(0.28) - 4, f"{X_WEIR - X_TAP:.2f}", 12, "middle"))
     yd = Y(-0.2) + 32
     for x1, x2, t in [(0, X_BAFFLE, "0.60"), (X_BAFFLE, X_PERF, "0.40"),
-                      (X_PERF, X_WEIR, "2.20 (ช่วงตรง)"), (X_WEIR, X_END, "0.80")]:
+                      (X_PERF, X_WEIR, f"{X_WEIR - X_PERF:.2f} (ช่วงตรง)"), (X_WEIR, X_END, f"{X_END - X_WEIR:.2f}")]:
         b.append(line(X(x1), yd, X(x2), yd, arrow=True))
         b.append(text((X(x1) + X(x2)) / 2, yd - 5, t, 12, "middle"))
     b.append(line(X(-WALL), yd + 30, X(X_END + WALL), yd + 30, arrow=True))
-    b.append(text((X(-WALL) + X(X_END + WALL)) / 2, yd + 25, "4.40 (ภายนอก) / 4.00 (ภายใน)", 12, "middle"))
+    b.append(text((X(-WALL) + X(X_END + WALL)) / 2, yd + 25, f"{X_END + 2 * WALL:.2f} (ภายนอก) / {X_END:.2f} (ภายใน)", 12, "middle"))
     # labels
-    b.append(text(X(0.30), Y(1.0), "โซนรับน้ำ", 12, "middle", weight="bold"))
+    b.append(text(X(0.30), Y(0.90), "โซนรับน้ำ", 12, "middle", weight="bold"))
     b.append(text(X(X_BAFFLE + 0.05), Y(Z_WALL_TOP) - 8, "ผนังกั้นลอดใต้", 11, "middle"))
     b.append(text(X(X_PERF) + 4, Y(Z_WALL_TOP) - 22, "แผ่นกันคลื่นรูพรุน", 11, "middle"))
-    b.append(text(X(X_WEIR + 0.40), Y(0.55), "ช่องท้ายเวียร์", 12, "middle", weight="bold"))
+    b.append(text(X(X_WEIR + 0.45), Y(0.38), "ช่องท้ายเวียร์", 12, "middle", weight="bold"))
     W, H = int(X(X_END + WALL) + 130), int(yd + 50)
     b.insert(0, text(W / 2, 30, "รูปตัดตามยาว A–A บ่อเวียร์  (พื้นบ่อ ±0.000, หน่วย m)", 16, "middle", weight="bold"))
     return svg(W, H, "".join(b), "รูปตัดตามยาวบ่อเวียร์ V-notch 90°")
@@ -156,7 +156,7 @@ def plan():
     b.append(rect(X(X_WEIR) - 2, Y(-0.10), 5, (B + 0.2) * S, fill="#333"))
     b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(0.15):.1f}' r='6' fill='none' stroke='#c00' stroke-width='2'/>")
     b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัดระดับ h", 11, color="#c00"))
-    for x in (0.15, 1.6, 2.5, 3.45):
+    for x in (0.15, 1.4, 2.2, 3.05):
         b.append(flow_arrow(X(x), Y(B / 2 + 0.25)))
     ya = Y(B / 2)
     b.append(line(X(-WALL) - 20, ya, X(X_END + WALL) + 20, ya, "#c00", 1, "12 4 2 4"))
@@ -168,10 +168,10 @@ def plan():
         b.append(text(X(x), yl, t, 11, "middle"))
     yd = yl + 30
     b.append(line(X(-WALL), yd, X(X_END + WALL), yd, arrow=True))
-    b.append(text((X(-WALL) + X(X_END + WALL)) / 2, yd - 5, "4.40", 12, "middle"))
+    b.append(text((X(-WALL) + X(X_END + WALL)) / 2, yd - 5, f"{X_END + 2 * WALL:.2f}", 12, "middle"))
     xd = X(X_END + WALL) + 25
     b.append(line(xd, Y(0), xd, Y(B), arrow=True))
-    b.append(text(xd + 6, Y(0.3), "1.20 (ภายใน)", 12))
+    b.append(text(xd + 6, Y(0.3), f"{B:.2f} (ภายใน)", 12))
     W, H = int(xd + 110), int(yd + 25)
     b.insert(0, text(W / 2, 30, "แปลนบ่อเวียร์ (หน่วย m, ผนัง คสล. หนา 0.20)", 16, "middle", weight="bold"))
     return svg(W, H, "".join(b), "แปลนบ่อเวียร์ V-notch 90°")
