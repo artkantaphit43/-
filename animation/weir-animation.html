@@ -85,11 +85,11 @@ svg .mono { font-family: var(--font-mono); }
 <div class="wrap">
   <header>
     <h1>บ่อวัดน้ำ 3 ช่อง: ปั๊มจุ่ม · โชว์น้ำใส · V-notch 90°</h1>
-    <p>รูปตัดตามยาวที่ระดับจริงตามแบบ (บ่อยาวภายนอก 6.75 m) ลองปรับน้ำเข้าและเปิด–ปิดปั๊ม recycle แล้วดูระดับน้ำ ค่า H และชั้นน้ำบนพื้นยกเปลี่ยนตามสูตร</p>
+    <p>รูปตัดตามยาวที่ระดับจริงตามแบบ (บ่อยาวภายนอก 7.05 m) ลองปรับน้ำเข้าและเปิด–ปิดปั๊ม recycle แล้วดูระดับน้ำ ค่า H และชั้นน้ำบนพื้นยกเปลี่ยนตามสูตร</p>
   </header>
 
   <div class="stage" role="img" aria-label="รูปตัดบ่อ 3 ช่อง แสดงน้ำไหลจากท่อเข้า ผ่านช่องปั๊ม ขึ้นพื้นยก ตกลงช่องเวียร์ และออกทางท่อ 8 นิ้ว">
-    <svg id="sec" viewBox="0 0 1160 365" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="sec" viewBox="0 0 1210 365" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
 
   <div class="grid">
@@ -142,7 +142,7 @@ svg .mono { font-family: var(--font-mono); }
   // ---------- ค่าออกแบบ (m) ตรงกับ weir_design.xlsx ----------
   const B = 1.05, W = 0.20, G = 9.81;
   const xBaf = 0.50, gap = 0.30, xPump = 1.10, x1 = 1.60, x2 = 2.60, zRaised = 0.90, sill = 0.02;
-  const xPerf = 3.10, xWeir = 5.20, tWW = 0.20, xEnd = 6.35, zV = 0.60, zNotch = 0.90, zWW = 0.50, zPB = 0.40;
+  const xB3 = 3.10, gB3 = 0.30, xSill = 3.40, hSill = 0.40, xWeir = 5.50, tWW = 0.20, xEnd = 6.65, zV = 0.60, zNotch = 0.90, zWW = 0.50, zPB = 0.40;
   const zTop = 1.20, xTap = xWeir - 0.95, dOut = 0.20, qRec = 10;
 
   const S = 150, X = x => (x + 0.75) * S, Y = z => (1.86 - z) * S;
@@ -192,7 +192,8 @@ svg .mono { font-family: var(--font-mono); }
   // สันปลาย SS
   el('rect', { x: X(x2) - 3, y: Y(zRaised + sill), width: 3, height: sill * S, fill: css('steel') }, gStatic);
   // แผ่นรูพรุน
-  for (let z = 0.05; z < 0.95; z += 0.1) el('rect', { x: X(xPerf) - 1.5, y: Y(z + 0.06), width: 3, height: 0.06 * S, fill: css('steel'), opacity: 0.8 }, gStatic);
+  el('rect', { x: X(xB3) - 2, y: Y(zTop), width: 4, height: (zTop - gB3) * S, fill: css('steel') }, gStatic);
+  el('rect', { x: X(xSill) - 2, y: Y(hSill), width: 4, height: hSill * S, fill: css('steel') }, gStatic);
   // แผ่นเวียร์ SS
   el('rect', { x: X(xWeir) - 3, y: Y(zNotch + 0.10), width: 3.5, height: (zNotch + 0.10 - zPB) * S, fill: css('steel') }, gStatic);
   el('line', { x1: X(xWeir) - 10, x2: X(xWeir) + 2, y1: Y(zV), y2: Y(zV), stroke: css('accent'), 'stroke-width': 1.5 }, gStatic);
@@ -223,7 +224,7 @@ svg .mono { font-family: var(--font-mono); }
   label(2.38, 1.45, 'Recycle 10 m³/h', { anchor: 'start', size: 12, color: css('recycle'), weight: 600 });
   label(xTap + 0.05, zTop + 0.04, 'จุดวัด H', { anchor: 'start', size: 12, color: css('accent'), weight: 600 });
   label(xBaf + 0.05, -0.12, 'ผนังกั้นลอดใต้', { size: 11, color: css('ink') });
-  label(xPerf, -0.12, 'แผ่นรูพรุน', { size: 11, color: css('ink') });
+  label((xB3 + xSill) / 2, -0.12, 'ผนังลอดใต้ + สันล้น', { size: 11, color: css('ink') });
   label(xWeir + 0.1, -0.12, 'กำแพงเวียร์ + แผ่น SS', { size: 11, color: css('ink') });
   const tH = label(xWeir - 0.08, 0, '', { anchor: 'end', size: 13, color: css('accent'), weight: 700 });
   tH.classList.add('mono');
@@ -289,7 +290,7 @@ svg .mono { font-family: var(--font-mono); }
     const r = st;
     const lay = zRaised + r.d2 * 0.5;
     const main = poly([[-0.75, 1.02], [0.12, 1.02], [0.12, 0.30], [0.30, 0.14], [0.62, 0.14], [0.95, 0.55], [1.45, r.z1 - 0.05],
-      [x1 + 0.2, lay], [x2, lay], [x2 + 0.10, r.z3 - 0.02], [x2 + 0.30, r.z3 - 0.35], [xPerf, 0.40], [4.2, 0.55], [xWeir - 0.3, zV + r.H * 0.4],
+      [x1 + 0.2, lay], [x2, lay], [x2 + 0.10, r.z3 - 0.02], [x2 + 0.30, r.z3 - 0.35], [xB3 - 0.08, 0.15], [xB3 + 0.10, 0.14], [xSill - 0.08, 0.30], [xSill + 0.05, hSill + 0.08], [4.4, 0.55], [xWeir - 0.3, zV + r.H * 0.4],
       [xWeir, zV + r.H * 0.4], [xWeir + 0.18, zV - 0.05], [xWeir + 0.35, r.tail * 0.6], [xEnd, 0.08], [xEnd + 0.62, 0.08]]);
     const rec = poly([[0.62, 0.14], [xPump - 0.1, 0.12], [xPump, 0.30], [xPump + 0.2, 0.35], [1.40, 0.35], [1.40, 1.42], [2.35, 1.42]]);
     paths = [main, rec];
