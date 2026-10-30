@@ -16,15 +16,16 @@ X_BAFFLE = 0.50         # ผนังกั้นลอดใต้ หนา 0
 X_PUMP = 1.10
 X_C1_END = 1.60
 # ช่อง 2
-X_C2_END = 3.60         # ปลายพื้นยก + สันปลาย
+X_C2_END = X_C1_END + 1.00  # ปลายพื้นยก + สันปลาย (ช่อง 2 ยาว 1.00)
+X_C2_MID = (X_C1_END + X_C2_END) / 2
 Z_RAISED = 0.90
 SILL = 0.02
 # ช่อง 3
-X_PERF = 4.10           # แผ่นกันคลื่นรูพรุน
-X_WEIR = 6.20           # ผิวเหนือน้ำของกำแพงเวียร์ (ช่วงตรง 2.10)
+X_PERF = X_C2_END + 0.50  # แผ่นกันคลื่นรูพรุน (โซนรับน้ำตก 0.50)
+X_WEIR = X_PERF + 2.10  # ผิวเหนือน้ำของกำแพงเวียร์ (ช่วงตรง 2.10)
 T_WW = 0.20             # กำแพงเวียร์ คสล.
 X_TAP = X_WEIR - 0.95
-X_END = 7.35             # ท้ายเวียร์ 0.95
+X_END = X_WEIR + T_WW + 0.95  # ท้ายเวียร์ 0.95
 Z_VERTEX = 0.60
 Z_NOTCH_TOP = 0.90
 Z_WALL_TOP = 1.20
@@ -136,11 +137,11 @@ def section():
     # elevations
     for z, name, c in [(Z_WALL_TOP, "สันกำแพง", "#333"), (Z_NOTCH_TOP, "ขอบบนร่อง V", "#333"),
                        (Z_MAX, "น้ำสูงสุด", "#1f5f8b"), (Z_VERTEX, "ยอด V (h = 0)", "#c00")]:
-        b.append(line(X(4.25), Y(z), X(X_WEIR) - 4, Y(z), c, 0.8, "3 2"))
+        b.append(line(X(X_PERF + 0.15), Y(z), X(X_WEIR) - 4, Y(z), c, 0.8, "3 2"))
         b.append(text(X(X_TAP) - 6, Y(z) + (11 if z == Z_MAX else -3), f"{name} {z:+.3f}", 11, "end", c))
-    b.append(text(X(2.6), Y(Z_RAISED) + 18, f"ผิวพื้นยก {Z_RAISED:+.2f}", 11, "middle"))
-    b.append(text(X(2.6), Y(Z_C2) - 6, "ชั้นน้ำใส 5–7 cm", 12, "middle", "#1f5f8b", "bold"))
-    b.append(text(X(X_C2_END) - 6, Y(Z_RAISED + SILL) - 22, f"สันปลาย {SILL*100:.0f} cm", 10, "end"))
+    b.append(text(X(X_C2_MID), Y(Z_RAISED) + 18, f"ผิวพื้นยก {Z_RAISED:+.2f}", 11, "middle"))
+    b.append(text(X(X_C2_MID), Y(Z_C2) - 24, "ชั้นน้ำใส 5–8 cm", 12, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(X_C2_END) - 6, Y(Z_RAISED) + 34, f"สันปลาย {SILL*100:.0f} cm", 10, "end"))
     b.append(text(X(0.95), Y(Z_C1) - 5, f"น้ำ {Z_C1:+.2f}", 11, "middle", "#1f5f8b"))
     b.append(text(X(X_END) - 4, Y(Z_TAIL) - 4, f"น้ำท้าย ≈ {Z_TAIL:+.2f}", 11, "end", "#1f5f8b"))
     xv = X(X_WEIR) - 14
@@ -196,10 +197,10 @@ def plan():
     b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัด h", 11, color="#c00"))
     b.append(rect(X(X_END), Y(B / 2) - D_OUT * S / 2, WALL * S + 40, D_OUT * S, fill="#bbb"))
     b.append(text(X(X_END + WALL) + 42, Y(B / 2) + 4, "ท่อออก 8\"", 12))
-    for x in (0.15, 2.0, 2.9, 4.6, 5.6, 6.6):
+    for x in (0.15, X_C2_MID - 0.15, X_PERF + 0.5, X_PERF + 1.4, X_WEIR + 0.4):
         b.append(flow_arrow(X(x), Y(0.95)))
-    b.append(text(X(2.6), Y(0.28), "พื้นยก +0.90 กรุกระเบื้องขาว", 12, "middle", "#1f5f8b", "bold"))
-    b.append(text(X(2.6), Y(0.28) + 16, "ชั้นน้ำใส 5–7 cm", 12, "middle", "#1f5f8b"))
+    b.append(text(X(X_C2_MID), Y(0.28), "พื้นยก +0.90 กรุกระเบื้องขาว", 12, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(X_C2_MID), Y(0.28) + 16, "ชั้นน้ำใส 5–8 cm", 12, "middle", "#1f5f8b"))
     ya = Y(B / 2)
     b.append(line(X(-WALL) - 20, ya, X(X_END + WALL) + 20, ya, "#c00", 1, "12 4 2 4"))
     b.append(text(X(-WALL) - 22, ya + 18, "A", 14, "end", "#c00", "bold"))
@@ -341,7 +342,7 @@ def dimensions():
     yt = Y(-WALL)
     for i in range(len(xs) - 1):
         hdim(b, X(xs[i]), X(xs[i + 1]), yt - 18, f"{xs[i+1]-xs[i]:.2f}", ext=yt, size=10)
-    for x1, x2, t in [(-WALL, X_C1_END, "1.80"), (X_C1_END, X_C2_END, "2.00"), (X_C2_END, X_END + WALL, "3.95")]:
+    for x1, x2, t in [(-WALL, X_C1_END, f"{X_C1_END + WALL:.2f}"), (X_C1_END, X_C2_END, f"{X_C2_END - X_C1_END:.2f}"), (X_C2_END, X_END + WALL, f"{X_END + WALL - X_C2_END:.2f}")]:
         hdim(b, X(x1), X(x2), yt - 42, t, ext=yt - 18)
     hdim(b, X(-WALL), X(X_END + WALL), yt - 66, f"ยาวภายนอก {X_END + 2*WALL:.2f}", ext=yt - 42, size=12)
     # ด้านล่าง: ภายใน + ตำแหน่งท่อ/ปั๊ม/จุดวัด
@@ -405,7 +406,7 @@ def dimensions():
     vdim(b, Z(0), Z(-TS), X(-WALL) - 22, "0.20", ext=X(-WALL), size=10)
     vdim(b, Z(Z_WALL_TOP), Z(-TS), X(-WALL) - 48, f"สูงภายนอก {Z_WALL_TOP + TS:.2f}", ext=X(-WALL) - 22)
     vdim(b, Z(Z_GAP), Z(0), X(X_BAFFLE + 0.10) + 14, f"{Z_GAP:.2f}", side=1, size=10)
-    vdim(b, Z(Z_RAISED), Z(0), X(2.6), f"{Z_RAISED:.2f}", side=1)
+    vdim(b, Z(Z_RAISED), Z(0), X(X_C2_MID), f"{Z_RAISED:.2f}", side=1)
     vdim(b, Z(Z_VERTEX), Z(0), X(X_WEIR) - 22, f"P {Z_VERTEX:.2f}")
     vdim(b, Z(Z_WW), Z(0), X(X_WEIR + T_WW) + 16, f"{Z_WW:.2f}", side=1, size=10)
     vdim(b, Z(Z_NOTCH_TOP + 0.10), Z(Z_PB), X(X_WEIR + T_WW) + 16, f"แผ่น {Z_NOTCH_TOP + 0.10 - Z_PB:.2f}", side=1, size=10)
@@ -414,8 +415,8 @@ def dimensions():
     for i in range(len(xs) - 1):
         hdim(b, X(xs[i]), X(xs[i + 1]), yb2 + 20, f"{xs[i+1]-xs[i]:.2f}", ext=yb2, size=10)
     b.append(text(X(1.0), Z(0.70), "ช่อง 1", 11, "middle", "#1f5f8b", "bold"))
-    b.append(text(X(2.6), Z(1.10), "ช่อง 2", 11, "middle", "#1f5f8b", "bold"))
-    b.append(text(X(5.1), Z(1.10), "ช่อง 3", 11, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(X_C2_MID), Z(1.10), "ช่อง 2", 11, "middle", "#1f5f8b", "bold"))
+    b.append(text(X((X_C2_END + X_END) / 2), Z(1.10), "ช่อง 3", 11, "middle", "#1f5f8b", "bold"))
 
     # ===================== รูปตัด B-B (ที่เวียร์ มองตามน้ำ) =====================
     top3 = yb2 + 120
