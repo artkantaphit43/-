@@ -511,9 +511,96 @@ def dimensions():
     return svg(W, H, "".join(b), "แบบแสดงขนาดบ่อ 3 ช่อง")
 
 
+# ---------------------------------------------------------------- Sensor detail (ช่อง 3)
+def sensors():
+    S = 190
+    x0, x1e = X_C2_END - 0.35, X_END + WALL + 0.05
+    X = lambda x: 110 + (x - x0) * S
+    W_ = int(X(x1e) + 230)
+    b = []
+    # ---------- แปลน ----------
+    Y = lambda y: 120 + (y + WALL) * S
+    b.append(text(X(x0), 100, "แปลนช่อง 3", 15, "start", weight="bold"))
+    b.append(rect(X(X_C2_END), Y(0), (X_END - X_C2_END) * S, B * S, fill="#eef6fc", stroke="none"))
+    b.append(rect(X(x0), Y(0), (X_C2_END - x0) * S, B * S, fill="#ffffff", stroke="#999", sw=0.6))
+    b.append(rect(X(x0), Y(-WALL), (X_END + WALL - x0) * S, WALL * S))
+    b.append(rect(X(x0), Y(B), (X_END + WALL - x0) * S, WALL * S))
+    b.append(rect(X(X_END), Y(0), WALL * S, B * S))
+    b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
+    b.append(rect(X(X_WEIR) - 2, Y(-0.10), 4, (B + 0.2) * S, fill="#333"))
+    b.append(rect(X(X_C2_END) - 2, Y(0), 3, B * S, fill="#555"))
+    b.append(text(X(x0) + 8, Y(B / 2) + 4, "ช่อง 2", 11, "start", "#1f5f8b", "bold"))
+    # คาน Flow meter + หัววัด
+    b.append(rect(X(X_TAP) - 5, Y(-WALL), 10, (B + 2 * WALL) * S, fill="#9aa4ab", stroke="#555", sw=0.8))
+    b.append(rect(X(X_TAP) - 11, Y(B / 2) - 11, 22, 22, fill="#ffffff", stroke="#c00", sw=2))
+    b.append(text(X(X_TAP) + 16, Y(B / 2) + 4, "Flow meter", 12, "start", "#c00", "bold"))
+    b.append(text(X(X_TAP) + 16, Y(B / 2) + 18, "(กลางบ่อ บนคานพาดขวาง)", 10, "start", "#555"))
+    # BOD
+    b.append(f"<circle cx='{X(X_BOD):.1f}' cy='{Y(0.15):.1f}' r='10' fill='#e8eef2' stroke='#333' stroke-width='2'/>")
+    b.append(text(X(X_BOD) + 15, Y(0.15) + 4, "BOD probe", 12, "start", "#222", "bold"))
+    # มิติแปลน
+    yb = Y(B + WALL)
+    hdim(b, X(X_C2_END), X(X_BOD), yb + 24, f"{X_BOD - X_C2_END:.2f}", ext=yb)
+    hdim(b, X(X_BOD), X(X_TAP), yb + 24, f"{X_TAP - X_BOD:.2f}", ext=yb)
+    hdim(b, X(X_TAP), X(X_WEIR), yb + 24, f"{X_WEIR - X_TAP:.2f}", ext=yb)
+    hdim(b, X(X_C2_END), X(X_TAP), yb + 50, f"{X_TAP - X_C2_END:.2f}", ext=yb + 24)
+    hdim(b, X(X_BOD), X(X_WEIR), yb + 76, f"{X_WEIR - X_BOD:.2f}", ext=yb + 50)
+    b.append(text(X(X_C2_END), yb + 40, "สันปลายช่อง 2", 10, "middle", "#555"))
+    b.append(text(X(X_WEIR), yb + 40, "แผ่นเวียร์", 10, "middle", "#555"))
+    vdim(b, Y(0), Y(0.15), X(X_BOD) - 20, "0.15", ext=X(X_BOD), size=10)
+    xr = X(X_END + WALL) + 26
+    vdim(b, Y(0), Y(B / 2), xr, f"{B/2:.3f}", ext=X(X_TAP), side=1, size=10)
+    vdim(b, Y(B / 2), Y(B), xr, f"{B/2:.3f}", ext=X(X_END + WALL), side=1, size=10)
+    vdim(b, Y(0), Y(B), xr + 30, f"B {B:.2f}", ext=xr, side=1)
+    # ---------- รูปตัด ----------
+    top = yb + 150
+    Z = lambda z: top + (Z_WALL_TOP + 0.25 - z) * S
+    b.append(text(X(x0), top - 10, "รูปตัดช่อง 3", 15, "start", weight="bold"))
+    b.append(rect(X(X_C2_END), Z(Z_MAX), (X_WEIR - X_C2_END) * S, Z_MAX * S, fill="#cfe5f3", stroke="none"))
+    b.append(line(X(X_C2_END), Z(Z_VERTEX), X(X_WEIR), Z(Z_VERTEX), "#3182bd", 1, "6 3"))
+    b.append(rect(X(x0), Z(Z_RAISED), (X_C2_END - x0) * S, Z_RAISED * S))
+    b.append(rect(X(x0), Z(0), (X_END + WALL - x0) * S, 0.20 * S))
+    b.append(rect(X(X_WEIR), Z(Z_WW), T_WW * S, Z_WW * S))
+    b.append(rect(X(X_WEIR) - 3, Z(Z_NOTCH_TOP + 0.10), 4, (Z_NOTCH_TOP + 0.10 - Z_PB) * S, fill="#333"))
+    b.append(rect(X(X_END), Z(Z_WALL_TOP), WALL * S, Z_WALL_TOP * S))
+    b.append(line(X(x0), Z(Z_WALL_TOP), X(X_END), Z(Z_WALL_TOP), "#999", 0.8, "4 3"))
+    b.append(text(X(x0) + 4, Z(Z_WALL_TOP) - 4, "สันกำแพง +1.20", 10, "start", "#555"))
+    # Flow meter
+    xt = X(X_TAP)
+    b.append(rect(xt - 34, Z(Z_WALL_TOP + 0.05), 68, 0.05 * S, fill="#9aa4ab", stroke="#555", sw=0.8))
+    b.append(rect(xt - 11, Z(Z_DL + 0.10), 22, 0.10 * S, fill="#ffffff", stroke="#c00", sw=2))
+    b.append(line(xt, Z(Z_DL), xt, Z(Z_MAX), "#c00", 1, "3 3"))
+    b.append(text(xt + 40, Z(Z_WALL_TOP + 0.03), "คาน SS วางบนสันกำแพง", 10, "start", "#555"))
+    b.append(text(xt + 16, Z(Z_DL + 0.05) + 4, "Flow meter", 12, "start", "#c00", "bold"))
+    # BOD
+    xb = X(X_BOD)
+    b.append(line(xb, Z(Z_WALL_TOP + 0.20), xb, Z(Z_BOD + 0.25), "#777", 4))
+    b.append(rect(xb - 8, Z(Z_BOD + 0.30), 16, 0.30 * S, fill="#e8eef2", stroke="#333", sw=1.5))
+    b.append(text(xb + 14, Z(Z_BOD + 0.20), "BOD probe", 12, "start", "#222", "bold"))
+    b.append(text(xb + 14, Z(Z_BOD + 0.20) + 15, "เสา SS ยึดขอบบ่อ", 10, "start", "#555"))
+    # ระดับ
+    xl = X(x0) - 20
+    for z, name, c in [(Z_DL, "หน้า Flow meter +1.10", "#c00"), (Z_MAX, "น้ำสูงสุด +0.81", "#1f5f8b"),
+                       (Z_VERTEX, "ยอด V / น้ำต่ำสุด +0.60", "#1f5f8b"), (Z_BOD, "ปลาย BOD +0.30", "#222"), (0.0, "พื้นบ่อ ±0.00", "#222")]:
+        b.append(line(X(x0), Z(z), X(X_WEIR) + 30, Z(z), c, 0.6, "2 3"))
+        b.append(text(X(X_WEIR) + 34 + T_WW * S, Z(z) - 4, name, 11, "start", c))
+    vdim(b, Z(Z_DL), Z(Z_MAX), xt - 26, f"{Z_DL - Z_MAX:.2f}", size=10)
+    vdim(b, Z(Z_MAX), Z(Z_VERTEX), xt - 26, f"{Z_MAX - Z_VERTEX:.2f}", size=10)
+    vdim(b, Z(Z_DL), Z(Z_VERTEX), xt - 52, f"{Z_DL - Z_VERTEX:.2f}", size=10)
+    vdim(b, Z(Z_VERTEX), Z(Z_BOD), xb - 22, f"จม {Z_VERTEX - Z_BOD:.2f}", size=10)
+    vdim(b, Z(Z_BOD), Z(0), xb - 22, f"{Z_BOD:.2f}", size=10)
+    yb2 = Z(-0.20)
+    hdim(b, X(X_C2_END), X(X_BOD), yb2 + 24, f"{X_BOD - X_C2_END:.2f}", ext=yb2)
+    hdim(b, X(X_BOD), X(X_TAP), yb2 + 24, f"{X_TAP - X_BOD:.2f}", ext=yb2)
+    hdim(b, X(X_TAP), X(X_WEIR), yb2 + 24, f"{X_WEIR - X_TAP:.2f}", ext=yb2)
+    H_ = int(yb2 + 60)
+    b.insert(0, text(W_ / 2, 40, "ตำแหน่งติดตั้ง Flow meter และ BOD probe (ช่อง 3, หน่วย m, ระดับจากผิวพื้นในบ่อ)", 16, "middle", weight="bold"))
+    return svg(W_, H_, "".join(b), "ตำแหน่งติดตั้งเซนเซอร์")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions)]:
+    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors)]:
         with open(os.path.join(OUT, f"{name}.svg"), "w", encoding="utf-8") as f:
             f.write(fn())
         print(f"{OUT}/{name}.svg")
