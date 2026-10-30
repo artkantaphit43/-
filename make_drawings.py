@@ -610,7 +610,7 @@ def folded():
     wl = B                           # ความกว้างแต่ละแถว
     win = 2 * wl + WALL
 
-    def panel(x0, y0, kind):
+    def panel(x0, y0, kind, opp=False):
         X = lambda x: x0 + (x + WALL) * S
         Y = lambda y: y0 + (win + WALL - y) * S       # y = 0 ที่ผิวในผนังล่าง (แถว 2)
         g = []
@@ -638,10 +638,19 @@ def folded():
         # ปั๊ม ท่อ เซนเซอร์
         g.append(f"<circle cx='{X(L1A + 0.5):.1f}' cy='{Y(yb1 + wl/2):.1f}' r='{0.17*S:.1f}' fill='#f2a541' stroke='#333'/>")
         g.append(text(X(L1A + 0.5), Y(yb1 + wl / 2) + 4, "P", 12, "middle", weight="bold"))
-        g.append(rect(X(row1), Y(yb1 + wl / 2) - 8, WALL * S + 34, 16, fill="#bbb"))
-        g.append(text(X(row1 + WALL) + 38, Y(yb1 + wl / 2) + 4, "ท่อเข้า 6\"", 11))
-        g.append(rect(X(lin), Y(wl / 2) - 10, WALL * S + 34, 20, fill="#bbb"))
-        g.append(text(X(lin + WALL) + 38, Y(wl / 2) + 4, "ท่อออก 8\"", 11))
+        if opp:
+            xi = row1 - 0.25
+            g.append(rect(X(xi) - 8, Y(win + WALL) - 34, 16, WALL * S + 34 + 0.30 * S, fill="#bbb"))
+            g.append(f"<circle cx='{X(xi):.1f}' cy='{Y(win - 0.30):.1f}' r='9' fill='#bbb' stroke='#333'/>")
+            g.append(text(X(xi) + 14, Y(win + WALL) - 22, "ท่อเข้า 6\" (เข้าทางด้านบน)", 12, "start", "#c2410c", "bold"))
+            xo = (L2A + LA + T_WW + lin) / 2
+            g.append(rect(X(xo) - 10, Y(0), 20, WALL * S + 34, fill="#bbb"))
+            g.append(text(X(xo) + 14, Y(-WALL) + 30, "ท่อออก 8\" (ออกทางด้านล่าง)", 12, "start", "#c2410c", "bold"))
+        else:
+            g.append(rect(X(row1), Y(yb1 + wl / 2) - 8, WALL * S + 34, 16, fill="#bbb"))
+            g.append(text(X(row1 + WALL) + 38, Y(yb1 + wl / 2) + 4, "ท่อเข้า 6\"", 11))
+            g.append(rect(X(lin), Y(wl / 2) - 10, WALL * S + 34, 20, fill="#bbb"))
+            g.append(text(X(lin + WALL) + 38, Y(wl / 2) + 4, "ท่อออก 8\"", 11))
         xt = L2A + LA - 0.95
         g.append(rect(X(xt) - 4, Y(wl + 0.02), 8, (wl + 0.04) * S, fill="#9aa4ab", stroke="#555", sw=0.6))
         g.append(rect(X(xt) - 8, Y(wl / 2) - 8, 16, 16, fill="#fff", stroke="#c00", sw=2))
@@ -653,7 +662,10 @@ def folded():
         g.append(f"<path d='M{X(row1 - 0.15):.1f},{Y(yb1 + 0.25):.1f} H{X(L1A + 0.9):.1f}' {arr}/>")
         g.append(f"<path d='M{X(L1A - 0.05):.1f},{Y(yb1 + 0.25):.1f} H{X(0.5):.1f} V{Y(wl - 0.15):.1f}' {arr}/>")
         g.append(f"<path d='M{X(0.5):.1f},{Y(wl - 0.35):.1f} V{Y(0.45):.1f} H{X(L2A + LA - 0.15):.1f}' {arr}/>")
-        g.append(f"<path d='M{X(L2A + LA + T_WW + 0.1):.1f},{Y(0.45):.1f} H{X(lin - 0.1):.1f}' {arr}/>")
+        if opp:
+            g.append(f"<path d='M{X(L2A + LA + T_WW + 0.1):.1f},{Y(0.45):.1f} H{X((L2A + LA + T_WW + lin) / 2):.1f} V{Y(-WALL) + 20:.1f}' {arr}/>")
+        else:
+            g.append(f"<path d='M{X(L2A + LA + T_WW + 0.1):.1f},{Y(0.45):.1f} H{X(lin - 0.1):.1f}' {arr}/>")
         # ป้ายช่อง
         g.append(text(X(L1A / 2), Y(yb1 + wl) + 16, "ช่อง 2 พื้นยก", 11, "middle", "#1f5f8b", "bold"))
         g.append(text(X(L1A / 2), Y(yb1 + wl) + 30, "(น้ำไหลขวาง)", 10, "middle", "#1f5f8b"))
@@ -667,7 +679,7 @@ def folded():
         yb_ = Y(-WALL)
         for a, c, t in [(0, L2A, "1.00"), (L2A, L2A + LA, "2.10"), (L2A + LA, L2A + LA + T_WW, "0.20"), (L2A + LA + T_WW, lin, "0.95")]:
             hdim(g, X(a), X(c), yb_ + 18, t, ext=yb_, size=9)
-        hdim(g, X(-WALL), X(lin + WALL), yb_ + 42, f"ยาวภายนอก {lin + 2*WALL:.2f}", ext=yb_ + 18, size=12)
+        hdim(g, X(-WALL), X(lin + WALL), yb_ + (62 if opp else 42), f"ยาวภายนอก {lin + 2*WALL:.2f}", ext=yb_ + 18, size=12)
         xr = X(lin + WALL) + 14 if kind == "U" else X(lin + WALL) + 14
         vdim(g, Y(-WALL), Y(win + WALL), X(-WALL) - 18, f"กว้าง {win + 2*WALL:.2f}", ext=X(-WALL))
         vdim(g, Y(0), Y(wl), X(-WALL) - 44, f"{wl:.2f}", ext=X(-WALL) - 18, size=9)
@@ -692,9 +704,11 @@ def folded():
     hdim(b, X(-WALL), X(X_END + WALL), Y0(-WALL) + 42, "ยาวภายนอก 6.75", ext=Y0(-WALL) + 18, size=12)
     y = Y0(-WALL) + 110
 
-    for kind, ttl in [("U", "แบบ U (สี่เหลี่ยม) — ภายนอก 4.65 × 2.70 m"), ("L", "แบบ L (ตัดมุมว่าง) — ภายนอก 4.65 × 2.70 m  ← แนะนำ")]:
+    for kind, opp, ttl in [("U", False, "แบบ U (สี่เหลี่ยม) — ภายนอก 4.65 × 2.70 m"),
+                           ("L", False, "แบบ L (ตัดมุมว่าง) — ท่อเข้า–ออกด้านเดียวกัน"),
+                           ("L", True, "แบบ L — ท่อเข้า–ออกคนละฝั่ง (เข้าด้านบน / ออกด้านล่าง)  ← แนะนำ")]:
         b.append(text(60, y - 6, ttl, 15, "start", weight="bold"))
-        g, y_end = panel(150, y + 40, kind)
+        g, y_end = panel(150, y + (70 if opp else 40), kind, opp)
         b.extend(g)
         y = y_end + 70
     H_ = int(y - 20)
