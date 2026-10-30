@@ -1,0 +1,375 @@
+<title>บ่อวัดน้ำ V-notch 3 ช่อง</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: แถบหัว + รูปตัดเคลื่อนไหวเต็มกว้าง + แผงควบคุม/ค่าคำนวณเป็นกริดด้านล่าง */
+:root {
+  --bg: #eef2f4;
+  --panel: #ffffff;
+  --ink: #1b2a33;
+  --muted: #5b6b75;
+  --line: #c9d3d9;
+  --concrete: #b9c0c4;
+  --concrete-edge: #7d878d;
+  --water: #4a9fd0;
+  --water-deep: #2f7fb3;
+  --water-clear: #9fd6f2;
+  --steel: #3b4650;
+  --pump: #e39a2d;
+  --recycle: #2f8f4e;
+  --accent: #c2410c;
+  --ok: #2f8f4e;
+  --warn: #b7791f;
+  --font-body: "IBM Plex Sans Thai", "Sarabun", "Tahoma", sans-serif;
+  --font-mono: "IBM Plex Mono", "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1a21; --panel: #16242d; --ink: #e3ebef; --muted: #93a6b1; --line: #2b3d48;
+    --concrete: #4a565d; --concrete-edge: #6f7d85; --water: #3b8fc4; --water-deep: #2a6f9c;
+    --water-clear: #6fbfe6; --steel: #c7d1d6; --pump: #e9a23b; --recycle: #4fb873;
+    --accent: #f08a4b; --ok: #4fb873; --warn: #e0a83a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1a21; --panel: #16242d; --ink: #e3ebef; --muted: #93a6b1; --line: #2b3d48;
+  --concrete: #4a565d; --concrete-edge: #6f7d85; --water: #3b8fc4; --water-deep: #2a6f9c;
+  --water-clear: #6fbfe6; --steel: #c7d1d6; --pump: #e9a23b; --recycle: #4fb873;
+  --accent: #f08a4b; --ok: #4fb873; --warn: #e0a83a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+header h1 { font-size: 1.55rem; margin: 0; text-wrap: balance; font-weight: 700; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; overflow-x: auto; }
+.stage svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.8fr); gap: 16px; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+label { display: block; font-weight: 500; }
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+input[type="range"] { flex: 1 1 200px; accent-color: var(--water-deep); }
+.big { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.unit { color: var(--muted); font-size: 0.85rem; margin-left: 4px; }
+.toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.toggle button { font: inherit; border: 0; background: transparent; color: var(--ink); padding: 6px 14px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--recycle); color: #fff; }
+.toggle button.off[aria-pressed="true"] { background: var(--concrete-edge); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ctl { display: grid; gap: 14px; }
+.play { font: inherit; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+td.v { text-align: right; font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
+td.f { color: var(--muted); font-size: 0.8rem; font-family: var(--font-mono); }
+tr:last-child td { border-bottom: 0; }
+.chips { display: grid; gap: 8px; }
+.chip { display: flex; gap: 8px; align-items: baseline; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); }
+.chip b { font-weight: 600; }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; transform: translateY(1px); }
+.chip.bad .dot { background: var(--warn); }
+.note { color: var(--muted); font-size: 0.85rem; margin: 0; }
+svg text { font-family: var(--font-body); }
+svg .mono { font-family: var(--font-mono); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>บ่อวัดน้ำ 3 ช่อง: ปั๊มจุ่ม · โชว์น้ำใส · V-notch 90°</h1>
+    <p>รูปตัดตามยาวที่ระดับจริงตามแบบ (บ่อยาวภายนอก 6.75 m) ลองปรับน้ำเข้าและเปิด–ปิดปั๊ม recycle แล้วดูระดับน้ำ ค่า H และชั้นน้ำบนพื้นยกเปลี่ยนตามสูตร</p>
+  </header>
+
+  <div class="stage" role="img" aria-label="รูปตัดบ่อ 3 ช่อง แสดงน้ำไหลจากท่อเข้า ผ่านช่องปั๊ม ขึ้นพื้นยก ตกลงช่องเวียร์ และออกทางท่อ 8 นิ้ว">
+    <svg id="sec" viewBox="0 0 1160 365" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <div class="grid">
+    <section class="card ctl" aria-labelledby="h-ctl">
+      <h2 id="h-ctl">ปรับสภาพการใช้งาน</h2>
+      <div>
+        <label for="qin">น้ำเข้า (ตามใบเสนอราคา 50–100 m³/h)</label>
+        <div class="row">
+          <input id="qin" type="range" min="50" max="100" step="1" value="63">
+          <span><span class="big" id="qinv">63</span><span class="unit">m³/h</span></span>
+        </div>
+      </div>
+      <div class="row">
+        <span>ปั๊มจุ่ม Water recycle 10 m³/h</span>
+        <div class="toggle" role="group" aria-label="ปั๊ม recycle">
+          <button id="pon" type="button" aria-pressed="true">เดิน</button>
+          <button id="poff" class="off" type="button" aria-pressed="false">หยุด</button>
+        </div>
+      </div>
+      <div class="row">
+        <button id="play" class="play" type="button">หยุดภาพ</button>
+        <p class="note">ค่าเฉลี่ย 1,507 m³/วัน ≈ 63 m³/h</p>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-calc">
+      <h2 id="h-calc">ค่าคำนวณ</h2>
+      <table>
+        <tr><td>Q ผ่านเวียร์</td><td class="f">Qin − Qrecycle</td><td class="v" id="qw">–</td></tr>
+        <tr><td><b>H เหนือยอด V</b></td><td class="f">(Q ÷ 1.38)^0.4</td><td class="v" id="hv">–</td></tr>
+        <tr><td>ชั้นน้ำบนพื้นยก</td><td class="f">0.02 + (Q ÷ 1.84B)^⅔</td><td class="v" id="d2">–</td></tr>
+        <tr><td>Froude ช่อง 2</td><td class="f">v ÷ √(g·d)</td><td class="v" id="fr">–</td></tr>
+        <tr><td>ระดับน้ำ ช่อง 1 / ช่อง 3</td><td class="f">จากพื้นบ่อ</td><td class="v" id="lv">–</td></tr>
+      </table>
+    </section>
+
+    <section class="card" aria-labelledby="h-chk">
+      <h2 id="h-chk">ตรวจสภาพ</h2>
+      <div class="chips">
+        <div class="chip" id="c1"><span class="dot"></span><span><b>ผิวน้ำช่อง 2</b> <span id="c1t"></span></span></div>
+        <div class="chip" id="c2"><span class="dot"></span><span><b>ม่านน้ำตกอิสระ</b> <span id="c2t"></span></span></div>
+        <div class="chip" id="c3"><span class="dot"></span><span><b>ช่วงวัด H</b> <span id="c3t"></span></span></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- ค่าออกแบบ (m) ตรงกับ weir_design.xlsx ----------
+  const B = 1.05, W = 0.20, G = 9.81;
+  const xBaf = 0.50, gap = 0.30, xPump = 1.10, x1 = 1.60, x2 = 2.60, zRaised = 0.90, sill = 0.02;
+  const xPerf = 3.10, xWeir = 5.20, tWW = 0.20, xEnd = 6.35, zV = 0.60, zNotch = 0.90, zWW = 0.50, zPB = 0.40;
+  const zTop = 1.20, xTap = xWeir - 0.95, dOut = 0.20, qRec = 10;
+
+  const S = 150, X = x => (x + 0.75) * S, Y = z => (1.86 - z) * S;
+  const svg = document.getElementById('sec');
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent = svg) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+  const css = v => `var(--${v})`;
+  const box = (x, z, w, h, attrs, parent) => el('rect', { x: X(x), y: Y(z + h), width: w * S, height: h * S, ...attrs }, parent);
+
+  // ---------- คำนวณ ----------
+  function calc(qin, pump) {
+    const qw = qin - (pump ? qRec : 0);
+    const qs = qw / 3600;
+    const H = Math.pow(qs / 1.38, 0.4);
+    const head = Math.pow(qs / (1.84 * B), 2 / 3);
+    const d2 = sill + head;
+    const v2 = qs / (B * d2);
+    const fr = v2 / Math.sqrt(G * d2);
+    const z1 = zRaised + d2 + 1.5 * v2 * v2 / (2 * G);
+    const z3 = zV + H;
+    const aOut = Math.PI * dOut * dOut / 4;
+    const tail = dOut / 2 + Math.pow(qs / (0.6 * aOut), 2) / (2 * G);
+    return { qw, H, head, d2, v2, fr, z1, z3, tail };
+  }
+
+  // ---------- ชั้นวาด ----------
+  const gWater = el('g', {});
+  const gStatic = el('g', {});
+  const gPart = el('g', {});
+  const gLabel = el('g', {});
+
+  // พื้นและผนัง คสล.
+  const conc = { fill: css('concrete'), stroke: css('concrete-edge'), 'stroke-width': 1 };
+  box(-W, -0.20, xEnd + 2 * W, 0.20, conc, gStatic);
+  box(-W, 0, W, zTop, conc, gStatic);
+  box(xEnd, 0, W, zTop, conc, gStatic);
+  box(xBaf, gap, 0.10, zTop - gap, conc, gStatic);
+  box(x1, 0, x2 - x1, zRaised, conc, gStatic);
+  box(xWeir, 0, tWW, zWW, conc, gStatic);
+  // พื้นยกกรุกระเบื้องขาว
+  el('rect', { x: X(x1), y: Y(zRaised), width: (x2 - x1) * S, height: 3, fill: '#ffffff', opacity: 0.9 }, gStatic);
+  // สันปลาย SS
+  el('rect', { x: X(x2) - 3, y: Y(zRaised + sill), width: 3, height: sill * S, fill: css('steel') }, gStatic);
+  // แผ่นรูพรุน
+  for (let z = 0.05; z < 0.95; z += 0.1) el('rect', { x: X(xPerf) - 1.5, y: Y(z + 0.06), width: 3, height: 0.06 * S, fill: css('steel'), opacity: 0.8 }, gStatic);
+  // แผ่นเวียร์ SS
+  el('rect', { x: X(xWeir) - 3, y: Y(zNotch + 0.10), width: 3.5, height: (zNotch + 0.10 - zPB) * S, fill: css('steel') }, gStatic);
+  el('line', { x1: X(xWeir) - 10, x2: X(xWeir) + 2, y1: Y(zV), y2: Y(zV), stroke: css('accent'), 'stroke-width': 1.5 }, gStatic);
+  // ท่อเข้า + ท่อจุ่ม
+  const pipe = { fill: 'none', stroke: css('concrete-edge'), 'stroke-width': 0.168 * S, 'stroke-linejoin': 'round', opacity: 0.55 };
+  el('path', { d: `M${X(-0.75)} ${Y(1.02)} H${X(0.12)} V${Y(0.30)}`, ...pipe }, gStatic);
+  // ท่อออก 8"
+  el('rect', { x: X(xEnd), y: Y(dOut), width: (W + 0.40) * S, height: dOut * S, fill: css('concrete-edge'), opacity: 0.45 }, gStatic);
+  // ปั๊ม + ท่อส่ง recycle
+  el('path', { d: `M${X(xPump + 0.2)} ${Y(0.35)} H${X(1.40)} V${Y(1.42)} H${X(2.35)}`, fill: 'none', stroke: css('recycle'), 'stroke-width': 7, 'stroke-linejoin': 'round' }, gStatic);
+  const pumpBody = el('rect', { x: X(xPump - 0.20), y: Y(0.55), width: 0.40 * S, height: 0.55 * S, rx: 6, fill: css('pump') }, gStatic);
+  const rotor = el('g', { transform: `translate(${X(xPump)} ${Y(0.30)})` }, gStatic);
+  for (let i = 0; i < 3; i++) el('rect', { x: -2, y: -16, width: 4, height: 16, fill: '#ffffff', opacity: 0.85, transform: `rotate(${i * 120})` }, rotor);
+  // จุดวัด H
+  el('line', { x1: X(xTap), x2: X(xTap), y1: Y(zTop + 0.10), y2: Y(0), stroke: css('accent'), 'stroke-dasharray': '5 4', 'stroke-width': 1.2 }, gStatic);
+
+  // ป้าย
+  const label = (x, z, t, opt = {}) => {
+    const e = el('text', { x: X(x), y: Y(z), 'text-anchor': opt.anchor || 'middle', 'font-size': opt.size || 13, fill: opt.color || css('ink'), 'font-weight': opt.weight || 500 }, gLabel);
+    e.textContent = t;
+    return e;
+  };
+  label(0.80, 1.72, 'ช่อง 1 รับน้ำ + ปั๊ม', { weight: 700 });
+  label((x1 + x2) / 2, 1.72, 'ช่อง 2 โชว์น้ำใส', { weight: 700 });
+  label((x2 + xEnd) / 2, 1.72, 'ช่อง 3 เวียร์ V-notch 90°', { weight: 700 });
+  label(-0.72, 1.12, 'ท่อเข้า 6"', { anchor: 'start', size: 12, color: css('muted') });
+  label(xEnd + 0.62, 0.26, 'ท่อออก 8"', { anchor: 'end', size: 12, color: css('muted') });
+  label(2.38, 1.45, 'Recycle 10 m³/h', { anchor: 'start', size: 12, color: css('recycle'), weight: 600 });
+  label(xTap + 0.05, zTop + 0.04, 'จุดวัด H', { anchor: 'start', size: 12, color: css('accent'), weight: 600 });
+  label(xBaf + 0.05, -0.12, 'ผนังกั้นลอดใต้', { size: 11, color: css('ink') });
+  label(xPerf, -0.12, 'แผ่นรูพรุน', { size: 11, color: css('ink') });
+  label(xWeir + 0.1, -0.12, 'กำแพงเวียร์ + แผ่น SS', { size: 11, color: css('ink') });
+  const tH = label(xWeir - 0.08, 0, '', { anchor: 'end', size: 13, color: css('accent'), weight: 700 });
+  tH.classList.add('mono');
+  const tD2 = label((x1 + x2) / 2, zRaised - 0.14, '', { size: 12, color: css('ink'), weight: 600 });
+  tD2.classList.add('mono');
+
+  // ---------- น้ำ (อัปเดตตามค่า) ----------
+  const w1 = el('path', { fill: css('water'), opacity: 0.85 }, gWater);
+  const w2 = el('path', { fill: css('water-clear'), opacity: 0.95 }, gWater);
+  const shine = el('rect', { height: 2, fill: '#ffffff', opacity: 0.7, rx: 1 }, gWater);
+  const fall = el('path', { fill: css('water-clear'), opacity: 0.9 }, gWater);
+  const w3 = el('rect', { fill: css('water'), opacity: 0.85 }, gWater);
+  const nappe = el('path', { fill: css('water'), opacity: 0.9 }, gWater);
+  const w4 = el('rect', { fill: css('water'), opacity: 0.85 }, gWater);
+  const wOut = el('rect', { fill: css('water'), opacity: 0.85 }, gWater);
+  const hLine = el('line', { stroke: css('accent'), 'stroke-width': 1.5 }, gLabel);
+
+  let st;
+  function layout() {
+    const r = st;
+    // ช่อง 2: พื้นยก
+    w2.setAttribute('d', `M${X(x1)} ${Y(zRaised)} V${Y(r.z1 - 0.01)} Q${X(x1 + 0.12)} ${Y(zRaised + r.d2)} ${X(x1 + 0.25)} ${Y(zRaised + r.d2)} H${X(x2)} V${Y(zRaised)} Z`);
+    shine.setAttribute('y', Y(zRaised + r.d2) + 1);
+    // ม่านน้ำจากสันปลาย
+    const drop = zRaised + sill - r.z3;
+    const throwX = r.v2 * 1.6 * Math.sqrt(2 * Math.max(drop, 0.01) / G) + 0.04;
+    fall.setAttribute('d', `M${X(x2)} ${Y(zRaised + r.d2)} Q${X(x2 + throwX * 0.8)} ${Y(zRaised + r.d2 - 0.01)} ${X(x2 + throwX)} ${Y(r.z3)} L${X(x2 + throwX - r.head)} ${Y(r.z3)} Q${X(x2 + 0.03)} ${Y(zRaised + sill - 0.02)} ${X(x2)} ${Y(zRaised + sill)} Z`);
+    // ช่อง 3
+    w3.setAttribute('x', X(x2)); w3.setAttribute('y', Y(r.z3)); w3.setAttribute('width', (xWeir - x2) * S); w3.setAttribute('height', r.z3 * S);
+    // ม่านน้ำ V-notch
+    const vN = Math.sqrt(2 * G * r.H);
+    const fallN = r.z3 - r.tail;
+    const xn = vN * 0.75 * Math.sqrt(2 * fallN / G);
+    nappe.setAttribute('d', `M${X(xWeir)} ${Y(r.z3 - 0.005)} Q${X(xWeir + xn * 0.75)} ${Y(r.z3 - 0.02)} ${X(xWeir + xn)} ${Y(r.tail)} L${X(xWeir + xn - 0.07)} ${Y(r.tail)} Q${X(xWeir + xn * 0.35)} ${Y(zV - 0.05)} ${X(xWeir)} ${Y(zV)} Z`);
+    w4.setAttribute('x', X(xWeir + tWW)); w4.setAttribute('y', Y(r.tail)); w4.setAttribute('width', (xEnd - xWeir - tWW) * S); w4.setAttribute('height', r.tail * S);
+    const hp = Math.min(r.tail, dOut) * 0.85;
+    wOut.setAttribute('x', X(xEnd)); wOut.setAttribute('y', Y(hp)); wOut.setAttribute('width', (W + 0.40) * S); wOut.setAttribute('height', hp * S);
+    // ป้าย H
+    hLine.setAttribute('x1', X(xWeir) - 14); hLine.setAttribute('x2', X(xWeir) - 14);
+    hLine.setAttribute('y1', Y(zV)); hLine.setAttribute('y2', Y(r.z3));
+    tH.setAttribute('y', Y(zV + r.H / 2) + 4);
+    tH.textContent = `H ${(r.H * 100).toFixed(1)} cm`;
+    tD2.textContent = `ชั้นน้ำ ${(r.d2 * 100).toFixed(1)} cm`;
+    buildPaths();
+  }
+
+  // ---------- เส้นทางอนุภาคน้ำ ----------
+  let paths = [];
+  function poly(pts) {
+    const segs = []; let len = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, az] = pts[i - 1], [bx, bz] = pts[i];
+      const l = Math.hypot(bx - ax, bz - az);
+      segs.push({ ax, az, bx, bz, l, s: len }); len += l;
+    }
+    return { segs, len, at(t) {
+      const d = t * len;
+      for (const g of segs) if (d <= g.s + g.l) { const u = (d - g.s) / g.l; return [g.ax + (g.bx - g.ax) * u, g.az + (g.bz - g.az) * u]; }
+      const g = segs[segs.length - 1]; return [g.bx, g.bz];
+    } };
+  }
+  function buildPaths() {
+    const r = st;
+    const lay = zRaised + r.d2 * 0.5;
+    const main = poly([[-0.75, 1.02], [0.12, 1.02], [0.12, 0.30], [0.30, 0.14], [0.62, 0.14], [0.95, 0.55], [1.45, r.z1 - 0.05],
+      [x1 + 0.2, lay], [x2, lay], [x2 + 0.10, r.z3 - 0.02], [x2 + 0.30, r.z3 - 0.35], [xPerf, 0.40], [4.2, 0.55], [xWeir - 0.3, zV + r.H * 0.4],
+      [xWeir, zV + r.H * 0.4], [xWeir + 0.18, zV - 0.05], [xWeir + 0.35, r.tail * 0.6], [xEnd, 0.08], [xEnd + 0.62, 0.08]]);
+    const rec = poly([[0.62, 0.14], [xPump - 0.1, 0.12], [xPump, 0.30], [xPump + 0.2, 0.35], [1.40, 0.35], [1.40, 1.42], [2.35, 1.42]]);
+    paths = [main, rec];
+  }
+
+  const parts = [];
+  for (let i = 0; i < 140; i++) {
+    const c = el('circle', { r: 2.6, fill: '#ffffff', opacity: 0.85 }, gPart);
+    parts.push({ c, t: Math.random(), p: i < 110 ? 0 : 1, active: true });
+  }
+
+  // ---------- ควบคุม ----------
+  const qin = document.getElementById('qin');
+  const pon = document.getElementById('pon'), poff = document.getElementById('poff');
+  const play = document.getElementById('play');
+  let pump = true;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let running = !reduce;
+  play.textContent = running ? 'หยุดภาพ' : 'เล่นภาพ';
+
+  const fmt = (v, d) => v.toFixed(d);
+  function setChip(id, ok, txt) {
+    document.getElementById(id).classList.toggle('bad', !ok);
+    document.getElementById(id + 't').textContent = txt;
+  }
+  function update() {
+    const q = +qin.value;
+    st = calc(q, pump);
+    document.getElementById('qinv').textContent = q;
+    document.getElementById('qw').textContent = `${fmt(st.qw, 0)} m³/h`;
+    document.getElementById('hv').textContent = `${fmt(st.H * 100, 1)} cm`;
+    document.getElementById('d2').textContent = `${fmt(st.d2 * 100, 1)} cm`;
+    document.getElementById('fr').textContent = fmt(st.fr, 2);
+    document.getElementById('lv').textContent = `+${fmt(st.z1, 2)} / +${fmt(st.z3, 2)} m`;
+    setChip('c1', st.fr < 0.5, st.fr < 0.5 ? `เรียบ (Froude ${fmt(st.fr, 2)} < 0.5)` : `เป็นระลอก (Froude ${fmt(st.fr, 2)})`);
+    const clear = zRaised + sill - st.z3;
+    setChip('c2', clear >= 0.10, `สันช่อง 2 สูงกว่าน้ำช่อง 3 ${fmt(clear * 100, 0)} cm`);
+    setChip('c3', st.H >= 0.05 && st.H <= 0.38, `${fmt(st.H * 100, 1)} cm อยู่ในช่วง 5–38 cm`);
+    pon.setAttribute('aria-pressed', pump); poff.setAttribute('aria-pressed', !pump);
+    layout();
+    for (const p of parts) if (p.p === 1) p.c.setAttribute('opacity', pump ? 0.85 : 0);
+    pumpBody.setAttribute('opacity', pump ? 1 : 0.55);
+  }
+  qin.addEventListener('input', update);
+  pon.addEventListener('click', () => { pump = true; update(); });
+  poff.addEventListener('click', () => { pump = false; update(); });
+  play.addEventListener('click', () => { running = !running; play.textContent = running ? 'หยุดภาพ' : 'เล่นภาพ'; if (running) requestAnimationFrame(tick); });
+
+  // ---------- แอนิเมชัน ----------
+  let last = performance.now(), wave = 0, rot = 0;
+  function draw() {
+    // ผิวน้ำช่อง 1 กระเพื่อมเล็กน้อย
+    const r = st; let d = `M${X(0)} ${Y(0)} V${Y(r.z1)}`;
+    for (let x = 0; x <= x1 + 0.001; x += 0.05) d += ` L${X(x)} ${Y(r.z1 + 0.008 * Math.sin(x * 9 + wave) * (x < 0.5 ? 1.6 : 0.6))}`;
+    w1.setAttribute('d', d + ` V${Y(0)} Z`);
+    // แสงสะท้อนวิ่งบนผิวน้ำใส
+    const sx = x1 + 0.25 + ((wave * 0.05) % 1) * (x2 - x1 - 0.45);
+    shine.setAttribute('x', X(sx)); shine.setAttribute('width', 0.18 * S);
+    rotor.setAttribute('transform', `translate(${X(xPump)} ${Y(0.30)}) rotate(${rot})`);
+    for (const p of parts) {
+      if (p.p === 1 && !pump) continue;
+      const [x, z] = paths[p.p].at(p.t);
+      p.c.setAttribute('cx', X(x)); p.c.setAttribute('cy', Y(z));
+    }
+  }
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    if (!running) { draw(); return; }
+    wave += dt * 3; if (pump) rot += dt * 360;
+    const vMain = 0.12 + 0.6 * (st.qw / 100);
+    for (const p of parts) {
+      const path = paths[p.p];
+      const v = p.p === 0 ? vMain : 0.35;
+      p.t += (v * dt * 3.2) / path.len * (p.p === 0 ? 1 : 1.4);
+      if (p.t > 1) p.t -= 1;
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+  update(); draw();
+  if (running) requestAnimationFrame(t => { last = t; tick(t); });
+})();
+</script>
