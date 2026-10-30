@@ -10,7 +10,7 @@ FONT = "font-family='Sarabun, Tahoma, sans-serif'"
 
 # ---- ค่าออกแบบ (ตรงกับ weir_design.py ค่า default) ----
 WALL = 0.20
-B = 1.20                # ความกว้างภายใน
+B = 1.05                # ความกว้างภายใน
 # ช่อง 1
 X_BAFFLE = 0.50         # ผนังกั้นลอดใต้ หนา 0.10
 X_PUMP = 1.10
@@ -21,16 +21,19 @@ Z_RAISED = 0.90
 SILL = 0.02
 # ช่อง 3
 X_PERF = 4.10           # แผ่นกันคลื่นรูพรุน
-X_WEIR = 6.30
-X_TAP = X_WEIR - 1.00
-X_END = 7.10
+X_WEIR = 6.20           # ผิวเหนือน้ำของกำแพงเวียร์ (ช่วงตรง 2.10)
+T_WW = 0.20             # กำแพงเวียร์ คสล.
+X_TAP = X_WEIR - 0.95
+X_END = 7.35             # ท้ายเวียร์ 0.95
 Z_VERTEX = 0.60
 Z_NOTCH_TOP = 0.90
 Z_WALL_TOP = 1.20
 Z_MAX = 0.810           # ช่อง 3 ที่ 100 m³/h
-Z_C1 = 0.98             # ช่อง 1 ที่ 100 m³/h
-Z_C2 = Z_RAISED + 0.074 # ช่อง 2 ที่ 100 m³/h
-Z_GAP = 0.25
+Z_C1 = 0.99             # ช่อง 1 ที่ 100 m³/h
+Z_C2 = Z_RAISED + 0.079 # ช่อง 2 ที่ 100 m³/h
+Z_GAP = 0.30
+Z_WW = 0.50             # สันกำแพงเวียร์ คสล.
+Z_PB = 0.40             # ขอบล่างแผ่นเวียร์
 Z_START = 0.80
 Z_STOP = 0.40
 Z_DIP = 0.30
@@ -86,7 +89,7 @@ def section():
     b.append(poly([(X(X_C1_END), Y(Z_C1)), (X(X_C1_END + 0.3), Y(Z_C2)), (X(X_C2_END), Y(Z_C2)),
                    (X(X_C2_END), Y(Z_RAISED)), (X(X_C1_END), Y(Z_RAISED))], clear, "#3182bd", 0.8))
     b.append(rect(X(X_C2_END), Y(Z_MAX), X(X_WEIR) - X(X_C2_END), Y(0) - Y(Z_MAX), fill=water, stroke="none"))
-    b.append(rect(X(X_WEIR), Y(Z_TAIL), X(X_END) - X(X_WEIR), Y(0) - Y(Z_TAIL), fill=water, stroke="none"))
+    b.append(rect(X(X_WEIR + T_WW), Y(Z_TAIL), X(X_END) - X(X_WEIR + T_WW), Y(0) - Y(Z_TAIL), fill=water, stroke="none"))
     # sheet falling from ช่อง 2
     xs = X(X_C2_END)
     b.append(f"<path d='M{xs:.1f},{Y(Z_C2):.1f} Q{xs+22:.1f},{Y(Z_C2-0.02):.1f} {xs+30:.1f},{Y(Z_MAX):.1f} "
@@ -109,7 +112,7 @@ def section():
     b.append(f"<line x1='{X(0.20) - D_IN*S/2:.1f}' y1='{Y(Z_DIP)+3:.1f}' x2='{X(0.20) - D_IN*S/2:.1f}' y2='{Y(Z_DIP)+26:.1f}' stroke='#3182bd' stroke-width='2.5' marker-end='url(#a)'/>")
     b.append(rect(X(X_BAFFLE), Y(Z_WALL_TOP), 0.10 * S, Y(Z_GAP) - Y(Z_WALL_TOP)))
     b.append(line(X(X_BAFFLE + 0.13), Y(Z_GAP), X(X_BAFFLE + 0.13), Y(0), arrow=True))
-    b.append(text(X(X_BAFFLE + 0.15), Y(0.10), "0.25", 10))
+    b.append(text(X(X_BAFFLE + 0.15), Y(0.10), f"{Z_GAP:.2f}", 10))
     xp = X(X_PUMP)
     b.append(rect(xp - 20, Y(0.55), 40, 0.55 * S, fill="#f2a541"))
     b.append(text(xp, Y(0.28), "ปั๊ม", 11, "middle", weight="bold"))
@@ -124,8 +127,10 @@ def section():
     xt = X(X_TAP)
     b.append(line(xt, Y(Z_WALL_TOP + 0.08), xt, Y(0), "#c00", 1.2, "6 3"))
     b.append(text(xt, Y(Z_WALL_TOP + 0.11), "จุดวัดระดับ h", 12, "middle", "#c00", "bold"))
-    b.append(rect(X(X_WEIR) - 3, Y(Z_NOTCH_TOP + 0.10), 5, Y(0) - Y(Z_NOTCH_TOP + 0.10), fill="#555"))
-    b.append(text(X(X_WEIR) + 8, Y(Z_NOTCH_TOP + 0.14), "V-notch 90°", 11))
+    b.append(rect(X(X_WEIR), Y(Z_WW), T_WW * S, Y(0) - Y(Z_WW)))
+    b.append(rect(X(X_WEIR) - 3, Y(Z_NOTCH_TOP + 0.10), 5, Y(Z_PB) - Y(Z_NOTCH_TOP + 0.10), fill="#555"))
+    b.append(text(X(X_WEIR) + 8, Y(Z_NOTCH_TOP + 0.14), "แผ่น V-notch SS304", 11))
+    b.append(text(X(X_WEIR + T_WW) + 4, Y(Z_WW) + 14, f"กำแพงเวียร์ คสล. {Z_WW:+.2f}", 10))
     b.append(rect(X(X_END), Y(D_OUT), WALL * S + 45, D_OUT * S, fill="#bbb"))
     b.append(text(X(X_END + WALL) + 4, Y(D_OUT) - 6, "ท่อออก 8\"", 12))
     # elevations
@@ -151,7 +156,7 @@ def section():
     yd = Y(-0.2) + 30
     for x1, x2, t in [(0, X_C1_END, f"{X_C1_END:.2f}"), (X_C1_END, X_C2_END, f"{X_C2_END - X_C1_END:.2f}"),
                       (X_C2_END, X_PERF, f"{X_PERF - X_C2_END:.2f}"), (X_PERF, X_WEIR, f"{X_WEIR - X_PERF:.2f} (ช่วงตรง)"),
-                      (X_WEIR, X_END, f"{X_END - X_WEIR:.2f}")]:
+                      (X_WEIR, X_WEIR + T_WW, f"{T_WW:.2f}"), (X_WEIR + T_WW, X_END, f"{X_END - X_WEIR - T_WW:.2f}")]:
         b.append(line(X(x1), yd, X(x2), yd, arrow=True))
         b.append(text((X(x1) + X(x2)) / 2, yd - 5, t, 12, "middle"))
     b.append(line(X(-WALL), yd + 30, X(X_END + WALL), yd + 30, arrow=True))
@@ -185,6 +190,7 @@ def plan():
     b.append(text(X(1.40) + 6, Y(-WALL) - 18, "→ Water recycle", 11, color="#2c7a2c"))
     b.append(rect(X(X_C2_END) - 3, Y(0), 4, B * S, fill="#555"))
     b.append(line(X(X_PERF), Y(0), X(X_PERF), Y(B), "#555", 4, "6 4"))
+    b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
     b.append(rect(X(X_WEIR) - 2, Y(-0.10), 5, (B + 0.2) * S, fill="#333"))
     b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(0.15):.1f}' r='6' fill='none' stroke='#c00' stroke-width='2'/>")
     b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัด h", 11, color="#c00"))
@@ -192,8 +198,8 @@ def plan():
     b.append(text(X(X_END + WALL) + 42, Y(B / 2) + 4, "ท่อออก 8\"", 12))
     for x in (0.15, 2.0, 2.9, 4.6, 5.6, 6.6):
         b.append(flow_arrow(X(x), Y(0.95)))
-    b.append(text(X(2.6), Y(0.45), "พื้นยก +0.90 กรุกระเบื้องขาว", 12, "middle", "#1f5f8b", "bold"))
-    b.append(text(X(2.6), Y(0.45) + 16, "ชั้นน้ำใส 5–7 cm", 12, "middle", "#1f5f8b"))
+    b.append(text(X(2.6), Y(0.28), "พื้นยก +0.90 กรุกระเบื้องขาว", 12, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(2.6), Y(0.28) + 16, "ชั้นน้ำใส 5–7 cm", 12, "middle", "#1f5f8b"))
     ya = Y(B / 2)
     b.append(line(X(-WALL) - 20, ya, X(X_END + WALL) + 20, ya, "#c00", 1, "12 4 2 4"))
     b.append(text(X(-WALL) - 22, ya + 18, "A", 14, "end", "#c00", "bold"))
@@ -218,12 +224,17 @@ def plate():
     S = 330
     half = B / 2 + 0.10              # ฝังร่องผนังข้างละ 0.10
     top = Z_NOTCH_TOP + 0.10
-    X = lambda x: 70 + (x + half) * S
+    X = lambda x: 110 + (x + half) * S
     Y = lambda z: 80 + (top + 0.05 - z) * S
     b = []
     w = Z_NOTCH_TOP - Z_VERTEX
-    pts = [(-half, top), (-w, top), (-w, Z_NOTCH_TOP), (0, Z_VERTEX), (w, Z_NOTCH_TOP), (w, top), (half, top), (half, 0), (-half, 0)]
+    b.append(rect(X(-B / 2), Y(Z_WW), B * S, Z_WW * S))
+    b.append(text(X(0), Y(Z_WW / 2 - 0.04), "กำแพงเวียร์ คสล. หนา 0.20", 12, "middle", weight="bold"))
+    pts = [(-half, top), (-w, top), (-w, Z_NOTCH_TOP), (0, Z_VERTEX), (w, Z_NOTCH_TOP), (w, top), (half, top), (half, Z_PB), (-half, Z_PB)]
     b.append(poly([(X(x), Y(z)) for x, z in pts], "#cfd8dc", "#333", 1.5))
+    for xb in (-0.45, -0.25, 0.25, 0.45):
+        b.append(f"<circle cx='{X(xb):.1f}' cy='{Y((Z_PB + Z_WW) / 2):.1f}' r='5' fill='white' stroke='#333'/>")
+    b.append(text(X(0), Y((Z_PB + Z_WW) / 2) + 4, "พุก SS", 10, "middle"))
     for xs in (-half, B / 2):
         b.append(rect(X(xs), Y(top), 0.10 * S, top * S, fill="url(#rc)", stroke="#333", sw=0.8))
     b.append(text(X(-half + 0.05), Y(0.45), "ฝังร่อง", 11, "middle"))
@@ -236,6 +247,9 @@ def plate():
     b.append(line(xr, Y(Z_NOTCH_TOP), xr, Y(Z_VERTEX), arrow=True))
     b.append(text(xr + 6, Y((Z_NOTCH_TOP + Z_VERTEX) / 2) + 4, f"ลึกร่อง {w:.2f}", 12))
     b.append(line(xr, Y(Z_VERTEX), xr, Y(0), arrow=True))
+    xl = X(-half) - 18
+    b.append(line(xl, Y(top), xl, Y(Z_PB), arrow=True))
+    b.append(text(xl - 4, Y((top + Z_PB) / 2), f"{top - Z_PB:.2f}", 12, "end"))
     b.append(text(xr + 6, Y(Z_VERTEX / 2), f"P = {Z_VERTEX:.2f}", 12))
     b.append(line(X(-w - 0.05), Y(Z_VERTEX), X(-0.01), Y(Z_VERTEX), "#3182bd", 0.8, "3 2"))
     b.append(line(X(-w - 0.03), Y(hz), X(-w - 0.03), Y(Z_VERTEX), "#3182bd", 1.2, arrow=True))
@@ -245,7 +259,7 @@ def plate():
     b.append(line(X(-B / 2), Y(-0.05), X(B / 2), Y(-0.05), arrow=True))
     b.append(text(X(0), Y(-0.05) + 16, f"B = {B:.2f} (ภายในบ่อ)", 12, "middle"))
     b.append(line(X(-half), Y(-0.14), X(half), Y(-0.14), arrow=True))
-    b.append(text(X(0), Y(-0.14) + 16, f"กว้างแผ่น {2*half:.2f}  สูง {top:.2f}", 12, "middle"))
+    b.append(text(X(0), Y(-0.14) + 16, f"แผ่น SS กว้าง {2*half:.2f} × สูง {top - Z_PB:.2f} (ขอบล่าง {Z_PB:+.2f})", 12, "middle"))
     # edge detail
     ox, oy, k = X(half) + 90, Y(Z_NOTCH_TOP), 9
     t, land = 6, 1.5
