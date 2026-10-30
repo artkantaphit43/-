@@ -131,7 +131,7 @@ def section():
     b.append(text(xt, Y(Z_WALL_TOP + 0.11), "จุดวัดระดับ h", 12, "middle", "#c00", "bold"))
     b.append(rect(xt - 30, Y(Z_WALL_TOP + 0.03), 60, 5, fill="#666"))
     b.append(rect(xt - 9, Y(Z_DL + 0.08), 18, 0.08 * S, fill="#f5f5f5", stroke="#333"))
-    b.append(text(xt + 14, Y(Z_DL + 0.02), "DL10", 10, "start", "#333", "bold"))
+    b.append(text(xt + 14, Y(Z_DL + 0.02), "Flow meter", 10, "start", "#333", "bold"))
     xb = X(X_BOD)
     b.append(line(xb, Y(Z_WALL_TOP + 0.15), xb, Y(Z_BOD + 0.12), "#777", 3))
     b.append(rect(xb - 6, Y(Z_BOD + 0.30), 12, 0.30 * S, fill="#e8eef2", stroke="#333"))
@@ -202,7 +202,7 @@ def plan():
     b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
     b.append(rect(X(X_WEIR) - 2, Y(-0.10), 5, (B + 0.2) * S, fill="#333"))
     b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(0.15):.1f}' r='6' fill='none' stroke='#c00' stroke-width='2'/>")
-    b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัด h + DL10", 11, color="#c00"))
+    b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัด h + Flow meter", 11, color="#c00"))
     b.append(f"<circle cx='{X(X_BOD):.1f}' cy='{Y(0.15):.1f}' r='7' fill='#e8eef2' stroke='#333' stroke-width='1.5'/>")
     b.append(text(X(X_BOD) + 10, Y(0.15) + 4, "BOD probe", 11))
     b.append(rect(X(X_END), Y(B / 2) - D_OUT * S / 2, WALL * S + 40, D_OUT * S, fill="#bbb"))
@@ -346,7 +346,7 @@ def dimensions():
     b.append(rect(X(X_END), Y(B / 2) - 0.11 * S, WALL * S + 30, 0.22 * S, fill="#bbb"))
     b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(-WALL/2):.1f}' r='6' fill='white' stroke='#c00' stroke-width='2'/>")
     b.append(rect(X(X_TAP) - 6, Y(0.10) - 6, 12, 12, fill="#f5f5f5", stroke="#333"))
-    b.append(text(X(X_TAP) + 9, Y(0.10) + 4, "DL10", 9))
+    b.append(text(X(X_TAP) + 9, Y(0.10) + 4, "Flow", 9))
     b.append(f"<circle cx='{X(X_BOD):.1f}' cy='{Y(0.15):.1f}' r='6' fill='#e8eef2' stroke='#333' stroke-width='1.5'/>")
     b.append(text(X(X_BOD) + 9, Y(0.15) + 4, "BOD", 9))
     for x1, x2, t in [(0, X_C1_END, "ช่อง 1"), (X_C1_END, X_C2_END, "ช่อง 2 (พื้นยก)"), (X_C2_END, X_END, "ช่อง 3")]:
@@ -405,10 +405,10 @@ def dimensions():
     b.append(line(X(X_BOD), Z(Z_WALL_TOP + 0.12), X(X_BOD), Z(Z_BOD + 0.12), "#777", 2.5))
     b.append(rect(X(X_BOD) - 5, Z(Z_BOD + 0.30), 10, 0.30 * S, fill="#e8eef2", stroke="#333"))
     b.append(text(X(X_BOD) + 8, Z(Z_BOD + 0.20), "BOD", 10, "start", "#333", "bold"))
-    b.append(text(X(X_TAP) + 10, Z(Z_DL + 0.02), "DL10", 10, "start", "#333", "bold"))
+    b.append(text(X(X_TAP) + 10, Z(Z_DL + 0.02), "Flow meter", 10, "start", "#333", "bold"))
     # ระดับ (ด้านขวา)
     xe = X(X_END + WALL) + 40
-    levels = [(Z_WALL_TOP, "สันกำแพง"), (Z_DL, "หน้าเซนเซอร์ DL10"), (Z_BOD, "ปลาย BOD probe"), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED + SILL, "สันปลายช่อง 2"),
+    levels = [(Z_WALL_TOP, "สันกำแพง"), (Z_DL, "หน้าเซนเซอร์ Flow meter"), (Z_BOD, "ปลาย BOD probe"), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED + SILL, "สันปลายช่อง 2"),
               (Z_RAISED, "ผิวพื้นยก"), (Z_NOTCH_TOP + 0.10, "ขอบบนแผ่นเวียร์"), (Z_NOTCH_TOP, "ขอบบนร่อง V"),
               (Z_MAX, "น้ำช่อง 3 (100 m³/h)"), (Z_START, "ปั๊ม START"), (Z_VERTEX, "ยอด V"), (Z_WW, "สันกำแพงเวียร์"),
               (Z_PB, "ขอบล่างแผ่นเวียร์ / ปั๊ม STOP"), (Z_GAP, "ขอบล่างผนังกั้นช่อง 1"), (Z_TAIL, "น้ำท้ายเวียร์"),
