@@ -24,6 +24,9 @@
 
 ## 2. แบบ
 
+### แบบแสดงขนาดทั้งระบบ
+![Dimensions](drawings/dimensions.svg)
+
 ![Section](drawings/section.svg)
 
 ![Plan](drawings/plan.svg)

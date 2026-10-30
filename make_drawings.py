@@ -280,9 +280,220 @@ def plate():
     return svg(W, H, "".join(b), "แผ่นเวียร์ V-notch 90°")
 
 
+# ---------------------------------------------------------------- Dimension sheet
+TS = 0.20                # พื้น คสล.
+
+
+def hdim(b, x1, x2, y, label, ext=None, size=11):
+    """มิติแนวนอน: เส้นมิติที่ y, เส้นต่อจาก ext (ถ้ามี), ขีดเฉียงที่ปลาย"""
+    if ext is not None:
+        for x in (x1, x2):
+            b.append(line(x, ext, x, y + (4 if y > ext else -4), "#888", 0.6))
+    b.append(line(x1, y, x2, y, "#333", 0.8))
+    for x in (x1, x2):
+        b.append(line(x - 4, y + 4, x + 4, y - 4, "#333", 1.2))
+    b.append(text((x1 + x2) / 2, y - 4, label, size, "middle"))
+
+
+def vdim(b, y1, y2, x, label, ext=None, size=11, side=-1):
+    """มิติแนวตั้ง: เส้นมิติที่ x, ตัวเลขหมุน 90° ด้าน side (-1 ซ้าย, 1 ขวา)"""
+    if ext is not None:
+        for y in (y1, y2):
+            b.append(line(ext, y, x + (4 if x > ext else -4), y, "#888", 0.6))
+    b.append(line(x, y1, x, y2, "#333", 0.8))
+    for y in (y1, y2):
+        b.append(line(x - 4, y + 4, x + 4, y - 4, "#333", 1.2))
+    tx, ty = x + side * 5, (y1 + y2) / 2
+    b.append(f"<text x='{tx:.1f}' y='{ty:.1f}' font-size='{size}' text-anchor='middle' fill='#222' "
+             f"transform='rotate(-90 {tx:.1f} {ty:.1f})'>{label}</text>")
+
+
+def dimensions():
+    S = 112
+    b = []
+    xs = [-WALL, 0, X_BAFFLE, X_BAFFLE + 0.10, X_C1_END, X_C2_END, X_PERF, X_WEIR, X_WEIR + T_WW, X_END, X_END + WALL]
+    W = int(150 + (X_END + 2 * WALL) * S + 260)
+
+    # ===================== แปลน =====================
+    X = lambda x: 150 + (x + WALL) * S
+    Y = lambda y: 210 + (y + WALL) * S
+    b.append(text(X(-WALL) - 110, 140, "แปลน", 15, "start", weight="bold"))
+    b.append(rect(X(0), Y(0), (X_END) * S, B * S, fill="#eef6fc", stroke="none"))
+    b.append(rect(X(X_C1_END), Y(0), (X_C2_END - X_C1_END) * S, B * S, fill="#ffffff", stroke="#999", sw=0.6))
+    b.append(rect(X(-WALL), Y(-WALL), (X_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(B), (X_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(0), WALL * S, B * S))
+    b.append(rect(X(X_END), Y(0), WALL * S, B * S))
+    b.append(rect(X(X_BAFFLE), Y(0), 0.10 * S, B * S))
+    b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
+    b.append(rect(X(X_WEIR) - 2, Y(-0.10), 4, (B + 0.2) * S, fill="#333"))
+    b.append(line(X(X_PERF), Y(0), X(X_PERF), Y(B), "#555", 3, "5 3"))
+    b.append(rect(X(X_C2_END) - 2, Y(0), 3, B * S, fill="#555"))
+    b.append(f"<circle cx='{X(0.20):.1f}' cy='{Y(0.30):.1f}' r='{0.084*S:.1f}' fill='#bbb' stroke='#333'/>")
+    b.append(rect(X(-WALL) - 30, Y(0.30) - 0.084 * S, 30 + (WALL + 0.20) * S, 0.168 * S, fill="#bbb"))
+    b.append(f"<circle cx='{X(X_PUMP):.1f}' cy='{Y(B/2):.1f}' r='{0.20*S:.1f}' fill='#f2a541' stroke='#333'/>")
+    b.append(text(X(X_PUMP), Y(B / 2) + 4, "P", 12, "middle", weight="bold"))
+    b.append(rect(X(X_END), Y(B / 2) - 0.11 * S, WALL * S + 30, 0.22 * S, fill="#bbb"))
+    b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(-WALL/2):.1f}' r='6' fill='white' stroke='#c00' stroke-width='2'/>")
+    for x1, x2, t in [(0, X_C1_END, "ช่อง 1"), (X_C1_END, X_C2_END, "ช่อง 2 (พื้นยก)"), (X_C2_END, X_END, "ช่อง 3")]:
+        b.append(text((X(x1) + X(x2)) / 2, Y(B) - 8, t, 11, "middle", "#1f5f8b", "bold"))
+    # chain dims ด้านบน
+    yt = Y(-WALL)
+    for i in range(len(xs) - 1):
+        hdim(b, X(xs[i]), X(xs[i + 1]), yt - 18, f"{xs[i+1]-xs[i]:.2f}", ext=yt, size=10)
+    for x1, x2, t in [(-WALL, X_C1_END, "1.80"), (X_C1_END, X_C2_END, "2.00"), (X_C2_END, X_END + WALL, "3.95")]:
+        hdim(b, X(x1), X(x2), yt - 42, t, ext=yt - 18)
+    hdim(b, X(-WALL), X(X_END + WALL), yt - 66, f"ยาวภายนอก {X_END + 2*WALL:.2f}", ext=yt - 42, size=12)
+    # ด้านล่าง: ภายใน + ตำแหน่งท่อ/ปั๊ม/จุดวัด
+    yb = Y(B + WALL)
+    hdim(b, X(0), X(X_END), yb + 22, f"ยาวภายใน {X_END:.2f}", ext=yb, size=12)
+    hdim(b, X(0), X(X_PUMP), yb + 46, f"ศก.ปั๊ม {X_PUMP:.2f}", ext=yb + 22, size=10)
+    hdim(b, X(X_TAP), X(X_WEIR), yb + 46, f"จุดวัด H {X_WEIR - X_TAP:.2f}", ext=yb + 22, size=10)
+    # ด้านข้าง
+    xr = X(X_END + WALL) + 50
+    for y1, y2, t in [(-WALL, 0, "0.20"), (0, B, f"{B:.2f}"), (B, B + WALL, "0.20")]:
+        vdim(b, Y(y1), Y(y2), xr, t, ext=X(X_END + WALL), side=1 if t != "0.20" else 1, size=10)
+    vdim(b, Y(-WALL), Y(B + WALL), xr + 34, f"{B + 2*WALL:.2f}", ext=xr, side=1)
+    xl = X(-WALL) - 40
+    vdim(b, Y(0), Y(0.30), xl, "0.30", ext=X(0.20), size=10)
+    b.append(text(X(-WALL) - 32, Y(0.30) + 22, "ท่อเข้า 6\"", 10, "start"))
+    b.append(text(X(X_END + WALL) + 34, Y(B / 2) - 12, "ท่อออก 8\"", 10))
+    b.append(line(X(-WALL) - 20, Y(B / 2), X(X_END + WALL) + 20, Y(B / 2), "#c00", 0.8, "10 3 2 3"))
+    b.append(text(X(-WALL) - 22, Y(B / 2) + 16, "A", 13, "end", "#c00", "bold"))
+    b.append(text(X(X_END + WALL) + 22, Y(B / 2) + 16, "A", 13, "start", "#c00", "bold"))
+    b.append(line(X(X_WEIR) - 14, Y(-WALL) - 8, X(X_WEIR) - 14, Y(B + WALL) + 8, "#c00", 0.8, "10 3 2 3"))
+    b.append(text(X(X_WEIR) - 14, Y(B + WALL) + 74, "B", 13, "middle", "#c00", "bold"))
+
+    # ===================== รูปตัด A-A =====================
+    top = Y(B + WALL) + 140
+    Z = lambda z: top + (Z_WALL_TOP + 0.05 - z) * S
+    b.append(text(X(-WALL), top - 6, "รูปตัด A–A", 15, "start", weight="bold"))
+    b.append(rect(X(0), Z(Z_C1), X_C1_END * S, Z(0) - Z(Z_C1), fill="#cfe5f3", stroke="none"))
+    b.append(rect(X(X_C1_END), Z(Z_C2), (X_C2_END - X_C1_END) * S, Z(Z_RAISED) - Z(Z_C2), fill="#cfe5f3", stroke="none"))
+    b.append(rect(X(X_C2_END), Z(Z_MAX), (X_WEIR - X_C2_END) * S, Z(0) - Z(Z_MAX), fill="#cfe5f3", stroke="none"))
+    b.append(rect(X(X_WEIR + T_WW), Z(Z_TAIL), (X_END - X_WEIR - T_WW) * S, Z(0) - Z(Z_TAIL), fill="#cfe5f3", stroke="none"))
+    b.append(rect(X(-WALL), Z(0), (X_END + 2 * WALL) * S, TS * S))
+    b.append(rect(X(-WALL), Z(Z_WALL_TOP), WALL * S, Z_WALL_TOP * S))
+    b.append(rect(X(X_END), Z(Z_WALL_TOP), WALL * S, Z_WALL_TOP * S))
+    b.append(rect(X(X_BAFFLE), Z(Z_WALL_TOP), 0.10 * S, (Z_WALL_TOP - Z_GAP) * S))
+    b.append(rect(X(X_C1_END), Z(Z_RAISED), (X_C2_END - X_C1_END) * S, Z_RAISED * S))
+    b.append(rect(X(X_C2_END) - 2, Z(Z_RAISED + SILL), 3, SILL * S, fill="#555"))
+    b.append(rect(X(X_WEIR), Z(Z_WW), T_WW * S, Z_WW * S))
+    b.append(rect(X(X_WEIR) - 3, Z(Z_NOTCH_TOP + 0.10), 4, (Z_NOTCH_TOP + 0.10 - Z_PB) * S, fill="#333"))
+    for i in range(9):
+        b.append(rect(X(X_PERF) - 1.5, Z(i / 10 + 0.08), 3, 0.06 * S, fill="#666", stroke="none"))
+    b.append(rect(X(-WALL) - 30, Z(1.10), 30 + (WALL + 0.20) * S, 0.168 * S, fill="#bbb"))
+    b.append(rect(X(0.20) - 0.168 * S, Z(1.10), 0.168 * S, (1.10 - Z_DIP) * S, fill="#bbb"))
+    b.append(rect(X(X_PUMP) - 0.20 * S, Z(0.55), 0.40 * S, 0.55 * S, fill="#f2a541"))
+    b.append(rect(X(X_END), Z(D_OUT), WALL * S + 30, D_OUT * S, fill="#bbb"))
+    # ระดับ (ด้านขวา)
+    xe = X(X_END + WALL) + 40
+    levels = [(Z_WALL_TOP, "สันกำแพง"), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED + SILL, "สันปลายช่อง 2"),
+              (Z_RAISED, "ผิวพื้นยก"), (Z_NOTCH_TOP + 0.10, "ขอบบนแผ่นเวียร์"), (Z_NOTCH_TOP, "ขอบบนร่อง V"),
+              (Z_MAX, "น้ำช่อง 3 (100 m³/h)"), (Z_START, "ปั๊ม START"), (Z_VERTEX, "ยอด V"), (Z_WW, "สันกำแพงเวียร์"),
+              (Z_PB, "ขอบล่างแผ่นเวียร์ / ปั๊ม STOP"), (Z_GAP, "ขอบล่างผนังกั้น"), (Z_TAIL, "น้ำท้ายเวียร์"),
+              (0.0, "ผิวพื้นในบ่อ"), (-TS, "ใต้พื้น")]
+    ly = Z(Z_WALL_TOP)
+    for z, name in sorted(levels, key=lambda t: -t[0]):
+        yy = max(Z(z), ly)
+        b.append(f"<path d='M{X(X_END + WALL) + 4:.1f},{Z(z):.1f} H{xe - 12:.1f} L{xe - 4:.1f},{yy:.1f}' fill='none' stroke='#999' stroke-width='0.6'/>")
+        b.append(f"<polygon points='{xe-4:.1f},{yy:.1f} {xe-10:.1f},{yy-5:.1f} {xe+2:.1f},{yy-5:.1f}' fill='#333'/>")
+        b.append(text(xe + 6, yy + 4, f"{z:+.3f}  {name}", 10, "start", "#c00" if z == Z_VERTEX else "#222"))
+        ly = yy + 13
+    # มิติแนวตั้ง
+    vdim(b, Z(Z_WALL_TOP), Z(0), X(-WALL) - 22, f"{Z_WALL_TOP:.2f}", ext=X(-WALL))
+    vdim(b, Z(0), Z(-TS), X(-WALL) - 22, "0.20", ext=X(-WALL), size=10)
+    vdim(b, Z(Z_WALL_TOP), Z(-TS), X(-WALL) - 48, f"สูงภายนอก {Z_WALL_TOP + TS:.2f}", ext=X(-WALL) - 22)
+    vdim(b, Z(Z_GAP), Z(0), X(X_BAFFLE + 0.10) + 14, f"{Z_GAP:.2f}", side=1, size=10)
+    vdim(b, Z(Z_RAISED), Z(0), X(2.6), f"{Z_RAISED:.2f}", side=1)
+    vdim(b, Z(Z_VERTEX), Z(0), X(X_WEIR) - 22, f"P {Z_VERTEX:.2f}")
+    vdim(b, Z(Z_WW), Z(0), X(X_WEIR + T_WW) + 16, f"{Z_WW:.2f}", side=1, size=10)
+    vdim(b, Z(Z_NOTCH_TOP + 0.10), Z(Z_PB), X(X_WEIR + T_WW) + 16, f"แผ่น {Z_NOTCH_TOP + 0.10 - Z_PB:.2f}", side=1, size=10)
+    # มิติแนวนอน
+    yb2 = Z(-TS)
+    for i in range(len(xs) - 1):
+        hdim(b, X(xs[i]), X(xs[i + 1]), yb2 + 20, f"{xs[i+1]-xs[i]:.2f}", ext=yb2, size=10)
+    b.append(text(X(1.0), Z(0.70), "ช่อง 1", 11, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(2.6), Z(1.10), "ช่อง 2", 11, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(5.1), Z(1.10), "ช่อง 3", 11, "middle", "#1f5f8b", "bold"))
+
+    # ===================== รูปตัด B-B (ที่เวียร์ มองตามน้ำ) =====================
+    top3 = yb2 + 120
+    S3 = 150
+    half = B / 2 + WALL
+    Xc = lambda x: 190 + (x + half) * S3
+    Z3 = lambda z: top3 + 30 + (Z_WALL_TOP + 0.05 - z) * S3
+    b.append(text(Xc(-half) - 110, top3 - 20, "รูปตัด B–B ที่แผ่นเวียร์ (มองตามทิศน้ำ)", 15, "start", weight="bold"))
+    b.append(rect(Xc(-half), Z3(0), (2 * half) * S3, TS * S3))
+    for xw in (-half, B / 2):
+        b.append(rect(Xc(xw), Z3(Z_WALL_TOP), WALL * S3, Z_WALL_TOP * S3))
+    b.append(rect(Xc(-B / 2), Z3(Z_WW), B * S3, Z_WW * S3))
+    w = Z_NOTCH_TOP - Z_VERTEX
+    pt = Z_NOTCH_TOP + 0.10
+    hp = B / 2 + 0.10
+    pts = [(-hp, pt), (-w, pt), (-w, Z_NOTCH_TOP), (0, Z_VERTEX), (w, Z_NOTCH_TOP), (w, pt), (hp, pt), (hp, Z_PB), (-hp, Z_PB)]
+    b.append(poly([(Xc(x), Z3(z)) for x, z in pts], "#cfd8dc", "#333", 1.2, 0.95))
+    for xb in (-0.42, -0.21, 0.21, 0.42):
+        b.append(f"<circle cx='{Xc(xb):.1f}' cy='{Z3(0.45):.1f}' r='4' fill='white' stroke='#333'/>")
+    b.append(poly([(Xc(-(Z_MAX - Z_VERTEX)), Z3(Z_MAX)), (Xc(0), Z3(Z_VERTEX)), (Xc(Z_MAX - Z_VERTEX), Z3(Z_MAX))], "#9ecae1", "#3182bd", 1, 0.9))
+    # มิติ B-B
+    yb3 = Z3(-TS)
+    hdim(b, Xc(-half), Xc(-B / 2), yb3 + 20, "0.20", ext=yb3, size=10)
+    hdim(b, Xc(-B / 2), Xc(B / 2), yb3 + 20, f"B = {B:.2f}", ext=yb3)
+    hdim(b, Xc(B / 2), Xc(half), yb3 + 20, "0.20", ext=yb3, size=10)
+    hdim(b, Xc(-half), Xc(half), yb3 + 44, f"กว้างภายนอก {2*half:.2f}", ext=yb3 + 20)
+    yt3 = Z3(Z_WALL_TOP)
+    hdim(b, Xc(-hp), Xc(-B / 2), yt3 - 14, "0.10", ext=Z3(pt), size=9)
+    hdim(b, Xc(-w), Xc(w), yt3 - 14, f"ปากร่อง {2*w:.2f}", ext=Z3(pt))
+    hdim(b, Xc(B / 2), Xc(hp), yt3 - 14, "0.10", ext=Z3(pt), size=9)
+    hdim(b, Xc(-hp), Xc(hp), yt3 - 36, f"แผ่น SS {2*hp:.2f}", ext=yt3 - 14)
+    xr3 = Xc(half) + 30
+    vdim(b, Z3(pt), Z3(Z_NOTCH_TOP), xr3, "0.10", ext=Xc(hp), side=1, size=9)
+    vdim(b, Z3(Z_NOTCH_TOP), Z3(Z_VERTEX), xr3, f"{w:.2f}", ext=Xc(w), side=1, size=10)
+    vdim(b, Z3(Z_VERTEX), Z3(Z_WW), xr3, f"{Z_VERTEX - Z_WW:.2f}", ext=Xc(0), side=1, size=10)
+    vdim(b, Z3(Z_WW), Z3(0), xr3, f"{Z_WW:.2f}", ext=Xc(B / 2), side=1, size=10)
+    vdim(b, Z3(Z_VERTEX), Z3(0), xr3 + 30, f"P = {Z_VERTEX:.2f}", ext=xr3, side=1)
+    vdim(b, Z3(pt), Z3(Z_PB), Xc(-half) - 22, f"แผ่น {pt - Z_PB:.2f}", ext=Xc(-hp))
+    vdim(b, Z3(Z_PB), Z3(Z_WW), Xc(-half) - 22, "0.10", ext=Xc(-hp), size=9)
+    b.append(text(Xc(0), Z3(0.22), "กำแพงเวียร์ คสล. หนา 0.20", 11, "middle", weight="bold"))
+    b.append(text(Xc(0), Z3(0.45) + 16, "พุก SS ยึดแผ่นทับกำแพง", 9, "middle"))
+    b.append(text(Xc(-(Z_MAX - Z_VERTEX)) - 4, Z3(Z_MAX) - 4, f"น้ำสูงสุด H = {Z_MAX - Z_VERTEX:.2f}", 10, "end", "#1f5f8b"))
+
+    # ===================== ตารางสรุป =====================
+    tx, ty = Xc(half) + 160, top3 + 10
+    rows = [("รายการ", "ขนาด (m)"),
+            ("ขนาดภายใน (ยาว × กว้าง × สูง)", f"{X_END:.2f} × {B:.2f} × {Z_WALL_TOP:.2f}"),
+            ("ขนาดภายนอก", f"{X_END + 2*WALL:.2f} × {B + 2*WALL:.2f} × {Z_WALL_TOP + TS:.2f}"),
+            ("ผนัง / พื้น คสล.", "0.20 / 0.20"),
+            ("ช่อง 1 (โซนน้ำเข้า + ผนังกั้น + โซนปั๊ม)", "0.50 + 0.10 + 1.00 = 1.60"),
+            ("ช่อง 2 พื้นยก (ยาว × สูง)", f"{X_C2_END - X_C1_END:.2f} × {Z_RAISED:.2f}"),
+            ("ช่อง 3 (รับน้ำตก + ช่วงตรง + กำแพง + ท้าย)", "0.50 + 2.10 + 0.20 + 0.95 = 3.75"),
+            ("กำแพงเวียร์ คสล. (หนา × สูง)", f"0.20 × {Z_WW:.2f}"),
+            ("แผ่นเวียร์ SS304 (กว้าง × สูง × หนา)", f"{2*hp:.2f} × {pt - Z_PB:.2f} × 0.006"),
+            ("ร่อง V 90° (ลึก × ปาก)", f"{w:.2f} × {2*w:.2f}"),
+            ("ช่องลอดใต้ผนังกั้น", f"{Z_GAP:.2f}"),
+            ("สันปลายช่อง 2 (SS)", f"{SILL:.2f}")]
+    cw = (300, 190)
+    for i, (a, c) in enumerate(rows):
+        yy = ty + i * 22
+        fill = "#1f4e78" if i == 0 else ("#f2f2f2" if i % 2 else "#ffffff")
+        col = "#fff" if i == 0 else "#222"
+        b.append(rect(tx, yy, cw[0], 22, fill=fill, stroke="#bbb", sw=0.6))
+        b.append(rect(tx + cw[0], yy, cw[1], 22, fill=fill, stroke="#bbb", sw=0.6))
+        b.append(text(tx + 6, yy + 15, a, 11, "start", col, "bold" if i == 0 else "normal"))
+        b.append(text(tx + cw[0] + cw[1] / 2, yy + 15, c, 11, "middle", col, "bold"))
+    b.append(text(tx, ty + len(rows) * 22 + 20, "ระดับวัดจากผิวพื้นในบ่อ (±0.000) / หน่วย m", 10, "start", "#555"))
+    b.append(text(tx, ty + len(rows) * 22 + 36, "แผ่นเวียร์ติดด้านเหนือน้ำของกำแพงเวียร์", 10, "start", "#555"))
+
+    W = max(W, int(tx + cw[0] + cw[1] + 30))
+    H = int(max(Z3(-TS) + 80, ty + len(rows) * 22 + 60))
+    b.insert(0, text(W / 2, 40, "แบบแสดงขนาด (Dimension) — บ่อ 3 ช่อง: ปั๊มจุ่ม | โชว์น้ำใส | V-notch 90°", 18, "middle", weight="bold"))
+    return svg(W, H, "".join(b), "แบบแสดงขนาดบ่อ 3 ช่อง")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate)]:
+    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions)]:
         with open(os.path.join(OUT, f"{name}.svg"), "w", encoding="utf-8") as f:
             f.write(fn())
         print(f"{OUT}/{name}.svg")
