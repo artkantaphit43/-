@@ -460,6 +460,41 @@ for a, b_ in notes:
 widths(ws, {"B": 36, "C": 52, "D": 18, "E": 18, "F": 40})
 ws.freeze_panes = "B5"
 
+# =================================================================== 8. วิธีตามเอกสาร มข.
+ws = wb.create_sheet("8 เทียบวิธี มข.")
+title(ws, "8) ออกแบบตามวิธีในเอกสาร มข. (EN614102 Ex 3.9) เทียบกับแบบของเรา",
+      "สมการ USBR: Q = 1.36 H^2.48  |  เกณฑ์: P ≥ 2Hmax, b ≥ 2Hmax (b = ระยะจากขอบบนร่อง V ถึงผนัง), จุดวัด 3–5 Hmax")
+header(ws, 4, ["No.", "Parameters", "Symbol", "Unit", "Value (วิธี มข.)", "Remark (ตามเอกสาร)", "แบบของเรา (ชีต 3)", "แบบเราผ่านเกณฑ์ มข.?"])
+widths(ws, {"B": 6, "C": 30, "D": 10, "E": 8, "F": 14, "G": 40, "H": 16, "I": 22})
+rows8 = [
+    ("1", "Average flow rate", "Qavg", "m³/s", f"={R['qavg']}/3600", "1,507 m³/วัน ÷ 24 ÷ 3600", "", ""),
+    ("2", "Peak flow rate", "Qpeak", "m³/s", "=1.5*F5", "*Calculated from 1.5 of average", "", ""),
+    ("2a", "Peak flow (ใบเสนอราคา)", "Qmax", "m³/s", f"={R['qmax']}/3600", "100 m³/h ตามใบเสนอราคา", "", ""),
+    ("3", "Number of Weir Channel", "n", "", 1, "*Design", "1", ""),
+    ("4", "Flow rate at Hmax of each weir", "QHmax", "m³/s", "=MAX(F6,F7)/F8", "*MAX(Qpeak, ใบเสนอราคา) / n", f"={R['qmaxs']}", ""),
+    ("5", "b", "", "m", "=F12*2*1.1", "*Calculate from Hmax*2*1.1", f"=({R['B']}-{R['nw']})/2", '=IF(H10>=2*F12,"ผ่าน ✔","ไม่ผ่าน ✘ (ต้อง ≥ 2Hmax)")'),
+    ("6", "P", "", "m", "=F12*2", "*Calculate from Hmax*2", f"={R['P']}", '=IF(H11>=2*F12,"ผ่าน ✔","ไม่ผ่าน ✘")'),
+    ("7", "Hmax", "", "m", "=(F9/1.36)^(1/2.48)", "*Calculated from Q=1.36Hmax^2.48", f"={R['H']}", "เราใช้สูตรกรมฯ 1.38H^2.5"),
+    ("8", "P/2", "", "", "=F11/2", '="Check P/2 ≥ Hmax: "&IF(F13>=F12,"✔","✘")', "", ""),
+    ("9", "b/2", "", "", "=F10/2", '="Check b/2 ≥ Hmax: "&IF(F14>=F12,"✔","✘")', "", ""),
+    ("10", "Point of measurement H", "", "m", "=F12*3", "*Calculate from Hmax*3 (เอกสารยอมให้ 3–5 Hmax)", f"={R['xt']}",
+     '=IF(AND(H15>=3*F12,H15<=5*F12),"ผ่าน ✔ (อยู่ใน 3–5 Hmax)","ไม่ผ่าน ✘")'),
+    ("11", "H of V-Notch", "", "m", "=F12*1.2", "*Calculate from Hmax*1.2", f"={R['nd']}", '=IF(H16>=1.2*F12,"ผ่าน ✔","ไม่ผ่าน ✘")'),
+    ("12", "B", "", "m", "=F10*2+2*F16/TAN(RADIANS(45))", "*Calculate from b*2+[2*H of V Notch]/tan45", f"={R['B']}",
+     '=IF(H17>=F17,"ผ่าน ✔","แคบกว่า ✘")'),
+]
+for i, rw in enumerate(rows8):
+    rr = 5 + i
+    put(ws, rr, list(rw), [None, None, None, None, "0.000" if i < 5 else "0.00", None, "0.00", None], results=(6, 9))
+    ws.cell(row=rr, column=2).alignment = Alignment(horizontal="center")
+r = 19
+section(ws, r, "หมายเหตุ", 8)
+note_lines(ws, r + 1, [
+    "• สไลด์ตัวอย่าง (Q = 0.75 m³/s) ได้ B = 4.63 เพราะ Excel ใช้ TAN(45) ซึ่งตีความ 45 เป็นเรเดียน (tan = 1.62) — ค่าที่ถูกคือ TAN(RADIANS(45)) = 1 → B = 5.34",
+    "• b ในเอกสาร = ระยะจากขอบบนร่อง V ถึงผนังข้างละด้าน (เกณฑ์ USBR: ≥ 2Hmax) — แบบของเราใช้เกณฑ์ ISO 1438 (B ≥ 5Hmax) จึงแคบกว่า",
+    "• สูตร USBR 1.36H^2.48 ให้ Q สูงกว่าสูตรกรมฯ 1.38H^2.5 ประมาณ 2% ในช่วง H 0.15–0.21 m",
+])
+
 for s in wb.worksheets:
     s.sheet_view.showGridLines = False
     s.sheet_properties.pageSetUpPr.fitToPage = True
