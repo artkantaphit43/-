@@ -25,6 +25,9 @@ X_PERF = X_C2_END + 0.50  # ต้นช่วงตรง ช่อง 3 (ห�
 X_WEIR = X_PERF + 2.10  # ผิวเหนือน้ำของกำแพงเวียร์ (ช่วงตรง 2.10)
 T_WW = 0.20             # กำแพงเวียร์ คสล.
 X_TAP = X_WEIR - 0.95
+X_BOD = X_PERF + 0.30      # BOD probe: ต้นช่วงตรง + 0.30, ชิดผนัง 0.15
+Z_BOD = 0.30               # ปลาย probe
+Z_DL = 1.10                # หน้าเซนเซอร์ DL10
 X_END = X_WEIR + T_WW + 0.95  # ท้ายเวียร์ 0.95
 Z_VERTEX = 0.60
 Z_NOTCH_TOP = 0.90
@@ -126,6 +129,14 @@ def section():
     xt = X(X_TAP)
     b.append(line(xt, Y(Z_WALL_TOP + 0.08), xt, Y(0), "#c00", 1.2, "6 3"))
     b.append(text(xt, Y(Z_WALL_TOP + 0.11), "จุดวัดระดับ h", 12, "middle", "#c00", "bold"))
+    b.append(rect(xt - 30, Y(Z_WALL_TOP + 0.03), 60, 5, fill="#666"))
+    b.append(rect(xt - 9, Y(Z_DL + 0.08), 18, 0.08 * S, fill="#f5f5f5", stroke="#333"))
+    b.append(text(xt + 14, Y(Z_DL + 0.02), "DL10", 10, "start", "#333", "bold"))
+    xb = X(X_BOD)
+    b.append(line(xb, Y(Z_WALL_TOP + 0.15), xb, Y(Z_BOD + 0.12), "#777", 3))
+    b.append(rect(xb - 6, Y(Z_BOD + 0.30), 12, 0.30 * S, fill="#e8eef2", stroke="#333"))
+    b.append(text(xb + 9, Y(Z_BOD + 0.18), "BOD probe", 10, "start", "#333", "bold"))
+    b.append(text(xb + 9, Y(Z_BOD + 0.18) + 12, f"ปลาย {Z_BOD:+.2f}", 9, "start", "#333"))
     b.append(rect(X(X_WEIR), Y(Z_WW), T_WW * S, Y(0) - Y(Z_WW)))
     b.append(rect(X(X_WEIR) - 3, Y(Z_NOTCH_TOP + 0.10), 5, Y(Z_PB) - Y(Z_NOTCH_TOP + 0.10), fill="#555"))
     b.append(text(X(X_WEIR) + 8, Y(Z_NOTCH_TOP + 0.14), "แผ่น V-notch SS304", 11))
@@ -191,7 +202,9 @@ def plan():
     b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
     b.append(rect(X(X_WEIR) - 2, Y(-0.10), 5, (B + 0.2) * S, fill="#333"))
     b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(0.15):.1f}' r='6' fill='none' stroke='#c00' stroke-width='2'/>")
-    b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัด h", 11, color="#c00"))
+    b.append(text(X(X_TAP) + 10, Y(0.15) + 4, "จุดวัด h + DL10", 11, color="#c00"))
+    b.append(f"<circle cx='{X(X_BOD):.1f}' cy='{Y(0.15):.1f}' r='7' fill='#e8eef2' stroke='#333' stroke-width='1.5'/>")
+    b.append(text(X(X_BOD) + 10, Y(0.15) + 4, "BOD probe", 11))
     b.append(rect(X(X_END), Y(B / 2) - D_OUT * S / 2, WALL * S + 40, D_OUT * S, fill="#bbb"))
     b.append(text(X(X_END + WALL) + 42, Y(B / 2) + 4, "ท่อออก 8\"", 12))
     for x in (0.15, X_C2_MID - 0.15, X_PERF + 0.5, X_PERF + 1.4, X_WEIR + 0.4):
@@ -332,6 +345,10 @@ def dimensions():
     b.append(text(X(X_PUMP), Y(B / 2) + 4, "P", 12, "middle", weight="bold"))
     b.append(rect(X(X_END), Y(B / 2) - 0.11 * S, WALL * S + 30, 0.22 * S, fill="#bbb"))
     b.append(f"<circle cx='{X(X_TAP):.1f}' cy='{Y(-WALL/2):.1f}' r='6' fill='white' stroke='#c00' stroke-width='2'/>")
+    b.append(rect(X(X_TAP) - 6, Y(0.10) - 6, 12, 12, fill="#f5f5f5", stroke="#333"))
+    b.append(text(X(X_TAP) + 9, Y(0.10) + 4, "DL10", 9))
+    b.append(f"<circle cx='{X(X_BOD):.1f}' cy='{Y(0.15):.1f}' r='6' fill='#e8eef2' stroke='#333' stroke-width='1.5'/>")
+    b.append(text(X(X_BOD) + 9, Y(0.15) + 4, "BOD", 9))
     for x1, x2, t in [(0, X_C1_END, "ช่อง 1"), (X_C1_END, X_C2_END, "ช่อง 2 (พื้นยก)"), (X_C2_END, X_END, "ช่อง 3")]:
         b.append(text((X(x1) + X(x2)) / 2, Y(B) - 8, t, 11, "middle", "#1f5f8b", "bold"))
     # chain dims ด้านบน
@@ -346,6 +363,7 @@ def dimensions():
     hdim(b, X(0), X(X_END), yb + 22, f"ยาวภายใน {X_END:.2f}", ext=yb, size=12)
     hdim(b, X(0), X(X_PUMP), yb + 46, f"ศก.ปั๊ม {X_PUMP:.2f}", ext=yb + 22, size=10)
     hdim(b, X(X_TAP), X(X_WEIR), yb + 46, f"จุดวัด H {X_WEIR - X_TAP:.2f}", ext=yb + 22, size=10)
+    hdim(b, X(X_PERF), X(X_BOD), yb + 46, f"BOD {X_BOD - X_PERF:.2f}", ext=yb + 22, size=10)
     # ด้านข้าง
     xr = X(X_END + WALL) + 50
     for y1, y2, t in [(-WALL, 0, "0.20"), (0, B, f"{B:.2f}"), (B, B + WALL, "0.20")]:
@@ -381,9 +399,16 @@ def dimensions():
     b.append(rect(X(0.20) - 0.168 * S, Z(1.10), 0.168 * S, (1.10 - Z_DIP) * S, fill="#bbb"))
     b.append(rect(X(X_PUMP) - 0.20 * S, Z(0.55), 0.40 * S, 0.55 * S, fill="#f2a541"))
     b.append(rect(X(X_END), Z(D_OUT), WALL * S + 30, D_OUT * S, fill="#bbb"))
+    b.append(rect(X(X_TAP) - 24, Z(Z_WALL_TOP + 0.03), 48, 4, fill="#666"))
+    b.append(rect(X(X_TAP) - 7, Z(Z_DL + 0.07), 14, 0.07 * S, fill="#f5f5f5", stroke="#333"))
+    b.append(line(X(X_TAP), Z(Z_DL), X(X_TAP), Z(Z_VERTEX), "#c00", 0.8, "3 3"))
+    b.append(line(X(X_BOD), Z(Z_WALL_TOP + 0.12), X(X_BOD), Z(Z_BOD + 0.12), "#777", 2.5))
+    b.append(rect(X(X_BOD) - 5, Z(Z_BOD + 0.30), 10, 0.30 * S, fill="#e8eef2", stroke="#333"))
+    b.append(text(X(X_BOD) + 8, Z(Z_BOD + 0.20), "BOD", 10, "start", "#333", "bold"))
+    b.append(text(X(X_TAP) + 10, Z(Z_DL + 0.02), "DL10", 10, "start", "#333", "bold"))
     # ระดับ (ด้านขวา)
     xe = X(X_END + WALL) + 40
-    levels = [(Z_WALL_TOP, "สันกำแพง"), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED + SILL, "สันปลายช่อง 2"),
+    levels = [(Z_WALL_TOP, "สันกำแพง"), (Z_DL, "หน้าเซนเซอร์ DL10"), (Z_BOD, "ปลาย BOD probe"), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED + SILL, "สันปลายช่อง 2"),
               (Z_RAISED, "ผิวพื้นยก"), (Z_NOTCH_TOP + 0.10, "ขอบบนแผ่นเวียร์"), (Z_NOTCH_TOP, "ขอบบนร่อง V"),
               (Z_MAX, "น้ำช่อง 3 (100 m³/h)"), (Z_START, "ปั๊ม START"), (Z_VERTEX, "ยอด V"), (Z_WW, "สันกำแพงเวียร์"),
               (Z_PB, "ขอบล่างแผ่นเวียร์ / ปั๊ม STOP"), (Z_GAP, "ขอบล่างผนังกั้นช่อง 1"), (Z_TAIL, "น้ำท้ายเวียร์"),
@@ -410,7 +435,7 @@ def dimensions():
         hdim(b, X(xs[i]), X(xs[i + 1]), yb2 + 20, f"{xs[i+1]-xs[i]:.2f}", ext=yb2, size=10)
     b.append(text(X(1.0), Z(0.70), "ช่อง 1", 11, "middle", "#1f5f8b", "bold"))
     b.append(text(X(X_C2_MID), Z(1.10), "ช่อง 2", 11, "middle", "#1f5f8b", "bold"))
-    b.append(text(X((X_C2_END + X_END) / 2), Z(1.10), "ช่อง 3", 11, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(X_PERF + 0.65), Z(1.10), "ช่อง 3", 11, "middle", "#1f5f8b", "bold"))
 
     # ===================== รูปตัด B-B (ที่เวียร์ มองตามน้ำ) =====================
     top3 = yb2 + 120
