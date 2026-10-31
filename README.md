@@ -11,6 +11,8 @@
 | `weir_design.xlsx` | **ไฟล์คำนวณหลัก** เขียนภาษาง่าย มีคอลัมน์ "มาจากไหน / ใช้ทำอะไร" แก้ช่องสีเหลืองแล้วทุกขนาดคำนวณใหม่ (ชีต 3 = ที่มาของทุกขนาด) |
 | `cad/weir_tank.dxf` | **ไฟล์ CAD** (DXF หน่วย mm: แปลน / รูปตัด A–A / B–B) สร้างจาก `make_dxf.py` |
 | `cad/*.png` | รูปจากไฟล์ CAD (`python3 cad/render_dxf.py cad/weir_tank.dxf cad`) |
+| `cad/weir_tank.dae` | **โมเดล 3D สำหรับ SketchUp** — File → Import → COLLADA (.dae) หน่วย mm |
+| `cad/weir_tank_sketchup.rb` | สคริปต์ SketchUp วาดโมเดลเป็นชิ้นแยก Tag (Ruby Console: `load '…/weir_tank_sketchup.rb'`) สร้างจาก `cad/make_3d.py` |
 | `animation/weir-animation.html` | ภาพเคลื่อนไหว ปรับน้ำเข้า / เปิด–ปิดปั๊มได้ |
 | `docs/docs_sensor_highlight.pdf` | หน้าเอกสารเซนเซอร์ (Flow meter / BOD) ไฮไลท์ข้อกำหนดติดตั้ง |
 | `make_xlsx.py` / `weir_design.py` | สร้าง Excel / ตัวตรวจแบบ Python |
@@ -27,6 +29,8 @@
 | สูตรเวียร์ (กรมควบคุมมลพิษ) | Q = 1.38 H<sup>2.5</sup> (Flow meter ใช้สูตร ISO 1.365(h+0.0008)<sup>2.5</sup> ต่างกัน < 0.5%) |
 
 ## 2. แบบ (จากไฟล์ CAD)
+
+![3D](cad/weir_tank_3d.png)
 
 ![แปลน](cad/cad_plan.png)
 
