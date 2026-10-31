@@ -10,7 +10,7 @@ FONT = "font-family='Sarabun, Tahoma, sans-serif'"
 
 # ---- ค่าออกแบบ (ตรงกับ weir_design.py ค่า default) ----
 WALL = 0.20
-B = 1.05                # ความกว้างภายใน
+B = 1.45                # ความกว้างภายใน (ISO + USBR/มข.: b ≥ 2Hmax)
 # ช่อง 1
 X_BAFFLE = 0.50         # ผนังกั้นลอดใต้ หนา 0.10
 X_PUMP = 1.10
@@ -33,8 +33,8 @@ Z_VERTEX = 0.60
 Z_NOTCH_TOP = 0.90
 Z_WALL_TOP = 1.20
 Z_MAX = 0.810           # ช่อง 3 ที่ 100 m³/h
-Z_C1 = 0.99             # ช่อง 1 ที่ 100 m³/h
-Z_C2 = Z_RAISED + 0.079 # ช่อง 2 ที่ 100 m³/h
+Z_C1 = 0.97             # ช่อง 1 ที่ 100 m³/h
+Z_C2 = Z_RAISED + 0.068 # ช่อง 2 ที่ 100 m³/h
 Z_GAP = 0.30
 Z_WW = 0.50             # สันกำแพงเวียร์ คสล.
 Z_PB = 0.40             # ขอบล่างแผ่นเวียร์
@@ -149,7 +149,7 @@ def section():
         b.append(line(X(X_PERF + 0.15), Y(z), X(X_WEIR) - 4, Y(z), c, 0.8, "3 2"))
         b.append(text(X(X_TAP) - 6, Y(z) + (11 if z == Z_MAX else -3), f"{name} {z:+.3f}", 11, "end", c))
     b.append(text(X(X_C2_MID), Y(Z_RAISED) + 18, f"ผิวพื้นยก {Z_RAISED:+.2f}", 11, "middle"))
-    b.append(text(X(X_C2_MID), Y(Z_C2) - 24, "ชั้นน้ำใส 5–8 cm", 12, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(X_C2_MID), Y(Z_C2) - 24, "ชั้นน้ำใส 4.5–7 cm", 12, "middle", "#1f5f8b", "bold"))
     b.append(text(X(X_C2_END) - 6, Y(Z_RAISED) + 34, f"สันปลาย {SILL*100:.0f} cm", 10, "end"))
     b.append(text(X(0.95), Y(Z_C1) - 5, f"น้ำ {Z_C1:+.2f}", 11, "middle", "#1f5f8b"))
     b.append(text(X(X_END) - 4, Y(Z_TAIL) - 4, f"น้ำท้าย ≈ {Z_TAIL:+.2f}", 11, "end", "#1f5f8b"))
@@ -210,7 +210,7 @@ def plan():
     for x in (0.15, X_C2_MID - 0.15, X_PERF + 0.5, X_PERF + 1.4, X_WEIR + 0.4):
         b.append(flow_arrow(X(x), Y(0.95)))
     b.append(text(X(X_C2_MID), Y(0.28), "พื้นยก +0.90 กรุกระเบื้องขาว", 12, "middle", "#1f5f8b", "bold"))
-    b.append(text(X(X_C2_MID), Y(0.28) + 16, "ชั้นน้ำใส 5–8 cm", 12, "middle", "#1f5f8b"))
+    b.append(text(X(X_C2_MID), Y(0.28) + 16, "ชั้นน้ำใส 4.5–7 cm", 12, "middle", "#1f5f8b"))
     ya = Y(B / 2)
     b.append(line(X(-WALL) - 20, ya, X(X_END + WALL) + 20, ya, "#c00", 1, "12 4 2 4"))
     b.append(text(X(-WALL) - 22, ya + 18, "A", 14, "end", "#c00", "bold"))
@@ -467,6 +467,9 @@ def dimensions():
     hdim(b, Xc(-w), Xc(w), yt3 - 14, f"ปากร่อง {2*w:.2f}", ext=Z3(pt))
     hdim(b, Xc(B / 2), Xc(hp), yt3 - 14, "0.10", ext=Z3(pt), size=9)
     hdim(b, Xc(-hp), Xc(hp), yt3 - 36, f"แผ่น SS {2*hp:.2f}", ext=yt3 - 14)
+    yb_b = Z3(Z_NOTCH_TOP) + 14
+    hdim(b, Xc(-B / 2), Xc(-w), yb_b, f"b {(B/2 - w):.3f} ≥ 2H", size=10)
+    hdim(b, Xc(w), Xc(B / 2), yb_b, f"b {(B/2 - w):.3f}", size=10)
     xr3 = Xc(half) + 30
     vdim(b, Z3(pt), Z3(Z_NOTCH_TOP), xr3, "0.10", ext=Xc(hp), side=1, size=9)
     vdim(b, Z3(Z_NOTCH_TOP), Z3(Z_VERTEX), xr3, f"{w:.2f}", ext=Xc(w), side=1, size=10)
@@ -689,7 +692,7 @@ def folded():
 
     # แบบตรง (ย่อ)
     y = 90
-    b.append(text(60, y - 30, "แบบตรง (ปัจจุบัน) — ภายนอก 6.75 × 1.45 m", 15, "start", weight="bold"))
+    b.append(text(60, y - 30, f"แบบตรง (ปัจจุบัน) — ภายนอก {X_END + 2*WALL:.2f} × {B + 2*WALL:.2f} m", 15, "start", weight="bold"))
     X = lambda x: 100 + (x + WALL) * S
     Y0 = lambda yy: y + (B + WALL - yy) * S
     b.append(rect(X(-WALL), Y0(B + WALL), (X_END + 2 * WALL) * S, (B + 2 * WALL) * S))
@@ -701,10 +704,10 @@ def folded():
     b.append(f"<path d='M{X(0.1):.1f},{Y0(0.25):.1f} H{X(X_END - 0.1):.1f}' stroke='#2f7fb3' stroke-width='3' fill='none' marker-end='url(#a)'/>")
     for a, c, t in [(0, X_C1_END, "ช่อง 1  1.60"), (X_C1_END, X_C2_END, "ช่อง 2  1.00"), (X_C2_END, X_END, "ช่อง 3  3.75")]:
         hdim(b, X(a), X(c), Y0(-WALL) + 18, t, ext=Y0(-WALL), size=10)
-    hdim(b, X(-WALL), X(X_END + WALL), Y0(-WALL) + 42, "ยาวภายนอก 6.75", ext=Y0(-WALL) + 18, size=12)
+    hdim(b, X(-WALL), X(X_END + WALL), Y0(-WALL) + 42, f"ยาวภายนอก {X_END + 2*WALL:.2f}", ext=Y0(-WALL) + 18, size=12)
     y = Y0(-WALL) + 110
 
-    for kind, opp, ttl in [("U", False, "แบบ U (สี่เหลี่ยม) — ภายนอก 4.65 × 2.70 m"),
+    for kind, opp, ttl in [("U", False, f"แบบ U (สี่เหลี่ยม) — ภายนอก {lin + 2*WALL:.2f} × {win + 2*WALL:.2f} m"),
                            ("L", False, "แบบ L (ตัดมุมว่าง) — ท่อเข้า–ออกด้านเดียวกัน"),
                            ("L", True, "แบบ L — ท่อเข้า–ออกคนละฝั่ง (เข้าด้านบน / ออกด้านล่าง)  ← แนะนำ")]:
         b.append(text(60, y - 6, ttl, 15, "start", weight="bold"))
