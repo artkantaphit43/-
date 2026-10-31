@@ -134,7 +134,7 @@ if __name__ == "__main__":
     p.add_argument("--qmin", type=float, default=50.0, help="น้ำเข้าต่ำสุด [m³/h]")
     p.add_argument("--qmax", type=float, default=100.0, help="น้ำเข้าสูงสุด [m³/h]")
     p.add_argument("--q-recycle", type=float, default=10.0, help="สูบไป Water recycle [m³/h]")
-    p.add_argument("--b", type=float, default=1.45, help="ความกว้างภายในบ่อ [m]")
+    p.add_argument("--b", type=float, default=1.50, help="ความกว้างภายในบ่อ [m]")
     p.add_argument("--p", type=float, default=0.60, help="ความสูงยอด V จากพื้นบ่อ [m]")
     p.add_argument("--notch-depth", type=float, default=0.30, help="ความลึกร่อง V [m]")
     p.add_argument("--l-approach", type=float, default=2.10, help="ช่วงตรงหน้าเวียร์ [m]")
