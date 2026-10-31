@@ -741,9 +741,95 @@ def folded():
     return svg(W_, H_, "".join(b), "แบบพับบ่อ U และ L")
 
 
+# ---------------------------------------------------------------- ทางเลือกช่อง 1 สำหรับ HRT 15 นาที
+def hrt_options():
+    S = 82
+    W_ = 1150
+    b = []
+    zw = 0.953                       # น้ำช่อง 1 ที่ Qavg
+    L2, L3 = X_C2_END - X_C1_END, X_END - X_C2_END
+    opts = [("A", "ทางเลือก A: ช่อง 1 ลึก −1.00 กว้าง 2.50 m", 3.25, 2.50, -1.00),
+            ("B", "ทางเลือก B: ช่อง 1 ลึก −1.50 กว้าง 1.50 m (เท่าบ่อ)", 4.30, 1.50, -1.50)]
+    y = 70
+    for key, ttl, L1, W1, zf in opts:
+        lin = L1 + L2 + L3
+        V = L1 * W1 * (zw - zf) - 0.09
+        hrt = V / 62.8 * 60
+        b.append(text(40, y, ttl, 16, "start", weight="bold"))
+        b.append(text(40, y + 22, f"ปริมาตรน้ำช่อง 1 ≈ {V:.1f} m³  →  HRT = {hrt:.1f} นาที ที่ Qavg 62.8 m³/h  |  บ่อยาวภายนอก {lin + 2*WALL:.2f} m",
+                      12, "start", "#1f5f8b", "bold"))
+        # ---------- รูปตัด ----------
+        X = lambda x: 110 + (x + WALL) * S
+        top = y + 50
+        Z = lambda z: top + (1.30 - z) * S
+        x1, x2 = L1, L1 + L2
+        xp = x2 + 0.50; xw = xp + 2.10
+        # น้ำ
+        b.append(rect(X(0), Z(zw), L1 * S, (zw - zf) * S, fill="#cfe5f3", stroke="none"))
+        b.append(rect(X(x1), Z(Z_RAISED + 0.06), L2 * S, 0.06 * S, fill="#e3f4fb", stroke="none"))
+        b.append(rect(X(x2), Z(Z_MAX), (xw - x2) * S, Z_MAX * S, fill="#cfe5f3", stroke="none"))
+        b.append(rect(X(xw + T_WW), Z(Z_TAIL), 0.95 * S, Z_TAIL * S, fill="#cfe5f3", stroke="none"))
+        # คอนกรีต: พื้นช่อง 1 (ลึก), พื้นช่อง 2–3, ผนัง
+        b.append(rect(X(-WALL), Z(zf), (L1 + 2 * WALL) * S, 0.20 * S))
+        b.append(rect(X(x1 + WALL), Z(0), (lin - x1) * S, 0.20 * S))
+        b.append(rect(X(x1), Z(Z_RAISED), L2 * S, (Z_RAISED - zf) * S))
+        b.append(rect(X(-WALL), Z(Z_WALL_TOP), WALL * S, (Z_WALL_TOP - zf) * S))
+        b.append(rect(X(lin), Z(Z_WALL_TOP), WALL * S, Z_WALL_TOP * S))
+        b.append(rect(X(0.50), Z(Z_WALL_TOP), 0.10 * S, (Z_WALL_TOP - zf - 0.30) * S))
+        b.append(rect(X(xw), Z(Z_WW), T_WW * S, Z_WW * S))
+        b.append(rect(X(xw) - 2, Z(1.0), 3, 0.60 * S, fill="#333"))
+        b.append(rect(X(x2 + 0.30) - 1.5, Z(Z_WALL_TOP), 3, (Z_WALL_TOP - 0.20) * S, fill="#4a5560"))
+        b.append(rect(X(xp) - 1.5, Z(0.30), 3, 0.30 * S, fill="#4a5560"))
+        # ท่อเข้า + ท่อจุ่ม, ปั๊ม
+        b.append(rect(X(-WALL) - 24, Z(1.10), 24 + (WALL + 0.25) * S, 0.168 * S, fill="#bbb"))
+        b.append(rect(X(0.25) - 0.168 * S, Z(1.10), 0.168 * S, (1.10 - (zf + 0.30)) * S, fill="#bbb"))
+        xpmp = 0.60 + (L1 - 0.60) / 2
+        b.append(rect(X(xpmp) - 0.2 * S, Z(zf + 0.55), 0.4 * S, 0.55 * S, fill="#f2a541"))
+        b.append(line(X(0.6), Z(zw), X(x1), Z(zw), "#1f5f8b", 0.8, "4 3"))
+        b.append(text(X(x1) - 4, Z(zw) - 4, f"น้ำ +{zw:.2f}", 10, "end", "#1f5f8b"))
+        b.append(text(X(xpmp), Z(zf + 0.27), "ปั๊ม", 10, "middle", weight="bold"))
+        # มิติ
+        vdim(b, Z(zw), Z(zf), X(-WALL) - 16, f"ลึก {zw - zf:.2f}", size=10)
+        b.append(text(X(-WALL) - 30, Z(zf) + 4, f"พื้น {zf:+.2f}", 10, "end"))
+        b.append(text(X(lin + WALL) + 6, Z(0) + 4, "พื้น ±0.00", 10))
+        yd = Z(min(zf, -0.2) - 0.2) + 18
+        for a, c, t in [(0, x1, f"ช่อง 1  {L1:.2f}"), (x1, x2, f"ช่อง 2  {L2:.2f}"), (x2, lin, f"ช่อง 3  {L3:.2f}")]:
+            hdim(b, X(a), X(c), yd, t, ext=Z(min(zf, 0) - 0.2), size=10)
+        hdim(b, X(-WALL), X(lin + WALL), yd + 24, f"ยาวภายนอก {lin + 2*WALL:.2f}", ext=yd, size=11)
+        # ---------- แปลน ----------
+        y0 = yd + 60
+        Wmax = max(W1, B)
+        Yp = lambda yy: y0 + (Wmax / 2 + WALL - yy) * S           # yy = 0 ที่แนวกลางบ่อ
+        def box(xa, xb_, w, fill):
+            b.append(rect(X(xa), Yp(w / 2), (xb_ - xa) * S, w * S, fill=fill, stroke="none"))
+        # เปลือก
+        pts = [(-WALL, W1 / 2 + WALL), (x1 + (WALL if W1 > B else 0), W1 / 2 + WALL)]
+        b.append(rect(X(-WALL), Yp(W1 / 2 + WALL), (L1 + 2 * WALL if W1 > B else L1 + WALL) * S, (W1 + 2 * WALL) * S))
+        b.append(rect(X(x1), Yp(B / 2 + WALL), (lin - x1 + WALL) * S, (B + 2 * WALL) * S))
+        box(0, L1, W1, "#dbeefa")
+        box(x1, x2, B, "#ffffff")
+        box(x2, xw, B, "#dbeefa")
+        box(xw + T_WW, lin, B, "#dbeefa")
+        if W1 > B:
+            b.append(rect(X(x1), Yp(B / 2), WALL * S, B * S, fill="#ffffff", stroke="none"))
+        b.append(rect(X(0.50), Yp(W1 / 2), 0.10 * S, W1 * S))
+        b.append(rect(X(xw), Yp(B / 2), T_WW * S, B * S))
+        b.append(f"<circle cx='{X(xpmp):.1f}' cy='{Yp(0):.1f}' r='{0.2*S:.1f}' fill='#f2a541' stroke='#333'/>")
+        b.append(rect(X(-WALL) - 24, Yp(0) - 7, 24 + (WALL + 0.25) * S, 14, fill="#bbb"))
+        b.append(text(X(L1 / 2), Yp(-W1 / 2) - 6, f"ช่อง 1  {L1:.2f} × {W1:.2f}", 11, "middle", "#1f5f8b", "bold"))
+        b.append(text(X((x1 + x2) / 2), Yp(-B / 2) - 6, "ช่อง 2", 10, "middle", "#1f5f8b", "bold"))
+        b.append(text(X((x2 + lin) / 2), Yp(-B / 2) - 6, "ช่อง 3", 10, "middle", "#1f5f8b", "bold"))
+        vdim(b, Yp(W1 / 2), Yp(-W1 / 2), X(-WALL) - 16, f"{W1:.2f}", ext=X(-WALL), size=10)
+        vdim(b, Yp(B / 2), Yp(-B / 2), X(lin + WALL) + 16, f"{B:.2f}", ext=X(lin + WALL), side=1, size=10)
+        y = Yp(-Wmax / 2 - WALL) + 60
+    H_ = int(y)
+    b.insert(0, text(W_ / 2, 30, "ช่อง 1 สำหรับ HRT 15 นาที (ที่ Qavg 62.8 m³/h) — รูปตัดและแปลน, หน่วย m", 17, "middle", weight="bold"))
+    return svg(W_, H_, "".join(b), "ทางเลือกช่อง 1 HRT 15 นาที")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors), ("folded", folded)]:
+    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors), ("folded", folded), ("hrt_options", hrt_options)]:
         with open(os.path.join(OUT, f"{name}.svg"), "w", encoding="utf-8") as f:
             f.write(fn())
         print(f"{OUT}/{name}.svg")
