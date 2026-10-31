@@ -85,11 +85,11 @@ svg .mono { font-family: var(--font-mono); }
 <div class="wrap">
   <header>
     <h1>บ่อวัดน้ำ 3 ช่อง: ปั๊มจุ่ม · โชว์น้ำใส · V-notch 90°</h1>
-    <p>รูปตัดตามยาวที่ระดับจริงตามแบบ (บ่อภายนอก 6.75 × 1.90 m) ลองปรับน้ำเข้าและเปิด–ปิดปั๊ม recycle แล้วดูระดับน้ำ ค่า H และชั้นน้ำบนพื้นยกเปลี่ยนตามสูตร</p>
+    <p>รูปตัดตามยาวที่ระดับจริงตามแบบ (บ่อภายนอก 8.40 m, ช่อง 1 ลึก −1.00) ลองปรับน้ำเข้าและเปิด–ปิดปั๊ม recycle แล้วดูระดับน้ำ ค่า H และชั้นน้ำบนพื้นยกเปลี่ยนตามสูตร</p>
   </header>
 
   <div class="stage" role="img" aria-label="รูปตัดบ่อ 3 ช่อง แสดงน้ำไหลจากท่อเข้า ผ่านช่องปั๊ม ขึ้นพื้นยก ตกลงช่องเวียร์ และออกทางท่อ 8 นิ้ว">
-    <svg id="sec" viewBox="0 0 1160 365" xmlns="http://www.w3.org/2000/svg"></svg>
+    <svg id="sec" viewBox="0 0 1410 480" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
 
   <div class="grid">
@@ -141,11 +141,12 @@ svg .mono { font-family: var(--font-mono); }
 (() => {
   // ---------- ค่าออกแบบ (m) ตรงกับ weir_design.xlsx ----------
   const B = 1.50, W = 0.20, G = 9.81;
-  const xBaf = 0.50, gap = 0.30, xPump = 1.10, x1 = 1.60, x2 = 2.60, zRaised = 0.90, sill = 0.02;
-  const xWeir = 5.20, tWW = 0.20, xEnd = 6.35, zV = 0.60, zNotch = 0.90, zWW = 0.50, zPB = 0.40;
+  const xBaf = 0.50, zF1 = -1.00, gap = zF1 + 0.30, xPump = 1.90, x1 = 3.25, x2 = 4.25, zRaised = 0.90, sill = 0.02;
+  const W1 = 2.50; // ช่อง 1 กว้าง 2.50 ลึกถึง −1.00 (HRT 15 นาที)
+  const xWeir = 6.85, tWW = 0.20, xEnd = 8.00, zV = 0.60, zNotch = 0.90, zWW = 0.50, zPB = 0.40;
   const zTop = 1.20, xTap = xWeir - 0.95, dOut = 0.20, qRec = 10;
 
-  const S = 150, X = x => (x + 0.75) * S, Y = z => (1.86 - z) * S;
+  const S = 150, X = x => (x + 0.75) * S, Y = z => (1.86 - z) * S;  // ลงถึง −1.3
   const svg = document.getElementById('sec');
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent = svg) => {
@@ -181,11 +182,12 @@ svg .mono { font-family: var(--font-mono); }
 
   // พื้นและผนัง คสล.
   const conc = { fill: css('concrete'), stroke: css('concrete-edge'), 'stroke-width': 1 };
-  box(-W, -0.20, xEnd + 2 * W, 0.20, conc, gStatic);
-  box(-W, 0, W, zTop, conc, gStatic);
+  box(-W, zF1 - 0.20, x1 + 2 * W, 0.20, conc, gStatic);
+  box(x1, -0.20, xEnd + W - x1, 0.20, conc, gStatic);
+  box(-W, zF1, W, zTop - zF1, conc, gStatic);
   box(xEnd, 0, W, zTop, conc, gStatic);
   box(xBaf, gap, 0.10, zTop - gap, conc, gStatic);
-  box(x1, 0, x2 - x1, zRaised, conc, gStatic);
+  box(x1, zF1 - 0.20, x2 - x1, zRaised - zF1 + 0.20, conc, gStatic);
   box(xWeir, 0, tWW, zWW, conc, gStatic);
   // พื้นยกกรุกระเบื้องขาว
   el('rect', { x: X(x1), y: Y(zRaised), width: (x2 - x1) * S, height: 3, fill: '#ffffff', opacity: 0.9 }, gStatic);
@@ -197,13 +199,13 @@ svg .mono { font-family: var(--font-mono); }
   el('line', { x1: X(xWeir) - 10, x2: X(xWeir) + 2, y1: Y(zV), y2: Y(zV), stroke: css('accent'), 'stroke-width': 1.5 }, gStatic);
   // ท่อเข้า + ท่อจุ่ม
   const pipe = { fill: 'none', stroke: css('concrete-edge'), 'stroke-width': 0.168 * S, 'stroke-linejoin': 'round', opacity: 0.55 };
-  el('path', { d: `M${X(-0.75)} ${Y(1.02)} H${X(0.12)} V${Y(0.30)}`, ...pipe }, gStatic);
+  el('path', { d: `M${X(-0.75)} ${Y(1.02)} H${X(0.12)} V${Y(zF1 + 0.50)}`, ...pipe }, gStatic);
   // ท่อออก 8"
   el('rect', { x: X(xEnd), y: Y(dOut), width: (W + 0.40) * S, height: dOut * S, fill: css('concrete-edge'), opacity: 0.45 }, gStatic);
   // ปั๊ม + ท่อส่ง recycle
-  el('path', { d: `M${X(xPump + 0.2)} ${Y(0.35)} H${X(1.40)} V${Y(1.42)} H${X(2.35)}`, fill: 'none', stroke: css('recycle'), 'stroke-width': 7, 'stroke-linejoin': 'round' }, gStatic);
-  const pumpBody = el('rect', { x: X(xPump - 0.20), y: Y(0.55), width: 0.40 * S, height: 0.55 * S, rx: 6, fill: css('pump') }, gStatic);
-  const rotor = el('g', { transform: `translate(${X(xPump)} ${Y(0.30)})` }, gStatic);
+  el('path', { d: `M${X(xPump + 0.2)} ${Y(zF1 + 0.35)} H${X(xPump + 0.45)} V${Y(1.42)} H${X(x1 + 0.75)}`, fill: 'none', stroke: css('recycle'), 'stroke-width': 7, 'stroke-linejoin': 'round' }, gStatic);
+  const pumpBody = el('rect', { x: X(xPump - 0.20), y: Y(zF1 + 0.55), width: 0.40 * S, height: 0.55 * S, rx: 6, fill: css('pump') }, gStatic);
+  const rotor = el('g', { transform: `translate(${X(xPump)} ${Y(zF1 + 0.30)})` }, gStatic);
   for (let i = 0; i < 3; i++) el('rect', { x: -2, y: -16, width: 4, height: 16, fill: '#ffffff', opacity: 0.85, transform: `rotate(${i * 120})` }, rotor);
   // จุดวัด H
   el('line', { x1: X(xTap), x2: X(xTap), y1: Y(zTop + 0.10), y2: Y(0), stroke: css('accent'), 'stroke-dasharray': '5 4', 'stroke-width': 1.2 }, gStatic);
@@ -214,25 +216,25 @@ svg .mono { font-family: var(--font-mono); }
     e.textContent = t;
     return e;
   };
-  label(0.80, 1.72, 'ช่อง 1 รับน้ำ + ปั๊ม', { weight: 700 });
+  label(1.60, 1.72, 'ช่อง 1 รับน้ำ + ปั๊ม (HRT 15 นาที)', { weight: 700 });
   label((x1 + x2) / 2, 1.72, 'ช่อง 2 โชว์น้ำใส', { weight: 700 });
   label((x2 + xEnd) / 2, 1.72, 'ช่อง 3 เวียร์ V-notch 90°', { weight: 700 });
   label(-0.72, 1.12, 'ท่อเข้า 6"', { anchor: 'start', size: 12, color: css('muted') });
   label(xEnd + 0.62, 0.26, 'ท่อออก 8"', { anchor: 'end', size: 12, color: css('muted') });
-  label(2.38, 1.45, 'Recycle 10 m³/h', { anchor: 'start', size: 12, color: css('recycle'), weight: 600 });
+  label(x1 + 0.78, 1.45, 'Recycle 10 m³/h', { anchor: 'start', size: 12, color: css('recycle'), weight: 600 });
   label(xTap + 0.08, zTop + 0.13, 'Flow meter (จุดวัด H)', { anchor: 'start', size: 12, color: css('accent'), weight: 600 });
   // ช่อง 3: ① ผนังลอดใต้ + ② สันล้น (แผ่น SS 6 mm)
-  el('rect', { x: X(2.90) - 2, y: Y(zTop), width: 4, height: (zTop - 0.20) * S, fill: css('steel') }, gStatic);
-  el('rect', { x: X(3.10) - 2, y: Y(0.30), width: 4, height: 0.30 * S, fill: css('steel') }, gStatic);
-  label(3.00, -0.12, 'ผนังลอดใต้ + สันล้น', { size: 11, color: css('ink') });
+  el('rect', { x: X(x2 + 0.30) - 2, y: Y(zTop), width: 4, height: (zTop - 0.20) * S, fill: css('steel') }, gStatic);
+  el('rect', { x: X(x2 + 0.50) - 2, y: Y(0.30), width: 4, height: 0.30 * S, fill: css('steel') }, gStatic);
+  label(x2 + 0.40, -0.12, 'ผนังลอดใต้ + สันล้น', { size: 11, color: css('ink') });
   // เซนเซอร์: DL10 บนคาน + BOD probe ชิดผนังช่วงต้นช่วงตรง
   el('rect', { x: X(xTap) - 30, y: Y(zTop + 0.04), width: 60, height: 5, fill: css('steel') }, gStatic);
   el('rect', { x: X(xTap) - 9, y: Y(1.18), width: 18, height: 0.08 * S, rx: 3, fill: '#f4f6f7', stroke: css('steel') }, gStatic);
-  const xBod = 3.40, zBod = 0.30;
+  const xBod = x2 + 0.80, zBod = 0.30;
   el('line', { x1: X(xBod), x2: X(xBod), y1: Y(zTop + 0.18), y2: Y(zBod + 0.25), stroke: css('steel'), 'stroke-width': 3 }, gStatic);
   el('rect', { x: X(xBod) - 6, y: Y(zBod + 0.30), width: 12, height: 0.30 * S, rx: 4, fill: '#f4f6f7', stroke: css('steel') }, gStatic);
   label(xBod + 0.07, zTop + 0.13, 'BOD probe', { anchor: 'start', size: 12, color: css('ink'), weight: 600 });
-  label(xBaf + 0.05, -0.12, 'ผนังกั้นลอดใต้', { size: 11, color: css('ink') });
+  label(xBaf + 0.05, zF1 - 0.12, 'ผนังกั้นลอดใต้', { size: 11, color: css('ink') });
     label(xWeir + 0.1, -0.12, 'กำแพงเวียร์ + แผ่น SS', { size: 11, color: css('ink') });
   const tH = label(xWeir - 0.08, 0, '', { anchor: 'end', size: 13, color: css('accent'), weight: 700 });
   tH.classList.add('mono');
@@ -297,10 +299,10 @@ svg .mono { font-family: var(--font-mono); }
   function buildPaths() {
     const r = st;
     const lay = zRaised + r.d2 * 0.5;
-    const main = poly([[-0.75, 1.02], [0.12, 1.02], [0.12, 0.30], [0.30, 0.14], [0.62, 0.14], [0.95, 0.55], [1.45, r.z1 - 0.05],
-      [x1 + 0.2, lay], [x2, lay], [x2 + 0.10, r.z3 - 0.02], [x2 + 0.15, r.z3 - 0.35], [2.82, 0.12], [3.00, 0.10], [3.06, 0.25], [3.15, 0.38], [3.5, 0.45], [4.1, 0.50], [xWeir - 0.3, zV + r.H * 0.4],
+    const main = poly([[-0.75, 1.02], [0.12, 1.02], [0.12, zF1 + 0.50], [0.30, zF1 + 0.15], [0.62, zF1 + 0.14], [1.2, zF1 + 0.7], [2.6, r.z1 - 0.25], [3.1, r.z1 - 0.05],
+      [x1 + 0.2, lay], [x2, lay], [x2 + 0.10, r.z3 - 0.02], [x2 + 0.15, r.z3 - 0.35], [x2 + 0.22, 0.12], [x2 + 0.40, 0.10], [x2 + 0.46, 0.25], [x2 + 0.55, 0.38], [x2 + 0.9, 0.45], [x2 + 1.5, 0.50], [xWeir - 0.3, zV + r.H * 0.4],
       [xWeir, zV + r.H * 0.4], [xWeir + 0.18, zV - 0.05], [xWeir + 0.35, r.tail * 0.6], [xEnd, 0.08], [xEnd + 0.62, 0.08]]);
-    const rec = poly([[0.62, 0.14], [xPump - 0.1, 0.12], [xPump, 0.30], [xPump + 0.2, 0.35], [1.40, 0.35], [1.40, 1.42], [2.35, 1.42]]);
+    const rec = poly([[0.62, zF1 + 0.14], [xPump - 0.1, zF1 + 0.12], [xPump, zF1 + 0.30], [xPump + 0.2, zF1 + 0.35], [xPump + 0.45, zF1 + 0.35], [xPump + 0.45, 1.42], [x1 + 0.75, 1.42]]);
     paths = [main, rec];
   }
 
@@ -351,13 +353,13 @@ svg .mono { font-family: var(--font-mono); }
   let last = performance.now(), wave = 0, rot = 0;
   function draw() {
     // ผิวน้ำช่อง 1 กระเพื่อมเล็กน้อย
-    const r = st; let d = `M${X(0)} ${Y(0)} V${Y(r.z1)}`;
+    const r = st; let d = `M${X(0)} ${Y(zF1)} V${Y(r.z1)}`;
     for (let x = 0; x <= x1 + 0.001; x += 0.05) d += ` L${X(x)} ${Y(r.z1 + 0.008 * Math.sin(x * 9 + wave) * (x < 0.5 ? 1.6 : 0.6))}`;
-    w1.setAttribute('d', d + ` V${Y(0)} Z`);
+    w1.setAttribute('d', d + ` V${Y(zF1)} Z`);
     // แสงสะท้อนวิ่งบนผิวน้ำใส
     const sx = x1 + 0.25 + ((wave * 0.05) % 1) * (x2 - x1 - 0.45);
     shine.setAttribute('x', X(sx)); shine.setAttribute('width', 0.18 * S);
-    rotor.setAttribute('transform', `translate(${X(xPump)} ${Y(0.30)}) rotate(${rot})`);
+    rotor.setAttribute('transform', `translate(${X(xPump)} ${Y(zF1 + 0.30)}) rotate(${rot})`);
     for (const p of parts) {
       if (p.p === 1 && !pump) continue;
       const [x, z] = paths[p.p].at(p.t);

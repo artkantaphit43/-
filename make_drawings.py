@@ -13,8 +13,11 @@ WALL = 0.20
 B = 1.50                # ความกว้างภายใน (เกณฑ์ 1.44 + เผื่อ → b = 0.45 ≥ 2Hmax)
 # ช่อง 1
 X_BAFFLE = 0.50         # ผนังกั้นลอดใต้ หนา 0.10
-X_PUMP = 1.10
-X_C1_END = 1.60
+X_C1_END = 3.25         # ช่อง 1 ยาว 3.25 (HRT 15 นาที ที่ Qavg) — ทางเลือก A
+X_PUMP = 1.90           # ศก.ปั๊ม กลางโซนปั๊ม
+W1 = 2.50               # ช่อง 1 กว้าง 2.50
+OFF1 = (W1 - 1.50) / 2  # ช่อง 1 กว้างกว่าบ่อข้างละ
+Z_F1 = -1.00            # พื้นช่อง 1
 # ช่อง 2
 X_C2_END = X_C1_END + 1.00  # ปลายพื้นยก + สันปลาย (ช่อง 2 ยาว 1.00)
 X_C2_MID = (X_C1_END + X_C2_END) / 2
@@ -38,12 +41,12 @@ Z_WALL_TOP = 1.20
 Z_MAX = 0.810           # ช่อง 3 ที่ 100 m³/h
 Z_C1 = 0.97             # ช่อง 1 ที่ 100 m³/h
 Z_C2 = Z_RAISED + 0.067 # ช่อง 2 ที่ 100 m³/h
-Z_GAP = 0.30
+Z_GAP = Z_F1 + 0.30     # ขอบล่างผนังกั้นช่อง 1 (ช่องลอด 0.30)
 Z_WW = 0.50             # สันกำแพงเวียร์ คสล.
 Z_PB = 0.40             # ขอบล่างแผ่นเวียร์
 Z_START = 0.80
-Z_STOP = 0.40
-Z_DIP = 0.30
+Z_STOP = Z_F1 + 0.60    # ปั๊ม STOP
+Z_DIP = Z_F1 + 0.50     # ปลายท่อจุ่ม
 Z_TAIL = 0.21
 D_IN = 0.15
 D_OUT = 0.20
@@ -92,7 +95,7 @@ def section():
     water = "#9ecae1"
     clear = "#c6e9f5"
     # water
-    b.append(rect(X(0), Y(Z_C1), X(X_C1_END) - X(0), Y(0) - Y(Z_C1), fill=water, stroke="none"))
+    b.append(rect(X(0), Y(Z_C1), X(X_C1_END) - X(0), Y(Z_F1) - Y(Z_C1), fill=water, stroke="none"))
     b.append(poly([(X(X_C1_END), Y(Z_C1)), (X(X_C1_END + 0.3), Y(Z_C2)), (X(X_C2_END), Y(Z_C2)),
                    (X(X_C2_END), Y(Z_RAISED)), (X(X_C1_END), Y(Z_RAISED))], clear, "#3182bd", 0.8))
     b.append(rect(X(X_C2_END), Y(Z_MAX), X(X_WEIR) - X(X_C2_END), Y(0) - Y(Z_MAX), fill=water, stroke="none"))
@@ -106,8 +109,10 @@ def section():
     b.append(f"<path d='M{xw:.1f},{Y(Z_MAX-0.01):.1f} Q{xw+55:.1f},{Y(0.72):.1f} {xw+68:.1f},{Y(Z_TAIL):.1f} "
              f"L{xw+44:.1f},{Y(Z_TAIL):.1f} Q{xw+28:.1f},{Y(0.50):.1f} {xw:.1f},{Y(Z_VERTEX):.1f} z' fill='{water}' stroke='#3182bd'/>")
     # concrete
-    b.append(rect(X(-WALL), Y(0), X(X_END + WALL) - X(-WALL), 0.2 * S))
-    b.append(rect(X(-WALL), Y(Z_WALL_TOP), WALL * S, Y(0) - Y(Z_WALL_TOP)))
+    b.append(rect(X(-WALL), Y(Z_F1), X(X_C1_END + WALL) - X(-WALL), 0.2 * S))
+    b.append(rect(X(X_C1_END), Y(0), X(X_END + WALL) - X(X_C1_END), 0.2 * S))
+    b.append(rect(X(X_C1_END), Y(0), WALL * S, Y(Z_F1) - Y(0)))
+    b.append(rect(X(-WALL), Y(Z_WALL_TOP), WALL * S, Y(Z_F1) - Y(Z_WALL_TOP)))
     b.append(rect(X(X_END), Y(Z_WALL_TOP), WALL * S, Y(0) - Y(Z_WALL_TOP)))
     b.append(rect(X(X_C1_END), Y(Z_RAISED), X(X_C2_END) - X(X_C1_END), Y(0) - Y(Z_RAISED)))   # พื้นยก
     b.append(rect(X(X_C1_END), Y(Z_RAISED) - 3, X(X_C2_END) - X(X_C1_END), 3, fill="#fff", stroke="#888", sw=0.6))
@@ -118,13 +123,14 @@ def section():
     b.append(text(X(-WALL) - 45, Y(1.10) - 6, "ท่อน้ำเข้า 6\"", 12))
     b.append(f"<line x1='{X(0.20) - D_IN*S/2:.1f}' y1='{Y(Z_DIP)+3:.1f}' x2='{X(0.20) - D_IN*S/2:.1f}' y2='{Y(Z_DIP)+26:.1f}' stroke='#3182bd' stroke-width='2.5' marker-end='url(#a)'/>")
     b.append(rect(X(X_BAFFLE), Y(Z_WALL_TOP), 0.10 * S, Y(Z_GAP) - Y(Z_WALL_TOP)))
-    b.append(line(X(X_BAFFLE + 0.13), Y(Z_GAP), X(X_BAFFLE + 0.13), Y(0), arrow=True))
-    b.append(text(X(X_BAFFLE + 0.15), Y(0.10), f"{Z_GAP:.2f}", 10))
+    b.append(line(X(X_BAFFLE + 0.13), Y(Z_GAP), X(X_BAFFLE + 0.13), Y(Z_F1), arrow=True))
+    b.append(text(X(X_BAFFLE + 0.15), Y(Z_F1 + 0.10), f"{Z_GAP - Z_F1:.2f}", 10))
+    b.append(text(X(-WALL) - 6, Y(Z_F1) + 4, f"พื้นช่อง 1 {Z_F1:+.2f}", 11, "end"))
     xp = X(X_PUMP)
-    b.append(rect(xp - 20, Y(0.55), 40, 0.55 * S, fill="#f2a541"))
-    b.append(text(xp, Y(0.28), "ปั๊ม", 11, "middle", weight="bold"))
-    b.append(f"<path d='M{xp+20:.1f},{Y(0.35):.1f} H{X(1.40):.1f} V{Y(1.38):.1f} H{X(2.2):.1f}' fill='none' stroke='#2c7a2c' stroke-width='6'/>")
-    b.append(text(X(2.2) + 6, Y(1.38) + 4, "→ Water recycle 10 m³/h", 12, color="#2c7a2c"))
+    b.append(rect(xp - 20, Y(Z_F1 + 0.55), 40, 0.55 * S, fill="#f2a541"))
+    b.append(text(xp, Y(Z_F1 + 0.28), "ปั๊ม", 11, "middle", weight="bold"))
+    b.append(f"<path d='M{xp+20:.1f},{Y(Z_F1 + 0.35):.1f} H{X(X_PUMP + 0.35):.1f} V{Y(1.38):.1f} H{X(X_C1_END + 0.6):.1f}' fill='none' stroke='#2c7a2c' stroke-width='6'/>")
+    b.append(text(X(X_C1_END + 0.6) + 6, Y(1.38) + 4, "→ Water recycle 10 m³/h", 12, color="#2c7a2c"))
     for z, name, c in [(Z_START, "START", "#2c7a2c"), (Z_STOP, "STOP", "#2c7a2c")]:
         b.append(line(X(X_BAFFLE + 0.12), Y(z), X(X_C1_END), Y(z), c, 1, "6 3"))
         b.append(text(X(X_BAFFLE + 0.13), Y(z) - 3, f"{name} {z:+.2f}", 10, "start", c))
@@ -168,7 +174,7 @@ def section():
                       (X_C2_END, X_END, "ช่อง 3  เวียร์ V-notch 90°")]:
         b.append(text((X(x1) + X(x2)) / 2, Y(Z_WALL_TOP) - 52, t, 14, "middle", weight="bold"))
     # dims
-    yd = Y(-0.2) + 30
+    yd = Y(Z_F1 - 0.2) + 30
     for x1, x2, t in [(0, X_C1_END, f"{X_C1_END:.2f}"), (X_C1_END, X_C2_END, f"{X_C2_END - X_C1_END:.2f}"),
                       (X_C2_END, X_PERF, f"{X_PERF - X_C2_END:.2f}"), (X_PERF, X_WEIR, f"{X_WEIR - X_PERF:.2f} (ช่วงตรง)"),
                       (X_WEIR, X_WEIR + T_WW, f"{T_WW:.2f}"), (X_WEIR + T_WW, X_END, f"{X_END - X_WEIR - T_WW:.2f}")]:
@@ -185,24 +191,29 @@ def section():
 def plan():
     S = 125
     X = lambda x: 90 + (x + WALL) * S
-    Y = lambda y: 80 + (y + WALL) * S
+    Y = lambda y: 80 + (y + OFF1 + WALL) * S
     b = []
-    b.append(rect(X(0), Y(0), X(X_C1_END) - X(0), B * S, fill="#deebf7", stroke="none"))
+    b.append(rect(X(0), Y(-OFF1), X(X_C1_END) - X(0), W1 * S, fill="#deebf7", stroke="none"))
     b.append(rect(X(X_C1_END), Y(0), X(X_C2_END) - X(X_C1_END), B * S, fill="#f2fbff", stroke="#888", sw=0.6))
     b.append(rect(X(X_C2_END), Y(0), X(X_END) - X(X_C2_END), B * S, fill="#deebf7", stroke="none"))
-    b.append(rect(X(-WALL), Y(-WALL), X(X_END + WALL) - X(-WALL), WALL * S))
-    b.append(rect(X(-WALL), Y(B), X(X_END + WALL) - X(-WALL), WALL * S))
-    b.append(rect(X(-WALL), Y(0), WALL * S, B * S))
+    b.append(rect(X(X_C1_END), Y(-WALL), X(X_END + WALL) - X(X_C1_END), WALL * S))
+    b.append(rect(X(X_C1_END), Y(B), X(X_END + WALL) - X(X_C1_END), WALL * S))
+    b.append(rect(X(-WALL), Y(-OFF1 - WALL), (X_C1_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(B + OFF1), (X_C1_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(X_C1_END), Y(-OFF1), WALL * S, OFF1 * S))
+    b.append(rect(X(X_C1_END), Y(B), WALL * S, OFF1 * S))
+    b.append(rect(X(-WALL), Y(-OFF1), WALL * S, W1 * S))
     b.append(rect(X(X_END), Y(0), WALL * S, B * S))
     # items
-    b.append(rect(X(-WALL) - 40, Y(0.30) - D_IN * S / 2, 40 + (WALL + 0.20) * S, D_IN * S, fill="#bbb"))
-    b.append(f"<circle cx='{X(0.20) - D_IN*S/2:.1f}' cy='{Y(0.30):.1f}' r='{D_IN*S/2:.1f}' fill='#bbb' stroke='#333'/>")
-    b.append(text(X(-WALL) - 42, Y(0.30) - 14, "ท่อน้ำเข้า 6\"", 12))
-    b.append(rect(X(X_BAFFLE), Y(0), 0.10 * S, B * S))
-    b.append(f"<circle cx='{X(X_PUMP):.1f}' cy='{Y(0.6):.1f}' r='{0.16*S:.1f}' fill='#f2a541' stroke='#333'/>")
-    b.append(text(X(X_PUMP), Y(0.6) + 5, "P", 14, "middle", weight="bold"))
-    b.append(f"<path d='M{X(X_PUMP)+0.16*S:.1f},{Y(0.6):.1f} H{X(1.40):.1f} V{Y(-WALL)-28:.1f}' fill='none' stroke='#2c7a2c' stroke-width='5'/>")
-    b.append(text(X(1.40) + 6, Y(-WALL) - 18, "→ Water recycle", 11, color="#2c7a2c"))
+    yi = -OFF1 + 0.30
+    b.append(rect(X(-WALL) - 40, Y(yi) - D_IN * S / 2, 40 + (WALL + 0.20) * S, D_IN * S, fill="#bbb"))
+    b.append(f"<circle cx='{X(0.20) - D_IN*S/2:.1f}' cy='{Y(yi):.1f}' r='{D_IN*S/2:.1f}' fill='#bbb' stroke='#333'/>")
+    b.append(text(X(-WALL) - 42, Y(yi) - 14, "ท่อน้ำเข้า 6\"", 12))
+    b.append(rect(X(X_BAFFLE), Y(-OFF1), 0.10 * S, W1 * S))
+    b.append(f"<circle cx='{X(X_PUMP):.1f}' cy='{Y(B/2):.1f}' r='{0.16*S:.1f}' fill='#f2a541' stroke='#333'/>")
+    b.append(text(X(X_PUMP), Y(B/2) + 5, "P", 14, "middle", weight="bold"))
+    b.append(f"<path d='M{X(X_PUMP)+0.16*S:.1f},{Y(B/2):.1f} H{X(X_PUMP + 0.5):.1f} V{Y(-OFF1-WALL)-28:.1f}' fill='none' stroke='#2c7a2c' stroke-width='5'/>")
+    b.append(text(X(X_PUMP + 0.5) + 6, Y(-OFF1-WALL) - 18, "→ Water recycle", 11, color="#2c7a2c"))
     b.append(rect(X(X_C2_END) - 3, Y(0), 4, B * S, fill="#555"))
     b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
     b.append(rect(X(X_B3) - 2, Y(0), 4, B * S, fill='#4a5560'))
@@ -222,7 +233,7 @@ def plan():
     b.append(line(X(-WALL) - 20, ya, X(X_END + WALL) + 20, ya, "#c00", 1, "12 4 2 4"))
     b.append(text(X(-WALL) - 22, ya + 18, "A", 14, "end", "#c00", "bold"))
     b.append(text(X(X_END + WALL) + 22, ya + 18, "A", 14, "start", "#c00", "bold"))
-    yl = Y(B + WALL) + 18
+    yl = Y(B + OFF1 + WALL) + 18
     for x, t in [(X_BAFFLE + 0.05, "ผนังกั้นลอดใต้"), (X_C2_END, "สันปลาย SS"), (X_WEIR, "แผ่นเวียร์")]:
         b.append(text(X(x), yl, t, 11, "middle"))
     yd = yl + 30
@@ -232,6 +243,9 @@ def plan():
     xd = X(X_END + WALL) + 25
     b.append(line(xd, Y(0), xd, Y(B), arrow=True))
     b.append(text(xd + 6, Y(0.3), f"{B:.2f}", 12))
+    xl1 = X(-WALL) - 60
+    b.append(line(xl1, Y(-OFF1), xl1, Y(B + OFF1), arrow=True))
+    b.append(text(xl1 - 4, Y(B + OFF1) + 16, f"ช่อง 1 กว้าง {W1:.2f}", 11, "middle"))
     W, H = int(xd + 110), int(yd + 25)
     b.insert(0, text(W / 2, 30, "แปลนบ่อ 3 ช่อง (หน่วย m, ผนัง คสล. หนา 0.20)", 16, "middle", weight="bold"))
     return svg(W, H, "".join(b), "แปลนบ่อ 3 ช่อง")
@@ -334,22 +348,27 @@ def dimensions():
 
     # ===================== แปลน =====================
     X = lambda x: 150 + (x + WALL) * S
-    Y = lambda y: 210 + (y + WALL) * S
+    Y = lambda y: 260 + (y + WALL) * S
     b.append(text(X(-WALL) - 110, 140, "แปลน", 15, "start", weight="bold"))
-    b.append(rect(X(0), Y(0), (X_END) * S, B * S, fill="#eef6fc", stroke="none"))
+    b.append(rect(X(0), Y(-OFF1), X_C1_END * S, W1 * S, fill="#eef6fc", stroke="none"))
+    b.append(rect(X(X_C1_END), Y(0), (X_END - X_C1_END) * S, B * S, fill="#eef6fc", stroke="none"))
     b.append(rect(X(X_C1_END), Y(0), (X_C2_END - X_C1_END) * S, B * S, fill="#ffffff", stroke="#999", sw=0.6))
-    b.append(rect(X(-WALL), Y(-WALL), (X_END + 2 * WALL) * S, WALL * S))
-    b.append(rect(X(-WALL), Y(B), (X_END + 2 * WALL) * S, WALL * S))
-    b.append(rect(X(-WALL), Y(0), WALL * S, B * S))
+    b.append(rect(X(X_C1_END), Y(-WALL), (X_END + WALL - X_C1_END) * S, WALL * S))
+    b.append(rect(X(X_C1_END), Y(B), (X_END + WALL - X_C1_END) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(-OFF1 - WALL), (X_C1_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(B + OFF1), (X_C1_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(X_C1_END), Y(-OFF1), WALL * S, OFF1 * S))
+    b.append(rect(X(X_C1_END), Y(B), WALL * S, OFF1 * S))
+    b.append(rect(X(-WALL), Y(-OFF1), WALL * S, W1 * S))
     b.append(rect(X(X_END), Y(0), WALL * S, B * S))
-    b.append(rect(X(X_BAFFLE), Y(0), 0.10 * S, B * S))
+    b.append(rect(X(X_BAFFLE), Y(-OFF1), 0.10 * S, W1 * S))
     b.append(rect(X(X_WEIR), Y(0), T_WW * S, B * S))
     b.append(rect(X(X_B3) - 2, Y(0), 4, B * S, fill='#4a5560'))
     b.append(rect(X(X_PERF) - 2, Y(0), 4, B * S, fill='#4a5560'))
     b.append(rect(X(X_WEIR) - 2, Y(-0.10), 4, (B + 0.2) * S, fill="#333"))
     b.append(rect(X(X_C2_END) - 2, Y(0), 3, B * S, fill="#555"))
-    b.append(f"<circle cx='{X(0.20):.1f}' cy='{Y(0.30):.1f}' r='{0.084*S:.1f}' fill='#bbb' stroke='#333'/>")
-    b.append(rect(X(-WALL) - 30, Y(0.30) - 0.084 * S, 30 + (WALL + 0.20) * S, 0.168 * S, fill="#bbb"))
+    b.append(f"<circle cx='{X(0.20):.1f}' cy='{Y(-OFF1 + 0.30):.1f}' r='{0.084*S:.1f}' fill='#bbb' stroke='#333'/>")
+    b.append(rect(X(-WALL) - 30, Y(-OFF1 + 0.30) - 0.084 * S, 30 + (WALL + 0.20) * S, 0.168 * S, fill="#bbb"))
     b.append(f"<circle cx='{X(X_PUMP):.1f}' cy='{Y(B/2):.1f}' r='{0.20*S:.1f}' fill='#f2a541' stroke='#333'/>")
     b.append(text(X(X_PUMP), Y(B / 2) + 4, "P", 12, "middle", weight="bold"))
     b.append(rect(X(X_END), Y(B / 2) - 0.11 * S, WALL * S + 30, 0.22 * S, fill="#bbb"))
@@ -361,14 +380,14 @@ def dimensions():
     for x1, x2, t in [(0, X_C1_END, "ช่อง 1"), (X_C1_END, X_C2_END, "ช่อง 2 (พื้นยก)"), (X_C2_END, X_END, "ช่อง 3")]:
         b.append(text((X(x1) + X(x2)) / 2, Y(B) - 8, t, 11, "middle", "#1f5f8b", "bold"))
     # chain dims ด้านบน
-    yt = Y(-WALL)
+    yt = Y(-OFF1 - WALL)
     for i in range(len(xs) - 1):
         hdim(b, X(xs[i]), X(xs[i + 1]), yt - 18, f"{xs[i+1]-xs[i]:.2f}", ext=yt, size=10)
     for x1, x2, t in [(-WALL, X_C1_END, f"{X_C1_END + WALL:.2f}"), (X_C1_END, X_C2_END, f"{X_C2_END - X_C1_END:.2f}"), (X_C2_END, X_END + WALL, f"{X_END + WALL - X_C2_END:.2f}")]:
         hdim(b, X(x1), X(x2), yt - 42, t, ext=yt - 18)
     hdim(b, X(-WALL), X(X_END + WALL), yt - 66, f"ยาวภายนอก {X_END + 2*WALL:.2f}", ext=yt - 42, size=12)
     # ด้านล่าง: ภายใน + ตำแหน่งท่อ/ปั๊ม/จุดวัด
-    yb = Y(B + WALL)
+    yb = Y(B + OFF1 + WALL)
     hdim(b, X(0), X(X_END), yb + 22, f"ยาวภายใน {X_END:.2f}", ext=yb, size=12)
     hdim(b, X(0), X(X_PUMP), yb + 46, f"ศก.ปั๊ม {X_PUMP:.2f}", ext=yb + 22, size=10)
     hdim(b, X(X_TAP), X(X_WEIR), yb + 46, f"จุดวัด H {X_WEIR - X_TAP:.2f}", ext=yb + 22, size=10)
@@ -378,26 +397,32 @@ def dimensions():
     for y1, y2, t in [(-WALL, 0, "0.20"), (0, B, f"{B:.2f}"), (B, B + WALL, "0.20")]:
         vdim(b, Y(y1), Y(y2), xr, t, ext=X(X_END + WALL), side=1 if t != "0.20" else 1, size=10)
     vdim(b, Y(-WALL), Y(B + WALL), xr + 34, f"{B + 2*WALL:.2f}", ext=xr, side=1)
-    xl = X(-WALL) - 40
-    vdim(b, Y(0), Y(0.30), xl, "0.30", ext=X(0.20), size=10)
-    b.append(text(X(-WALL) - 32, Y(0.30) + 22, "ท่อเข้า 6\"", 10, "start"))
+    xl = X(-WALL) - 30
+    vdim(b, Y(-OFF1), Y(-OFF1 + 0.30), xl, "0.30", ext=X(0.20), size=9)
+    b.append(text(X(-WALL) - 32, Y(-OFF1 + 0.30) + 22, "ท่อเข้า 6\"", 10, "start"))
+    for y1, y2, t in [(-OFF1 - WALL, -OFF1, "0.20"), (-OFF1, 0, f"{OFF1:.2f}"), (0, B, f"{B:.2f}"), (B, B + OFF1, f"{OFF1:.2f}"), (B + OFF1, B + OFF1 + WALL, "0.20")]:
+        vdim(b, Y(y1), Y(y2), xl - 28, t, ext=X(-WALL), size=9)
+    vdim(b, Y(-OFF1), Y(B + OFF1), xl - 56, f"ช่อง 1 ภายใน {W1:.2f}", ext=xl - 28, size=10)
+    vdim(b, Y(-OFF1 - WALL), Y(B + OFF1 + WALL), xl - 84, f"ภายนอก {W1 + 2*WALL:.2f}", ext=xl - 56, size=10)
     b.append(text(X(X_END + WALL) + 34, Y(B / 2) - 12, "ท่อออก 8\"", 10))
     b.append(line(X(-WALL) - 20, Y(B / 2), X(X_END + WALL) + 20, Y(B / 2), "#c00", 0.8, "10 3 2 3"))
     b.append(text(X(-WALL) - 22, Y(B / 2) + 16, "A", 13, "end", "#c00", "bold"))
     b.append(text(X(X_END + WALL) + 22, Y(B / 2) + 16, "A", 13, "start", "#c00", "bold"))
     b.append(line(X(X_WEIR) - 14, Y(-WALL) - 8, X(X_WEIR) - 14, Y(B + WALL) + 8, "#c00", 0.8, "10 3 2 3"))
-    b.append(text(X(X_WEIR) - 14, Y(B + WALL) + 74, "B", 13, "middle", "#c00", "bold"))
+    b.append(text(X(X_WEIR) - 14, Y(B + OFF1 + WALL) + 74, "B", 13, "middle", "#c00", "bold"))
 
     # ===================== รูปตัด A-A =====================
-    top = Y(B + WALL) + 140
+    top = Y(B + OFF1 + WALL) + 140
     Z = lambda z: top + (Z_WALL_TOP + 0.05 - z) * S
     b.append(text(X(-WALL), top - 6, "รูปตัด A–A", 15, "start", weight="bold"))
-    b.append(rect(X(0), Z(Z_C1), X_C1_END * S, Z(0) - Z(Z_C1), fill="#cfe5f3", stroke="none"))
+    b.append(rect(X(0), Z(Z_C1), X_C1_END * S, Z(Z_F1) - Z(Z_C1), fill="#cfe5f3", stroke="none"))
     b.append(rect(X(X_C1_END), Z(Z_C2), (X_C2_END - X_C1_END) * S, Z(Z_RAISED) - Z(Z_C2), fill="#cfe5f3", stroke="none"))
     b.append(rect(X(X_C2_END), Z(Z_MAX), (X_WEIR - X_C2_END) * S, Z(0) - Z(Z_MAX), fill="#cfe5f3", stroke="none"))
     b.append(rect(X(X_WEIR + T_WW), Z(Z_TAIL), (X_END - X_WEIR - T_WW) * S, Z(0) - Z(Z_TAIL), fill="#cfe5f3", stroke="none"))
-    b.append(rect(X(-WALL), Z(0), (X_END + 2 * WALL) * S, TS * S))
-    b.append(rect(X(-WALL), Z(Z_WALL_TOP), WALL * S, Z_WALL_TOP * S))
+    b.append(rect(X(-WALL), Z(Z_F1), (X_C1_END + 2 * WALL) * S, TS * S))
+    b.append(rect(X(X_C1_END), Z(0), (X_END + WALL - X_C1_END) * S, TS * S))
+    b.append(rect(X(X_C1_END), Z(0), WALL * S, (0 - Z_F1) * S))
+    b.append(rect(X(-WALL), Z(Z_WALL_TOP), WALL * S, (Z_WALL_TOP - Z_F1) * S))
     b.append(rect(X(X_END), Z(Z_WALL_TOP), WALL * S, Z_WALL_TOP * S))
     b.append(rect(X(X_BAFFLE), Z(Z_WALL_TOP), 0.10 * S, (Z_WALL_TOP - Z_GAP) * S))
     b.append(rect(X(X_C1_END), Z(Z_RAISED), (X_C2_END - X_C1_END) * S, Z_RAISED * S))
@@ -408,7 +433,7 @@ def dimensions():
     b.append(rect(X(X_WEIR) - 3, Z(Z_NOTCH_TOP + 0.10), 4, (Z_NOTCH_TOP + 0.10 - Z_PB) * S, fill="#333"))
     b.append(rect(X(-WALL) - 30, Z(1.10), 30 + (WALL + 0.20) * S, 0.168 * S, fill="#bbb"))
     b.append(rect(X(0.20) - 0.168 * S, Z(1.10), 0.168 * S, (1.10 - Z_DIP) * S, fill="#bbb"))
-    b.append(rect(X(X_PUMP) - 0.20 * S, Z(0.55), 0.40 * S, 0.55 * S, fill="#f2a541"))
+    b.append(rect(X(X_PUMP) - 0.20 * S, Z(Z_F1 + 0.55), 0.40 * S, 0.55 * S, fill="#f2a541"))
     b.append(rect(X(X_END), Z(D_OUT), WALL * S + 30, D_OUT * S, fill="#bbb"))
     b.append(rect(X(X_TAP) - 24, Z(Z_WALL_TOP + 0.03), 48, 4, fill="#666"))
     b.append(rect(X(X_TAP) - 7, Z(Z_DL + 0.07), 14, 0.07 * S, fill="#f5f5f5", stroke="#333"))
@@ -422,8 +447,9 @@ def dimensions():
     levels = [(Z_WALL_TOP, "สันกำแพง"), (Z_DL, "หน้าเซนเซอร์ Flow meter"), (Z_BOD, "ปลาย BOD probe"), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED + SILL, "สันปลายช่อง 2"),
               (Z_RAISED, "ผิวพื้นยก"), (Z_NOTCH_TOP + 0.10, "ขอบบนแผ่นเวียร์"), (Z_NOTCH_TOP, "ขอบบนร่อง V"),
               (Z_MAX, "น้ำช่อง 3 (100 m³/h)"), (Z_START, "ปั๊ม START"), (Z_VERTEX, "ยอด V"), (Z_WW, "สันกำแพงเวียร์"),
-              (Z_PB, "ขอบล่างแผ่นเวียร์ / ปั๊ม STOP"), (Z_GAP, "ขอบล่างผนังกั้นช่อง 1 / สันล้นช่อง 3"), (Z_B3, "ขอบล่างผนังลอดใต้ช่อง 3"), (Z_TAIL, "น้ำท้ายเวียร์"),
-              (0.0, "ผิวพื้นในบ่อ"), (-TS, "ใต้พื้น")]
+              (Z_PB, "ขอบล่างแผ่นเวียร์"), (Z_S3, "สันล้นช่อง 3"), (Z_B3, "ขอบล่างผนังลอดใต้ช่อง 3"), (Z_TAIL, "น้ำท้ายเวียร์"),
+              (0.0, "ผิวพื้นช่อง 2–3"), (Z_STOP, "ปั๊ม STOP"), (Z_DIP, "ปลายท่อจุ่ม"), (Z_GAP, "ขอบล่างผนังกั้นช่อง 1"),
+              (Z_F1, "ผิวพื้นช่อง 1"), (Z_F1 - TS, "ใต้พื้นช่อง 1")]
     ly = Z(Z_WALL_TOP)
     for z, name in sorted(levels, key=lambda t: -t[0]):
         yy = max(Z(z), ly)
@@ -432,16 +458,18 @@ def dimensions():
         b.append(text(xe + 6, yy + 4, f"{z:+.3f}  {name}", 10, "start", "#c00" if z == Z_VERTEX else "#222"))
         ly = yy + 13
     # มิติแนวตั้ง
-    vdim(b, Z(Z_WALL_TOP), Z(0), X(-WALL) - 22, f"{Z_WALL_TOP:.2f}", ext=X(-WALL))
-    vdim(b, Z(0), Z(-TS), X(-WALL) - 22, "0.20", ext=X(-WALL), size=10)
-    vdim(b, Z(Z_WALL_TOP), Z(-TS), X(-WALL) - 48, f"สูงภายนอก {Z_WALL_TOP + TS:.2f}", ext=X(-WALL) - 22)
-    vdim(b, Z(Z_GAP), Z(0), X(X_BAFFLE + 0.10) + 14, f"{Z_GAP:.2f}", side=1, size=10)
+    vdim(b, Z(Z_WALL_TOP), Z(Z_F1), X(-WALL) - 22, f"{Z_WALL_TOP - Z_F1:.2f}", ext=X(-WALL))
+    vdim(b, Z(Z_F1), Z(Z_F1 - TS), X(-WALL) - 22, "0.20", ext=X(-WALL), size=10)
+    vdim(b, Z(Z_WALL_TOP), Z(Z_F1 - TS), X(-WALL) - 48, f"ช่อง 1 สูงภายนอก {Z_WALL_TOP - Z_F1 + TS:.2f}", ext=X(-WALL) - 22)
+    vdim(b, Z(Z_GAP), Z(Z_F1), X(X_BAFFLE + 0.10) + 14, f"{Z_GAP - Z_F1:.2f}", side=1, size=10)
+    vdim(b, Z(Z_C1), Z(Z_F1), X(X_PUMP) + 40, f"น้ำลึก {Z_C1 - Z_F1:.2f}", side=1, size=10)
+    vdim(b, Z(0), Z(Z_F1), X(X_C1_END) - 12, f"{-Z_F1:.2f}", size=10)
     vdim(b, Z(Z_RAISED), Z(0), X(X_C2_MID), f"{Z_RAISED:.2f}", side=1)
     vdim(b, Z(Z_VERTEX), Z(0), X(X_WEIR) - 22, f"P {Z_VERTEX:.2f}")
     vdim(b, Z(Z_WW), Z(0), X(X_WEIR + T_WW) + 16, f"{Z_WW:.2f}", side=1, size=10)
     vdim(b, Z(Z_NOTCH_TOP + 0.10), Z(Z_PB), X(X_WEIR + T_WW) + 16, f"แผ่น {Z_NOTCH_TOP + 0.10 - Z_PB:.2f}", side=1, size=10)
     # มิติแนวนอน
-    yb2 = Z(-TS)
+    yb2 = Z(Z_F1 - TS)
     for i in range(len(xs) - 1):
         hdim(b, X(xs[i]), X(xs[i + 1]), yb2 + 20, f"{xs[i+1]-xs[i]:.2f}", ext=yb2, size=10)
     b.append(text(X(1.0), Z(0.70), "ช่อง 1", 11, "middle", "#1f5f8b", "bold"))
@@ -478,7 +506,7 @@ def dimensions():
     hdim(b, Xc(-w), Xc(w), yt3 - 14, f"ปากร่อง {2*w:.2f}", ext=Z3(pt))
     hdim(b, Xc(B / 2), Xc(hp), yt3 - 14, "0.10", ext=Z3(pt), size=9)
     hdim(b, Xc(-hp), Xc(hp), yt3 - 36, f"แผ่น SS {2*hp:.2f}", ext=yt3 - 14)
-    yb_b = Z3(Z_NOTCH_TOP) + 14
+    yb_b = Z3(Z_NOTCH_TOP + 0.05)
     hdim(b, Xc(-B / 2), Xc(-w), yb_b, f"b {(B/2 - w):.3f} ≥ 2H", size=10)
     hdim(b, Xc(w), Xc(B / 2), yb_b, f"b {(B/2 - w):.3f}", size=10)
     xr3 = Xc(half) + 30
@@ -496,16 +524,17 @@ def dimensions():
     # ===================== ตารางสรุป =====================
     tx, ty = Xc(half) + 160, top3 + 10
     rows = [("รายการ", "ขนาด (m)"),
-            ("ขนาดภายใน (ยาว × กว้าง × สูง)", f"{X_END:.2f} × {B:.2f} × {Z_WALL_TOP:.2f}"),
-            ("ขนาดภายนอก", f"{X_END + 2*WALL:.2f} × {B + 2*WALL:.2f} × {Z_WALL_TOP + TS:.2f}"),
+            ("ขนาดภายใน (ยาว × กว้าง × สูง)", f"{X_END:.2f} × {B:.2f} × {Z_WALL_TOP:.2f}  (ช่อง 1: {W1:.2f} × {Z_WALL_TOP - Z_F1:.2f})"),
+            ("ขนาดภายนอก (ยาว × กว้างช่อง 1 / ช่อง 2–3)", f"{X_END + 2*WALL:.2f} × {W1 + 2*WALL:.2f} / {B + 2*WALL:.2f}"),
             ("ผนัง / พื้น คสล.", "0.20 / 0.20"),
-            ("ช่อง 1 (โซนน้ำเข้า + ผนังกั้น + โซนปั๊ม)", "0.50 + 0.10 + 1.00 = 1.60"),
+            ("ช่อง 1 (โซนน้ำเข้า + ผนังกั้น + โซนปั๊ม)", f"0.50 + 0.10 + {X_C1_END - 0.60:.2f} = {X_C1_END:.2f}"),
+            ("ช่อง 1 กว้าง × น้ำลึก (พื้น −1.00)", f"{W1:.2f} × {Z_C1 - Z_F1:.2f}  →  HRT 15 นาที"),
             ("ช่อง 2 พื้นยก (ยาว × สูง)", f"{X_C2_END - X_C1_END:.2f} × {Z_RAISED:.2f}"),
             ("ช่อง 3 (รับน้ำตก + ลอดใต้–สันล้น + ช่วงตรง + กำแพง + ท้าย)", "0.30 + 0.20 + 2.10 + 0.20 + 0.95 = 3.75"),
             ("กำแพงเวียร์ คสล. (หนา × สูง)", f"0.20 × {Z_WW:.2f}"),
             ("แผ่นเวียร์ SS304 (กว้าง × สูง × หนา)", f"{2*hp:.2f} × {pt - Z_PB:.2f} × 0.006"),
             ("ร่อง V 90° (ลึก × ปาก)", f"{w:.2f} × {2*w:.2f}"),
-            ("ช่องลอดใต้ผนังกั้น", f"{Z_GAP:.2f}"),
+            ("ช่องลอดใต้ผนังกั้นช่อง 1 / ช่อง 3", f"{Z_GAP - Z_F1:.2f} / {Z_B3:.2f}"),
             ("สันปลายช่อง 2 (SS)", f"{SILL:.2f}")]
     cw = (330, 270)
     for i, (a, c) in enumerate(rows):
@@ -827,9 +856,127 @@ def hrt_options():
     return svg(W_, H_, "".join(b), "ทางเลือกช่อง 1 HRT 15 นาที")
 
 
+# ---------------------------------------------------------------- รายละเอียดช่อง 1 (ทางเลือก A)
+def comp1_detail():
+    S = 150
+    x0, x1e = -WALL - 0.10, X_C1_END + 1.10
+    X = lambda x: 150 + (x - x0) * S
+    b = []
+    xi = 0.20                      # ศก.ท่อจุ่ม จากผิวในผนังหัวบ่อ
+    dpo = 0.168
+    # ---------- แปลน ----------
+    Y = lambda y: 190 + (y + OFF1 + WALL) * S
+    b.append(text(X(x0) - 120, 105, "แปลนช่อง 1", 15, "start", weight="bold"))
+    b.append(rect(X(0), Y(-OFF1), X_C1_END * S, W1 * S, fill="#eef6fc", stroke="none"))
+    b.append(rect(X(X_C1_END), Y(0), (x1e - X_C1_END) * S, B * S, fill="#ffffff", stroke="#999", sw=0.6))
+    b.append(rect(X(-WALL), Y(-OFF1 - WALL), (X_C1_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(B + OFF1), (X_C1_END + 2 * WALL) * S, WALL * S))
+    b.append(rect(X(-WALL), Y(-OFF1), WALL * S, W1 * S))
+    b.append(rect(X(X_C1_END), Y(-OFF1), WALL * S, OFF1 * S))
+    b.append(rect(X(X_C1_END), Y(B), WALL * S, OFF1 * S))
+    b.append(rect(X(X_C1_END), Y(-WALL), (x1e - X_C1_END) * S, WALL * S))
+    b.append(rect(X(X_C1_END), Y(B), (x1e - X_C1_END) * S, WALL * S))
+    b.append(rect(X(X_BAFFLE), Y(-OFF1), 0.10 * S, W1 * S))
+    yi = -OFF1 + 0.30
+    b.append(rect(X(-WALL) - 40, Y(yi) - dpo * S / 2, 40 + (WALL + xi) * S, dpo * S, fill="#bbb"))
+    b.append(f"<circle cx='{X(xi):.1f}' cy='{Y(yi):.1f}' r='{dpo*S/2:.1f}' fill='#bbb' stroke='#333'/>")
+    b.append(text(X(-WALL) - 44, Y(yi) - 16, "ท่อเข้า 6\"", 12))
+    b.append(f"<circle cx='{X(X_PUMP):.1f}' cy='{Y(B/2):.1f}' r='{0.20*S:.1f}' fill='#f2a541' stroke='#333'/>")
+    b.append(text(X(X_PUMP), Y(B / 2) + 5, "P", 14, "middle", weight="bold"))
+    b.append(text(X(X_PUMP), Y(B / 2) + 0.20 * S + 16, "ฐานปั๊ม 0.40 × 0.40", 10, "middle"))
+    b.append(text(X((X_C1_END + x1e) / 2), Y(B / 2), "ช่อง 2 (พื้นยก)", 11, "middle", "#1f5f8b", "bold"))
+    b.append(text(X(0.25), Y(B + OFF1) - 10, "โซนน้ำเข้า", 10, "middle", "#1f5f8b"))
+    b.append(text(X((0.60 + X_C1_END) / 2), Y(B + OFF1) - 10, "โซนปั๊ม", 11, "middle", "#1f5f8b", "bold"))
+    # มิติแปลน (บน)
+    yt = Y(-OFF1 - WALL)
+    for a, c, t in [(-WALL, 0, "0.20"), (0, X_BAFFLE, "0.50"), (X_BAFFLE, X_BAFFLE + 0.10, "0.10"),
+                    (X_BAFFLE + 0.10, X_C1_END, f"{X_C1_END - 0.60:.2f}"), (X_C1_END, X_C1_END + WALL, "0.20")]:
+        hdim(b, X(a), X(c), yt - 18, t, ext=yt, size=10)
+    hdim(b, X(0), X(X_C1_END), yt - 42, f"ช่อง 1 ยาวภายใน {X_C1_END:.2f}", ext=yt - 18, size=12)
+    # มิติแปลน (ล่าง): ท่อจุ่ม, ปั๊ม
+    yb = Y(B + OFF1 + WALL)
+    hdim(b, X(0), X(xi), yb + 20, f"{xi:.2f}", ext=yb, size=9)
+    hdim(b, X(0), X(X_PUMP), yb + 44, f"ศก.ปั๊ม {X_PUMP:.2f}", ext=yb + 20, size=10)
+    hdim(b, X(X_PUMP), X(X_C1_END), yb + 44, f"{X_C1_END - X_PUMP:.2f}", ext=yb + 20, size=10)
+    hdim(b, X(X_BAFFLE + 0.10), X(X_PUMP), yb + 68, f"ผนังกั้น → ศก.ปั๊ม {X_PUMP - 0.60:.2f}", ext=yb + 44, size=10)
+    # มิติแปลน (ซ้าย/ขวา)
+    xl = X(-WALL) - 60
+    vdim(b, Y(-OFF1), Y(yi), X(-WALL) - 22, "0.30", ext=X(xi), size=9)
+    for y1, y2, t in [(-OFF1 - WALL, -OFF1, "0.20"), (-OFF1, B + OFF1, f"ภายใน {W1:.2f}"), (B + OFF1, B + OFF1 + WALL, "0.20")]:
+        vdim(b, Y(y1), Y(y2), xl, t, ext=X(-WALL), size=10)
+    vdim(b, Y(-OFF1 - WALL), Y(B + OFF1 + WALL), xl - 30, f"ภายนอก {W1 + 2*WALL:.2f}", ext=xl)
+    xr = X(x1e) + 20
+    for y1, y2, t in [(-OFF1, 0, f"{OFF1:.2f}"), (0, B / 2, f"{B/2:.2f}"), (B / 2, B, f"{B/2:.2f}"), (B, B + OFF1, f"{OFF1:.2f}")]:
+        vdim(b, Y(y1), Y(y2), xr, t, ext=X(X_C1_END + WALL), side=1, size=9)
+    b.append(text(xr + 14, Y(B / 2) + 18, "ศก.ปั๊ม = แนวกลางบ่อ", 10, "start", "#555"))
+    # ---------- รูปตัด ----------
+    top = Y(B + OFF1 + WALL) + 140
+    Z = lambda z: top + (1.40 - z) * S
+    b.append(text(X(x0), top - 10, "รูปตัดช่อง 1 (แนว A–A)", 15, "start", weight="bold"))
+    b.append(rect(X(0), Z(Z_C1), X_C1_END * S, (Z_C1 - Z_F1) * S, fill="#cfe5f3", stroke="none"))
+    b.append(rect(X(X_C1_END), Z(Z_RAISED + 0.067), (x1e - X_C1_END) * S, 0.067 * S, fill="#e3f4fb", stroke="none"))
+    b.append(rect(X(-WALL), Z(Z_F1), (X_C1_END + 2 * WALL) * S, 0.20 * S))
+    b.append(rect(X(-WALL), Z(Z_WALL_TOP), WALL * S, (Z_WALL_TOP - Z_F1) * S))
+    b.append(rect(X(X_C1_END), Z(Z_RAISED), (x1e - X_C1_END) * S, (Z_RAISED - Z_F1) * S))
+    b.append(rect(X(X_BAFFLE), Z(Z_WALL_TOP), 0.10 * S, (Z_WALL_TOP - Z_GAP) * S))
+    b.append(rect(X(-WALL) - 40, Z(1.10 + dpo / 2), 40 + (WALL + xi) * S, dpo * S, fill="#bbb"))
+    b.append(rect(X(xi) - dpo * S / 2, Z(1.10 + dpo / 2), dpo * S, (1.10 + dpo / 2 - Z_DIP) * S, fill="#bbb"))
+    b.append(f"<circle cx='{X(xi):.1f}' cy='{Z(1.10 + dpo/2) + 4:.1f}' r='3' fill='#fff' stroke='#333'/>")
+    b.append(text(X(xi) + 14, Z(1.10 + dpo / 2) - 4, "รูกันกาลักน้ำ Ø10–15", 9, "start", "#555"))
+    b.append(rect(X(X_PUMP) - 0.20 * S, Z(Z_F1 + 0.55), 0.40 * S, 0.55 * S, fill="#f2a541"))
+    b.append(text(X(X_PUMP), Z(Z_F1 + 0.28), "ปั๊มจุ่ม", 11, "middle", weight="bold"))
+    b.append(f"<path d='M{X(X_PUMP) + 0.2*S:.1f},{Z(Z_F1 + 0.35):.1f} H{X(X_PUMP + 0.45):.1f} V{Z(1.45):.1f} H{X(X_C1_END + 0.9):.1f}' fill='none' stroke='#2c7a2c' stroke-width='6'/>")
+    b.append(text(X(X_C1_END + 0.9) - 4, Z(1.45) - 8, "→ Water recycle 10 m³/h", 11, "end", "#2c7a2c"))
+    for z, name, c in [(Z_START, "ปั๊ม START", "#2c7a2c"), (Z_STOP, "ปั๊ม STOP", "#2c7a2c")]:
+        b.append(line(X(0.62), Z(z), X(X_C1_END), Z(z), c, 1, "6 3"))
+    # ระดับด้านขวา
+    xe = X(x1e) + 30
+    lv = [(Z_WALL_TOP, "สันกำแพง"), (1.10, "ศก.ท่อเข้า 6\""), (Z_C1, "น้ำช่อง 1 (100 m³/h)"), (Z_RAISED, "ผิวพื้นยกช่อง 2"),
+          (Z_START, "ปั๊ม START"), (Z_STOP, "ปั๊ม STOP"), (Z_DIP, "ปลายท่อจุ่ม"), (Z_GAP, "ขอบล่างผนังกั้น"),
+          (Z_F1 + 0.55, "หัวปั๊ม (สูง 0.55)"), (Z_F1, "ผิวพื้นช่อง 1"), (Z_F1 - TS, "ใต้พื้น")]
+    ly = Z(Z_WALL_TOP)
+    for z, name in sorted(lv, key=lambda t: -t[0]):
+        yy = max(Z(z), ly)
+        b.append(f"<path d='M{X(x1e) + 2:.1f},{Z(z):.1f} H{xe - 12:.1f} L{xe - 4:.1f},{yy:.1f}' fill='none' stroke='#aaa' stroke-width='0.6'/>")
+        b.append(f"<polygon points='{xe-4:.1f},{yy:.1f} {xe-10:.1f},{yy-5:.1f} {xe+2:.1f},{yy-5:.1f}' fill='#333'/>")
+        b.append(text(xe + 6, yy + 4, f"{z:+.3f}  {name}", 11))
+        ly = yy + 15
+    # มิติแนวตั้ง
+    vdim(b, Z(Z_WALL_TOP), Z(Z_F1), X(-WALL) - 24, f"ผนังสูง {Z_WALL_TOP - Z_F1:.2f}", ext=X(-WALL))
+    vdim(b, Z(Z_F1), Z(Z_F1 - TS), X(-WALL) - 24, "0.20", ext=X(-WALL), size=9)
+    vdim(b, Z(Z_C1), Z(Z_F1), X(X_C1_END) - 20, f"น้ำลึก {Z_C1 - Z_F1:.2f}", size=10)
+    vdim(b, Z(Z_GAP), Z(Z_F1), X(X_BAFFLE + 0.10) + 16, f"ช่องลอด {Z_GAP - Z_F1:.2f}", side=1, size=10)
+    vdim(b, Z(Z_DIP), Z(Z_F1), X(xi) + 20, f"{Z_DIP - Z_F1:.2f}", side=1, size=9)
+    vdim(b, Z(Z_STOP), Z(Z_F1), X(X_PUMP) - 46, f"STOP {Z_STOP - Z_F1:.2f}", size=9)
+    vdim(b, Z(Z_RAISED), Z(Z_F1), X(X_C1_END) + 24, f"ขั้นพื้นยก {Z_RAISED - Z_F1:.2f}", side=1, size=10)
+    # มิติแนวนอน
+    yb2 = Z(Z_F1 - TS)
+    for a, c, t in [(-WALL, 0, "0.20"), (0, X_BAFFLE, "0.50"), (X_BAFFLE, X_BAFFLE + 0.10, "0.10"),
+                    (X_BAFFLE + 0.10, X_C1_END, f"{X_C1_END - 0.60:.2f}"), (X_C1_END, X_C1_END + WALL, "0.20")]:
+        hdim(b, X(a), X(c), yb2 + 20, t, ext=yb2, size=10)
+    # ตารางสรุป
+    tx, ty = X(x0), yb2 + 70
+    vol = X_C1_END * W1 * (0.953 - Z_F1) - 0.09
+    rows = [("ช่อง 1 ภายใน (ยาว × กว้าง × ลึกน้ำ)", f"{X_C1_END:.2f} × {W1:.2f} × {0.953 - Z_F1:.2f} m (ที่ Qavg)"),
+            ("ปริมาตรน้ำ / HRT", f"≈ {vol:.1f} m³  →  {vol/62.8*60:.1f} นาที ที่ Qavg 62.8 m³/h"),
+            ("ผิวพื้น / ใต้พื้น", f"{Z_F1:+.2f} / {Z_F1 - TS:+.2f}  (พื้นช่อง 2–3 ±0.00)"),
+            ("ผนังช่อง 1", f"คสล. 0.20 สูง {Z_WALL_TOP - Z_F1:.2f} m — วิศวกรโยธาตรวจเหล็กเสริม/แรงดันดิน"),
+            ("พื้นช่อง 1", "ลาดเข้าหาปั๊ม 1:10 เพื่อไม่ให้ตะกอนค้าง")]
+    for i, (a_, c_) in enumerate(rows):
+        yy = ty + i * 24
+        b.append(rect(tx, yy, 300, 24, fill="#f2f2f2" if i % 2 else "#ffffff", stroke="#bbb", sw=0.6))
+        b.append(rect(tx + 300, yy, 520, 24, fill="#f2f2f2" if i % 2 else "#ffffff", stroke="#bbb", sw=0.6))
+        b.append(text(tx + 6, yy + 16, a_, 11))
+        b.append(text(tx + 306, yy + 16, c_, 11, "start", "#222", "bold"))
+    W_ = int(xe + 230)
+    H_ = int(ty + len(rows) * 24 + 30)
+    b.insert(0, text(W_ / 2, 40, "รายละเอียดช่อง 1 (ทางเลือก A, HRT 15 นาที) — หน่วย m, ระดับจากผิวพื้นช่อง 2–3 (±0.00)", 16, "middle", weight="bold"))
+    return svg(W_, H_, "".join(b), "รายละเอียดช่อง 1")
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors), ("folded", folded), ("hrt_options", hrt_options)]:
+    for name, fn in [("section", section), ("plan", plan), ("weir_plate", plate), ("dimensions", dimensions), ("sensors", sensors), ("hrt_options", hrt_options), ("comp1_detail", comp1_detail)]:
         with open(os.path.join(OUT, f"{name}.svg"), "w", encoding="utf-8") as f:
             f.write(fn())
         print(f"{OUT}/{name}.svg")
