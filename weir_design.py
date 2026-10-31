@@ -148,7 +148,7 @@ if __name__ == "__main__":
     p.add_argument("--raised", type=float, default=0.90, help="ระดับผิวพื้นยกช่อง 2 [m]")
     p.add_argument("--sill", type=float, default=0.02, help="ความสูงสันปลายพื้นยก [m]")
     p.add_argument("--start", type=float, default=0.80, help="ระดับปั๊ม START [m]")
-    p.add_argument("--stop", type=float, default=-0.60, help="ระดับปั๊ม STOP [m]")
+    p.add_argument("--stop", type=float, default=-0.70, help="ระดับปั๊ม STOP [m]")
     p.add_argument("--freeboard", type=float, default=0.20, help="ระยะเผื่อเหนือน้ำช่อง 1 สูงสุด [m]")
     p.add_argument("--d-out", type=float, default=0.200, help="ท่อออก [m] (8\" ≈ 0.200)")
     p.add_argument("--csv", help="บันทึก rating table เป็นไฟล์ CSV")
