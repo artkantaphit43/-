@@ -2,11 +2,12 @@
 """
 ออกแบบบ่อ 3 ช่อง: ช่องรับน้ำ/ปั๊มจุ่ม -> ช่องโชว์น้ำใส (ยกพื้น น้ำไหลบาง) -> ช่องเวียร์ V-notch 90°
 
-    ช่อง 1  ท่อ 6" (ท่อจุ่ม) -> ผนังกั้นลอดใต้ -> โซนปั๊มจุ่ม (สูบไป Water recycle)
+    ช่อง 1  ท่อ 6" (ท่อตรง ไม่หักลง) -> บัฟเฟอร์ คสล. ลอดใต้ -> โซนปั๊มจุ่ม (สูบไป Water recycle)
             น้ำที่เหลือล้นข้ามขั้นขึ้นพื้นยกของช่อง 2
-    ช่อง 2  พื้นยกสูง ปลายมีสันเตี้ย (end sill) คุมให้ชั้นน้ำบางและนิ่ง (Froude < 0.5)
-            น้ำตกข้ามสันลงช่อง 3 แบบอิสระ
-    ช่อง 3  โซนรับน้ำตก -> แผ่นกันคลื่นรูพรุน -> ช่วงตรง -> V-notch 90° -> ท่อออก 8"
+    ช่อง 2  พื้นยกสั้น ปลายมีสันเตี้ย (end sill) น้ำตกข้ามสันลงช่อง 3 เป็นม่านน้ำ
+    ช่อง 3  โซนรับน้ำตก -> ① ผนังลอดใต้ + ② สันล้น (คสล.) -> ช่วงตรง -> V-notch 90° -> ท่อออก 8"
+
+ขนาดเวียร์หาจาก Q ออกแบบ 65 m³/h (เดินระบบ 24 ชม.) แล้วตรวจว่าน้ำ 100 m³/h ไม่ล้นร่อง V
 
 สมการเวียร์ Kindsvater-Shen (ISO 1438), θ = 90°: Q [m³/s] = 1.365·(h + 0.00085)^2.5
 สันปลายช่อง 2 (sharp-crested, ไม่มีการบีบด้านข้าง):    Q = 1.84·B·H^1.5   (Francis)
@@ -46,6 +47,7 @@ def design(a):
     B = a.b
     q_weir = [(a.qmin - a.q_recycle), (a.qmax - a.q_recycle), a.qmax]  # m³/h
     hmax = h_from_q(a.qmax / 3600)
+    hd = h_from_q(a.qd / 3600)
     hmin = h_from_q(q_weir[0] / 3600)
     P = a.p
 
@@ -82,8 +84,9 @@ def design(a):
     for name, qh in [("ต่ำสุด (ปั๊มเดิน)", q_weir[0]), ("สูงสุด (ปั๊มเดิน)", q_weir[1]), ("สูงสุด (ปั๊มหยุด)", q_weir[2])]:
         print(f"   {name:<20} {qh:5.0f} m³/h -> h = {h_from_q(qh/3600)*100:5.1f} cm")
     print(f"   P = {P:.2f} m, ร่อง V ลึก {a.notch_depth:.2f} m (ปาก {2*a.notch_depth:.2f} m)")
-    print(f"   ช่วงตรงหน้าเวียร์ {a.l_approach:.2f} m (≥ 10·hmax = {10*hmax:.2f}), "
-          f"จุดวัด h ห่างแผ่น {a.x_tap:.2f} m (4–5·hmax = {4*hmax:.2f}–{5*hmax:.2f})")
+    print(f"   Q ออกแบบ {a.qd:.0f} m³/h -> h = {hd*100:.1f} cm")
+    print(f"   ช่วงตรงหน้าเวียร์ {a.l_approach:.2f} m (≥ 10·h = {10*hd:.2f}), "
+          f"จุดวัด h ห่างแผ่น {a.x_tap:.2f} m (4–5·h = {4*hd:.2f}–{5*hd:.2f})")
     print("-" * 70)
     print(" ระดับ (พื้นบ่อ = ±0.000 m)")
     for name, el in [
@@ -103,12 +106,14 @@ def design(a):
 
     checks = [
         ("0.05 ≤ h ≤ 0.38 m ตลอดช่วง", 0.05 <= hmin and hmax <= 0.38),
-        ("h/P ≤ 0.4", hmax / P <= 0.4),
-        ("h/B ≤ 0.2", hmax / B <= 0.2),
+        ("h/P ≤ 0.4 (Q ออกแบบ)", hd / P <= 0.4),
+        ("h/B ≤ 0.2 (Q ออกแบบ)", hd / B <= 0.2),
         ("P ≥ 0.45 m, B ≥ 0.90 m", P >= 0.45 and B >= 0.90),
-        ("ร่อง V ลึก ≥ hmax + 80 mm", a.notch_depth >= hmax + 0.08 - 1e-9),
-        ("ช่วงตรงหน้าเวียร์ ≥ 10·hmax", a.l_approach >= 10 * hmax - 1e-9),
-        ("จุดวัด h อยู่ใน 4–5·hmax", 4 * hmax - 1e-9 <= a.x_tap <= 5 * hmax + 1e-9),
+        ("b ≥ 2h ข้างละ (USBR / มข.)", (B - 2 * a.notch_depth) / 2 >= 2 * hd - 1e-9),
+        ("ร่อง V ลึก ≥ h + 80 mm", a.notch_depth >= hd + 0.08 - 1e-3),
+        ("น้ำ 100 m³/h ไม่ล้นขอบร่อง V", hmax <= a.notch_depth),
+        ("ช่วงตรงหน้าเวียร์ ≥ 10·h", a.l_approach >= 10 * hd - 1e-9),
+        ("จุดวัด h อยู่ใน 4–5·h", 4 * hd - 1e-9 <= a.x_tap <= 5 * hd + 1e-9),
         ("ความเร็วหน้าเวียร์ < 0.15 m/s", v_approach < 0.15),
         ("น้ำท้ายต่ำกว่ายอด V ≥ 60 mm", el_tail <= el_vertex - 0.06),
         ("ช่อง 2 น้ำนิ่ง (Froude < 0.5 ทุกอัตราไหล)", all(r[3] < 0.5 for r in rows2)),
@@ -133,16 +138,17 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--qmin", type=float, default=50.0, help="น้ำเข้าต่ำสุด [m³/h]")
     p.add_argument("--qmax", type=float, default=100.0, help="น้ำเข้าสูงสุด [m³/h]")
+    p.add_argument("--qd", type=float, default=65.0, help="Q ออกแบบเวียร์ [m³/h]")
     p.add_argument("--q-recycle", type=float, default=10.0, help="สูบไป Water recycle [m³/h]")
-    p.add_argument("--b", type=float, default=1.50, help="ความกว้างภายในบ่อ [m]")
-    p.add_argument("--p", type=float, default=0.60, help="ความสูงยอด V จากพื้นบ่อ [m]")
-    p.add_argument("--notch-depth", type=float, default=0.30, help="ความลึกร่อง V [m]")
-    p.add_argument("--l-approach", type=float, default=2.10, help="ช่วงตรงหน้าเวียร์ [m]")
-    p.add_argument("--x-tap", type=float, default=0.95, help="ระยะจุดวัด h เหนือแผ่นเวียร์ [m]")
+    p.add_argument("--b", type=float, default=1.25, help="ความกว้างภายในบ่อ [m]")
+    p.add_argument("--p", type=float, default=0.50, help="ความสูงยอด V จากพื้นบ่อ [m]")
+    p.add_argument("--notch-depth", type=float, default=0.26, help="ความลึกร่อง V [m]")
+    p.add_argument("--l-approach", type=float, default=1.80, help="ช่วงตรงหน้าเวียร์ [m]")
+    p.add_argument("--x-tap", type=float, default=0.80, help="ระยะจุดวัด h เหนือแผ่นเวียร์ [m]")
     p.add_argument("--raised", type=float, default=0.90, help="ระดับผิวพื้นยกช่อง 2 [m]")
     p.add_argument("--sill", type=float, default=0.02, help="ความสูงสันปลายพื้นยก [m]")
     p.add_argument("--start", type=float, default=0.80, help="ระดับปั๊ม START [m]")
-    p.add_argument("--stop", type=float, default=0.40, help="ระดับปั๊ม STOP [m]")
+    p.add_argument("--stop", type=float, default=-0.60, help="ระดับปั๊ม STOP [m]")
     p.add_argument("--freeboard", type=float, default=0.20, help="ระยะเผื่อเหนือน้ำช่อง 1 สูงสุด [m]")
     p.add_argument("--d-out", type=float, default=0.200, help="ท่อออก [m] (8\" ≈ 0.200)")
     p.add_argument("--csv", help="บันทึก rating table เป็นไฟล์ CSV")
