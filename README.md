@@ -12,6 +12,7 @@
 | `make_xlsx.py` | สร้างไฟล์ Excel |
 | `weir_design.py` | ตัวคำนวณ/ตรวจสอบแบบ Python |
 | `make_drawings.py` | สร้างแบบ SVG ในโฟลเดอร์ `drawings/` |
+| `cad/weir_tank.dxf` | **ไฟล์ CAD** (DXF หน่วย mm: แปลน / รูปตัด A–A / B–B) สร้างจาก `make_dxf.py` |
 
 ## 1. ข้อมูลออกแบบ
 
