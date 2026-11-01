@@ -13,6 +13,7 @@
 | `cad/*.png` | รูปจากไฟล์ CAD (`python3 cad/render_dxf.py cad/weir_tank.dxf cad`) |
 | `cad/weir_tank.dae` | **โมเดล 3D สำหรับ SketchUp** — File → Import → COLLADA (.dae) หน่วย mm |
 | `cad/weir_tank_sketchup.rb` | สคริปต์ SketchUp วาดโมเดลเป็นชิ้นแยก Tag (Ruby Console: `load '…/weir_tank_sketchup.rb'`) สร้างจาก `cad/make_3d.py` |
+| `cad/sensors_sketchup.rb` | สคริปต์ SketchUp วาดเซนเซอร์ตาม datasheet (WTW UV 705 IQ SAC, Badger DL10, กล่อง IS-4000) วางโชว์ข้างบ่อ + ตำแหน่งจริง |
 | `animation/weir-animation.html` | ภาพเคลื่อนไหว ปรับน้ำเข้า / เปิด–ปิดปั๊มได้ |
 | `docs/docs_sensor_highlight.pdf` | หน้าเอกสารเซนเซอร์ (Flow meter / BOD) ไฮไลท์ข้อกำหนดติดตั้ง |
 | `make_xlsx.py` / `weir_design.py` | สร้าง Excel / ตัวตรวจแบบ Python |
