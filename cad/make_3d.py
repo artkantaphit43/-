@@ -65,7 +65,6 @@ hp = B / 2 + 100
 plate = [(yc - hp, ZPB), (yc + hp, ZPB), (yc + hp, ZPT), (yc + w, ZPT), (yc + w, ZN), (yc, ZV),
          (yc - w, ZN), (yc - w, ZPT), (yc - hp, ZPT)]
 prism_x("แผ่นเวียร์ V-notch 90° SS304 หนา 6", S, "สแตนเลส", plate, XW - 6, XW)
-box("แผ่นขอบปลายช่อง 2 SS", S, "สแตนเลส", X2 - 6, X2, 0, B, ZR, ZR + SILL)
 box("คาน Flow meter", S, "สแตนเลส", XT - 50, XT + 50, -T, B + T, ZTOP, ZTOP + 50)
 # ---- ท่อ ----
 cyl("ท่อน้ำเข้า 6\"", P, "ท่อ", "x", yc, ZIN, DPO / 2, -T - 600, 100)

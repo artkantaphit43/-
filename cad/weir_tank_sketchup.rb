@@ -105,11 +105,6 @@ solid(root, 'แผ่นเวียร์ V-notch 90° SS304 หนา 6', tag
   f.reverse! if f.normal.x < 0
   f.pushpull(6.mm)
 end
-solid(root, 'แผ่นขอบปลายช่อง 2 SS', tags['แผ่นสแตนเลส'], mats['สแตนเลส']) do |e|
-  f = e.add_face(pt(2294,0,900), pt(2300,0,900), pt(2300,1250,900), pt(2294,1250,900))
-  f.reverse! if f.normal.z < 0
-  f.pushpull(20.mm)
-end
 solid(root, 'คาน Flow meter', tags['แผ่นสแตนเลส'], mats['สแตนเลส']) do |e|
   f = e.add_face(pt(3950,-200,1200), pt(4050,-200,1200), pt(4050,1450,1200), pt(3950,1450,1200))
   f.reverse! if f.normal.z < 0
