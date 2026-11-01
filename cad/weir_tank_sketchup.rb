@@ -60,68 +60,58 @@ solid(root, 'ผนังกันน้ำกระแทก', tags['คอน�
   f.reverse! if f.normal.z < 0
   f.pushpull(2200.mm)
 end
-solid(root, 'ช่อง 2 พื้นยก', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2100,0,-1500), pt(2400,0,-1500), pt(2400,1250,-1500), pt(2100,1250,-1500))
+solid(root, 'ช่อง 2 ขอบม่านน้ำ (ผนังปลายช่อง 1 ช่วงกลาง)', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
+  f = e.add_face(pt(2100,0,-1500), pt(2300,0,-1500), pt(2300,1250,-1500), pt(2100,1250,-1500))
   f.reverse! if f.normal.z < 0
   f.pushpull(2400.mm)
 end
-solid(root, 'ผนังข้างช่อง 2 (ซ้าย)', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2300,-200,-1500), pt(2400,-200,-1500), pt(2400,0,-1500), pt(2300,0,-1500))
-  f.reverse! if f.normal.z < 0
-  f.pushpull(2700.mm)
-end
-solid(root, 'ผนังข้างช่อง 2 (ขวา)', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2300,1250,-1500), pt(2400,1250,-1500), pt(2400,1450,-1500), pt(2300,1450,-1500))
-  f.reverse! if f.normal.z < 0
-  f.pushpull(2700.mm)
-end
 solid(root, 'พื้นช่อง 3', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2400,-200,-200), pt(5800,-200,-200), pt(5800,1450,-200), pt(2400,1450,-200))
+  f = e.add_face(pt(2300,-200,-200), pt(5700,-200,-200), pt(5700,1450,-200), pt(2300,1450,-200))
   f.reverse! if f.normal.z < 0
   f.pushpull(200.mm)
 end
 solid(root, 'ผนังข้างช่อง 3 (ซ้าย)', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2400,-200,0), pt(5800,-200,0), pt(5800,0,0), pt(2400,0,0))
+  f = e.add_face(pt(2300,-200,0), pt(5700,-200,0), pt(5700,0,0), pt(2300,0,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(1200.mm)
 end
 solid(root, 'ผนังข้างช่อง 3 (ขวา)', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2400,1250,0), pt(5800,1250,0), pt(5800,1450,0), pt(2400,1450,0))
+  f = e.add_face(pt(2300,1250,0), pt(5700,1250,0), pt(5700,1450,0), pt(2300,1450,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(1200.mm)
 end
 solid(root, 'ผนังท้ายบ่อ', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(5600,0,0), pt(5800,0,0), pt(5800,1250,0), pt(5600,1250,0))
+  f = e.add_face(pt(5500,0,0), pt(5700,0,0), pt(5700,1250,0), pt(5500,1250,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(1200.mm)
 end
 solid(root, 'ผนัง ① ลอดใต้', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(2750,0,150), pt(2850,0,150), pt(2850,1250,150), pt(2750,1250,150))
+  f = e.add_face(pt(2650,0,150), pt(2750,0,150), pt(2750,1250,150), pt(2650,1250,150))
   f.reverse! if f.normal.z < 0
   f.pushpull(1050.mm)
 end
 solid(root, 'ผนัง ② ล้นข้าม', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(3000,0,0), pt(3100,0,0), pt(3100,1250,0), pt(3000,1250,0))
+  f = e.add_face(pt(2900,0,0), pt(3000,0,0), pt(3000,1250,0), pt(2900,1250,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(250.mm)
 end
 solid(root, 'กำแพงใต้แผ่นเวียร์', tags['คอนกรีต'], mats['คอนกรีต']) do |e|
-  f = e.add_face(pt(4900,0,0), pt(5100,0,0), pt(5100,1250,0), pt(4900,1250,0))
+  f = e.add_face(pt(4800,0,0), pt(5000,0,0), pt(5000,1250,0), pt(4800,1250,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(400.mm)
 end
 solid(root, 'แผ่นเวียร์ V-notch 90° SS304 หนา 6', tags['แผ่นสแตนเลส'], mats['สแตนเลส']) do |e|
-  f = e.add_face(pt(4894,-100.0,300), pt(4894,1350.0,300), pt(4894,1350.0,860), pt(4894,885.0,860), pt(4894,885.0,760), pt(4894,625.0,500), pt(4894,365.0,760), pt(4894,365.0,860), pt(4894,-100.0,860))
+  f = e.add_face(pt(4794,-100.0,300), pt(4794,1350.0,300), pt(4794,1350.0,860), pt(4794,885.0,860), pt(4794,885.0,760), pt(4794,625.0,500), pt(4794,365.0,760), pt(4794,365.0,860), pt(4794,-100.0,860))
   f.reverse! if f.normal.x < 0
   f.pushpull(6.mm)
 end
 solid(root, 'แผ่นขอบปลายช่อง 2 SS', tags['แผ่นสแตนเลส'], mats['สแตนเลส']) do |e|
-  f = e.add_face(pt(2394,0,900), pt(2400,0,900), pt(2400,1250,900), pt(2394,1250,900))
+  f = e.add_face(pt(2294,0,900), pt(2300,0,900), pt(2300,1250,900), pt(2294,1250,900))
   f.reverse! if f.normal.z < 0
   f.pushpull(20.mm)
 end
 solid(root, 'คาน Flow meter', tags['แผ่นสแตนเลส'], mats['สแตนเลส']) do |e|
-  f = e.add_face(pt(4050,-200,1200), pt(4150,-200,1200), pt(4150,1450,1200), pt(4050,1450,1200))
+  f = e.add_face(pt(3950,-200,1200), pt(4050,-200,1200), pt(4050,1450,1200), pt(3950,1450,1200))
   f.reverse! if f.normal.z < 0
   f.pushpull(50.mm)
 end
@@ -131,7 +121,7 @@ solid(root, 'ท่อน้ำเข้า 6"', tags['ท่อ'], mats['ท่
   f.pushpull(900.mm)
 end
 solid(root, 'ท่อน้ำออก 8"', tags['ท่อ'], mats['ท่อ']) do |e|
-  f = e.add_face(e.add_circle(pt(5580,625.0,120.0), X_AXIS, 109.mm, 24))
+  f = e.add_face(e.add_circle(pt(5480,625.0,120.0), X_AXIS, 109.mm, 24))
   f.reverse! if f.normal.x < 0
   f.pushpull(820.mm)
 end
@@ -146,12 +136,12 @@ solid(root, 'ท่อปั๊ม recycle', tags['ปั๊มและเค�
   f.pushpull(2250.mm)
 end
 solid(root, 'Flow meter (DL10)', tags['ปั๊มและเครื่องวัด'], mats['เครื่องวัด']) do |e|
-  f = e.add_face(e.add_circle(pt(4100,625.0,1100), Z_AXIS, 26.mm, 24))
+  f = e.add_face(e.add_circle(pt(4000,625.0,1100), Z_AXIS, 26.mm, 24))
   f.reverse! if f.normal.z < 0
   f.pushpull(81.mm)
 end
 solid(root, 'หัววัด BOD', tags['ปั๊มและเครื่องวัด'], mats['เครื่องวัด']) do |e|
-  f = e.add_face(e.add_circle(pt(3400,190,200), Z_AXIS, 30.mm, 24))
+  f = e.add_face(e.add_circle(pt(3300,190,200), Z_AXIS, 30.mm, 24))
   f.reverse! if f.normal.z < 0
   f.pushpull(774.mm)
 end
@@ -166,17 +156,17 @@ solid(root, 'น้ำช่อง 1 (โซนปั๊ม)', tags['น้ำ']
   f.pushpull(2258.mm)
 end
 solid(root, 'น้ำช่อง 2', tags['น้ำ'], mats['น้ำ']) do |e|
-  f = e.add_face(pt(2100,0,900), pt(2400,0,900), pt(2400,1250,900), pt(2100,1250,900))
+  f = e.add_face(pt(2100,0,900), pt(2300,0,900), pt(2300,1250,900), pt(2100,1250,900))
   f.reverse! if f.normal.z < 0
   f.pushpull(60.mm)
 end
 solid(root, 'น้ำช่อง 3', tags['น้ำ'], mats['น้ำ']) do |e|
-  f = e.add_face(pt(2400,0,0), pt(4894,0,0), pt(4894,1250,0), pt(2400,1250,0))
+  f = e.add_face(pt(2300,0,0), pt(4794,0,0), pt(4794,1250,0), pt(2300,1250,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(676.mm)
 end
 solid(root, 'น้ำหลังเวียร์', tags['น้ำ'], mats['น้ำ']) do |e|
-  f = e.add_face(pt(5100,0,0), pt(5600,0,0), pt(5600,1250,0), pt(5100,1250,0))
+  f = e.add_face(pt(5000,0,0), pt(5500,0,0), pt(5500,1250,0), pt(5000,1250,0))
   f.reverse! if f.normal.z < 0
   f.pushpull(211.mm)
 end
