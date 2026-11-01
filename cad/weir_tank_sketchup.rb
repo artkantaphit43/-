@@ -143,12 +143,12 @@ end
 solid(root, 'น้ำช่อง 1 (หน้าผนังกันน้ำกระแทก)', tags['น้ำ'], mats['น้ำ']) do |e|
   f = e.add_face(pt(0,-1125.0,-1300), pt(1000,-1125.0,-1300), pt(1000,2375.0,-1300), pt(0,2375.0,-1300))
   f.reverse! if f.normal.z < 0
-  f.pushpull(2258.mm)
+  f.pushpull(2243.mm)
 end
 solid(root, 'น้ำช่อง 1 (โซนปั๊ม)', tags['น้ำ'], mats['น้ำ']) do |e|
   f = e.add_face(pt(1100,-1125.0,-1300), pt(2100,-1125.0,-1300), pt(2100,2375.0,-1300), pt(1100,2375.0,-1300))
   f.reverse! if f.normal.z < 0
-  f.pushpull(2258.mm)
+  f.pushpull(2243.mm)
 end
 solid(root, 'น้ำช่อง 2', tags['น้ำ'], mats['น้ำ']) do |e|
   f = e.add_face(pt(2100,0,900), pt(2300,0,900), pt(2300,1250,900), pt(2100,1250,900))
@@ -165,6 +165,7 @@ solid(root, 'น้ำหลังเวียร์', tags['น้ำ'], mats['
   f.reverse! if f.normal.z < 0
   f.pushpull(211.mm)
 end
+root.entities.add_text("บ่อวัดน้ำ 3 ช่อง\nช่อง 1 กว้าง 3.50 พื้น -1.30", pt(-200, -1625.0, 1500), Geom::Vector3d.new(0, -400.mm, 400.mm))
 model.commit_operation
 Sketchup.active_model.active_view.zoom_extents
-puts 'วาดบ่อวัดน้ำเสร็จแล้ว'
+puts 'วาดบ่อวัดน้ำ 3 ช่องเสร็จแล้ว'

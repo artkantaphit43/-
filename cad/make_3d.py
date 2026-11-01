@@ -5,8 +5,11 @@
   cad/weir_tank.dae              — SketchUp: File > Import > COLLADA (.dae)
   cad/weir_tank_sketchup.rb      — SketchUp: Window/Extensions > Ruby Console > load "…/weir_tank_sketchup.rb"
 
-ใช้งาน: python3 cad/make_3d.py
+ใช้งาน: python3 cad/make_3d.py                       (แบบหลัก ตาม make_dxf.py)
+        python3 cad/make_3d.py --w1 2500 --zf1 -100 --name "น้ำค้าง 5 นาที" --dy 6000 --out weir_tank_5min
+        (ทางเลือก: เปลี่ยนเฉพาะช่อง 1 กว้าง/พื้น แล้วเลื่อนโมเดลไปทาง y ไม่ทับแบบหลัก ได้เฉพาะไฟล์ .rb)
 """
+import argparse
 import math
 import os
 import re
@@ -14,6 +17,17 @@ import re
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = open(os.path.join(HERE, "..", "make_dxf.py"), encoding="utf-8").read()
 exec(SRC[SRC.index("T = 200"):SRC.index("LEVELS =")])   # ใช้ค่าขนาดจาก make_dxf.py ชุดเดียวกัน
+ap = argparse.ArgumentParser()
+ap.add_argument("--w1", type=float); ap.add_argument("--zf1", type=float)
+ap.add_argument("--name", default="บ่อวัดน้ำ 3 ช่อง"); ap.add_argument("--dy", type=float, default=0)
+ap.add_argument("--out", default="weir_tank")
+ARGS = ap.parse_args()
+if ARGS.w1:
+    W1 = ARGS.w1
+if ARGS.zf1 is not None:
+    ZF1 = ARGS.zf1
+OFF1 = (W1 - B) / 2
+Z1N = 943                                              # น้ำช่อง 1 ตอนน้ำเฉลี่ย (ไม่มีแผ่นขอบช่อง 2)
 
 # วัสดุ: ชื่อ -> (R, G, B, ความทึบ)
 MAT = {"คอนกรีต": (190, 190, 185, 1.0), "สแตนเลส": (120, 140, 170, 1.0), "ท่อ": (235, 150, 60, 1.0),
@@ -75,8 +89,8 @@ cyl("ท่อปั๊ม recycle", E, "อุปกรณ์", "z", XP + 120, 
 cyl("Flow meter (DL10)", E, "เครื่องวัด", "z", XT, yc, 26, ZDL, ZDL + 81)
 cyl("หัววัด BOD", E, "เครื่องวัด", "z", XBOD, YBOD + 40, 30, ZBOD, ZBOD + 774)
 # ---- น้ำ (ที่น้ำออกแบบ 65 m³/ชม.) ----
-box("น้ำช่อง 1 (หน้าผนังกันน้ำกระแทก)", W, "น้ำ", 0, XB1, -OFF1, B + OFF1, ZF1, 958)
-box("น้ำช่อง 1 (โซนปั๊ม)", W, "น้ำ", XB1 + TB1, L1, -OFF1, B + OFF1, ZF1, 958)
+box("น้ำช่อง 1 (หน้าผนังกันน้ำกระแทก)", W, "น้ำ", 0, XB1, -OFF1, B + OFF1, ZF1, Z1N)
+box("น้ำช่อง 1 (โซนปั๊ม)", W, "น้ำ", XB1 + TB1, L1, -OFF1, B + OFF1, ZF1, Z1N)
 box("น้ำช่อง 2", W, "น้ำ", L1, X2, 0, B, ZR, ZR + 60)
 box("น้ำช่อง 3", W, "น้ำ", X2, XW - 6, 0, B, 0, Z3D)
 box("น้ำหลังเวียร์", W, "น้ำ", XW + TWW, XE, 0, B, 0, ZTAIL)
@@ -192,7 +206,7 @@ def write_rb(path):
     L.append("tags = {}")
     for t in TAGS:
         L.append(f"tags['{t}'] = model.layers['{t}'] || model.layers.add('{t}')")
-    L += ["root = model.active_entities.add_group", "root.name = 'บ่อวัดน้ำ 3 ช่อง'",
+    L += ["root = model.active_entities.add_group", f"root.name = '{ARGS.name}'",
           "def solid(root, name, tag, mat)",
           "  g = root.entities.add_group; g.name = name; g.layer = tag; g.material = mat",
           "  yield g.entities",
@@ -216,12 +230,16 @@ def write_rb(path):
             body = (f"  f = e.add_face(e.add_circle({c}, {ax}, {r}.mm, 24))\n"
                     f"  f.reverse! if f.normal.{comp} < 0\n  f.pushpull({s2 - s1}.mm)")
         L += [head, body, "end"]
+    if ARGS.dy:
+        L += [f"root.transform!(Geom::Transformation.new(pt(0, {ARGS.dy}, 0)))"]
+    L += [f'root.entities.add_text("{ARGS.name}\\nช่อง 1 กว้าง {W1/1000:.2f} พื้น {ZF1/1000:+.2f}", pt(-200, {-OFF1 - T - 300}, {ZTOP + 300}), Geom::Vector3d.new(0, -400.mm, 400.mm))']
     L += ["model.commit_operation", "Sketchup.active_model.active_view.zoom_extents",
-          "puts 'วาดบ่อวัดน้ำเสร็จแล้ว'"]
+          f"puts 'วาด{ARGS.name}เสร็จแล้ว'"]
     open(path, "w", encoding="utf-8").write("\n".join(L) + "\n")
 
 
 if __name__ == "__main__":
-    write_dae(os.path.join(HERE, "weir_tank.dae"))
-    write_rb(os.path.join(HERE, "weir_tank_sketchup.rb"))
-    print("saved", len(solids), "ชิ้น -> cad/weir_tank.dae, cad/weir_tank_sketchup.rb")
+    if ARGS.out == "weir_tank":
+        write_dae(os.path.join(HERE, "weir_tank.dae"))
+    write_rb(os.path.join(HERE, f"{ARGS.out}_sketchup.rb"))
+    print("saved", len(solids), f"ชิ้น -> cad/{ARGS.out}_sketchup.rb", f"(W1 {W1:.0f}, ZF1 {ZF1:.0f})")
