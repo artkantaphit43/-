@@ -193,6 +193,11 @@ module ArtK
       # Catalogue definitions. `sizes` is an ordered array of hashes:
       #   { size:, nps:, od:, walls: {rating => wall}, tee_c: (optional) }
       # Factors (× OD) are used where no dimensional standard table is given.
+      # Pipe kinds offered when drawing (1.21.0: the user works in PVC,
+      # HDPE and GSP only). The others stay defined so models drawn with
+      # them still open, rebuild and count in the BOM.
+      SHOWN = %w[PVC_TIS17 PVCS40_ASTM HDPE_PE100 HDPEC_PE100 GSP_BS1387].freeze
+
       def self.build_defaults
         cats = {}
 

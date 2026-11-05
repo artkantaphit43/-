@@ -87,6 +87,8 @@ older `rev` are rebuilt in place, so every copy in the file updates.
   radius) and `bend_angle` (total turn, degrees).
 - `type = end_center` – a group inside a pipe at an open end (since 1.6.1). It holds a
   real circle and a construction point, so SketchUp's own tools can snap to Center.
+  Since 1.21.0 it sits in the run beside a straight pipe (the pipe is a shared component);
+  pipes bent along a curve still hold their own.
 
 **Placed library parts** (`type = component`):
 - `category`
@@ -127,6 +129,15 @@ the deleted-piece tracking), `draft_mark` (weld dots 'Welds' with geom = points,
 symbols (lines) carrying the full valve record, end parts as markers carrying `end_part`, linear dimensions and EL
 texts on tag `PP-Dimensions`; hangers stay in `supports`. `Builder.set_draft` switches. 1.20.0's rods (`draft_node`) are
 redrawn on open.
+
+**Light pipes (1.21.0, new keys only):** a straight pipe (and its insulation) is a ComponentInstance of a
+shared definition `Pipe | <catalog size rating> | ro… ri… ins… | s<steps>[ | stripe]` (`type = part`), built
+`base_len` (pipe attribute, 1000) mm long along its own Z from the cut end `a − ea`, and scaled along Z to the
+cut length. `RunEditor.placed_ends` maps `a` / `b` through it; pipes without `base_len` (groups, older files) are read
+as before. Opening one for editing makes it unique (`AutoSync.unique_open_pipe`). Model key `light_pipes` – the
+file was offered the conversion of its group pipes on open (`Migrate.offer_light`). `Catalog::SHOWN` lists the
+pipe kinds offered (PVC, HDPE, GSP); the others stay defined for older files. The service list is no longer shown –
+the settings checkbox *ท่อระบาย* picks `SAN` (gravity) or `CW`; `service` keys are unchanged.
 
 **Tag list (1.19.0):** SketchUp pref `presets_b64` (base64 JSON, per computer) – `[{ name, service, catalog, rating,
 insulation_mm, pipe_color, hdpe_joint }]` (`Settings.preset` / `use_preset` / `sanitize_presets`); no model data.

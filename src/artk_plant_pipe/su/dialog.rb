@@ -75,6 +75,7 @@ module ArtK
                           min_slope: Services.min_drain_slope_pct(z[:od]) }
                       end }]
             end.to_h,
+            shown_catalogs: Catalog::SHOWN,
             schemes: Services::SCHEMES,
             material_colors: Services::MATERIAL_COLORS, painted: Services::PAINTED,
             supports: Supports::TYPES.reject { |k, v| v[:hidden] && k != H.load_settings['support_type'] }

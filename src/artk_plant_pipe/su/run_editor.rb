@@ -112,7 +112,7 @@ module ArtK
       def pipe_points(pipe)
         tr = pipe.transformation
         pts = []
-        pipe.entities.grep(Sketchup::Edge).each do |e|
+        pipe.definition.entities.grep(Sketchup::Edge).each do |e|
           pts << e.start.position << e.end.position
         end
         pts.uniq.map { |p| H.from_pt(p.transform(tr)) }
@@ -132,12 +132,10 @@ module ArtK
           len = Vec.dist(a, b)
           next if len < TOL
 
-          tr = pipe.transformation
-          at = H.transform_mm(tr, a)
-          bt = H.transform_mm(tr, b)
           open_a = ends.any? { |p| Vec.dist(p, a) <= TOL }
           open_b = ends.any? { |p| Vec.dist(p, b) <= TOL }
           ea, eb, known = extensions(pipe, g, len, open_a, open_b)
+          at, bt = placed_ends(pipe, a, b, ea, eb)
           m = RunEdit.measure_pipe(at, bt, ea, eb, pipe.get_attribute(H::DICT, 'od').to_f / 2.0, pipe_points(pipe))
           next unless m
 
@@ -161,6 +159,20 @@ module ArtK
           end
         end
         { moves: moves.uniq, issues: issues.uniq }
+      end
+
+      # Where the recorded centre-line ends a / b are now (run-local mm). A
+      # group pipe was built in run coordinates, so its transformation is
+      # the edit; a component pipe is built along its own Z axis
+      # (base_len long, from the cut end at a − ea), so its ends are mapped
+      # from there.
+      def placed_ends(pipe, a, b, ea, eb)
+        tr = pipe.transformation
+        base = pipe.get_attribute(H::DICT, 'base_len').to_f
+        return [H.transform_mm(tr, a), H.transform_mm(tr, b)] unless base.positive?
+
+        cut = Vec.dist(a, b) + ea + eb
+        [H.transform_mm(tr, [0.0, 0.0, base * ea / cut]), H.transform_mm(tr, [0.0, 0.0, base * (cut - eb) / cut])]
       end
 
       # How far the mesh runs past each end into its fittings: recorded since
@@ -274,9 +286,30 @@ module ArtK
           runs
         end
 
+        # A straight pipe is one shared component per size: opened for
+        # editing (Push/Pull inside), it would change every pipe of that
+        # size – make the opened one its own first, then reopen it.
+        def unique_open_pipe(model)
+          path = model.active_path or return
+          pipe = path.last
+          return unless pipe.is_a?(Sketchup::ComponentInstance) && H.type_of(pipe) == 'pipe'
+          return unless pipe.definition.count_instances > 1
+
+          model.start_operation('Plant Piping: Make Pipe Unique', true, false, true)
+          model.close_active if model.respond_to?(:close_active)
+          pipe.make_unique
+          model.active_path = path if model.respond_to?(:active_path=)
+          model.commit_operation
+          Sketchup.status_text = 'Plant Piping: แยกท่อท่อนนี้ออกมาแก้ (make unique) – ท่ออื่นขนาดเดียวกันไม่เปลี่ยน'
+        rescue StandardError => e
+          model.abort_operation
+          puts "Plant Piping make unique: #{e.message}"
+        end
+
         def check(model)
           return if @busy || (model.respond_to?(:valid?) && !model.valid?)
 
+          unique_open_pipe(model)
           open_now = editing(model)
           candidates = ((@watch || []) + H.selected_runs(model)).select(&:valid?).uniq - open_now
           @watch = open_now

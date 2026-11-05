@@ -452,6 +452,20 @@ module Sketchup
       @definition = defn if defn
       @transformation = tr if tr
     end
+
+    # as in SketchUp: an instance has no entities of its own
+    undef_method :entities
+
+    # own copy of a shared definition (entities copied by reference)
+    def make_unique
+      return self if @definition.count_instances <= 1
+
+      @definition.instances.delete(self)
+      d = Definition.new(self, "#{@definition.name}#1")
+      @definition.entities.each { |e| d.entities << e }
+      @definition = d
+      self
+    end
   end
 
   class Layer

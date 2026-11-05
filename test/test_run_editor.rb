@@ -35,19 +35,23 @@ class TestRunEditor < Minitest::Test
     pipes(run).find { |p| g = H.get_json(p, 'geom'); Vec.dist(g['a'], pt) <= 1 || Vec.dist(g['b'], pt) <= 1 }
   end
 
-  # Replace a pipe group's mesh with rings at pa / pb (what SketchUp would
-  # hold after Push/Pull or Scale), in the group's own coordinates.
+  # Replace a pipe's mesh with rings at pa / pb (run coordinates) – what
+  # SketchUp would hold after Push/Pull inside the (made unique) pipe,
+  # written in the pipe's own, scaled coordinates.
   def fake_mesh(pipe, pa, pb, r)
-    pipe.entities.clear!
+    pipe.make_unique
+    ents = pipe.definition.entities
+    ents.clear!
+    inv = pipe.transformation.inverse
     u = Vec.unit(Vec.sub(pb, pa))
     v = Vec.perpendicular(u)
     w = Vec.cross(u, v)
     [pa, pb].each do |c|
       pts = (0...12).map do |i|
         a = 2 * Math::PI * i / 12
-        H.to_pt(Vec.add(c, Vec.add(Vec.scale(v, r * Math.cos(a)), Vec.scale(w, r * Math.sin(a)))))
+        H.to_pt(Vec.add(c, Vec.add(Vec.scale(v, r * Math.cos(a)), Vec.scale(w, r * Math.sin(a))))).transform(inv)
       end
-      pts.each_cons(2) { |p, q| pipe.entities.add_line(p, q) }
+      pts.each_cons(2) { |p, q| ents.add_line(p, q) }
     end
   end
 
@@ -91,7 +95,7 @@ class TestRunEditor < Minitest::Test
     run, = Builder.create_run(@model, [[[0.0, 0, 0], [2000.0, 0, 0]]], @s)
     p = pipes(run).first
     fake_mesh(p, [0.0, 0, 0], [2000.0, 0, 0], run.get_attribute(H::DICT, 'od').to_f / 2)
-    p.transformation = Geom::Transformation.scaling(1.25, 1.0, 1.0) # Scale tool, red handle
+    p.transformation = Geom::Transformation.scaling(1.25, 1.0, 1.0) * p.transformation # Scale tool, red handle
     r = RunEditor.inspect(run)
     assert_equal 1, r[:moves].size
     assert Vec.near?(r[:moves].first[1], [2500.0, 0, 0], 1e-6), r[:moves].inspect
@@ -268,12 +272,44 @@ class TestRunEditor < Minitest::Test
     run, = Builder.create_run(@model, [[[0.0, 0, 0], [2000.0, 0, 0]]], @s)
     p = pipes(run).first
     fake_mesh(p, [0.0, 0, 0], [2000.0, 0, 0], run.get_attribute(H::DICT, 'od').to_f / 2)
-    p.transformation = Geom::Transformation.scaling(1.5, 1.0, 1.0)
+    p.transformation = Geom::Transformation.scaling(1.5, 1.0, 1.0) * p.transformation
     @model.selection.clear
     @model.selection << p
     p.parent = run.definition # SketchUp: a piece's parent is its run's definition
     AutoSync.check(@model)
     assert_in_delta 3000.0, H.get_json(run, 'cl').first.last[0], 1e-6
+  end
+
+  # Straight pipes of one size share one component, stretched to length;
+  # opening one for editing makes it its own so the others stay as drawn.
+  def test_pipes_share_a_component_and_an_opened_one_is_made_unique
+    run, = Builder.create_run(@model, [[[0.0, 0, 0], [3000.0, 0, 0]], [[3000.0, 0, 0], [3000.0, 1200, 0]]], @s)
+    a, b = pipes(run)
+    assert_same a.definition, b.definition
+    assert_equal 2, a.definition.count_instances
+    assert(pipes(run).all? { |p| p.is_a?(Sketchup::ComponentInstance) })
+    @model.active_path = [run, b]
+    AutoSync.check(@model)
+    refute_same a.definition, b.definition
+    assert_equal 1, a.definition.count_instances
+    assert_equal [run, b], @model.active_path
+  end
+
+  # The stretched component lands exactly where a pipe of its own would:
+  # its base mesh through its transformation = the cut pipe a−ea … b+eb.
+  def test_shared_pipe_component_is_the_real_pipe
+    run, = Builder.create_run(@model, [[[0.0, 0, 0], [3000.0, 0, 0]], [[3000.0, 0, 0], [3000.0, 1200, 900]]], @s)
+    od = run.get_attribute(H::DICT, 'od').to_f
+    pipes(run).each do |p|
+      pa, pb = mesh_as_built(p)
+      base = p.get_attribute(H::DICT, 'base_len')
+      local = Mesh.cylinder([0.0, 0, 0], [0.0, 0, base], od / 2.0, steps: 16, ref: [1.0, 0, 0]).polys.flatten(1)
+      world = local.map { |q| H.transform_mm(p.transformation, q) }
+      want = Mesh.cylinder(pa, pb, od / 2.0, steps: 16).polys.flatten(1)
+      [world, want].each { |pts| pts.sort_by! { |q| q.map { |c| c.round(3) } } }
+      world.zip(want).each { |w, x| assert Vec.near?(w, x, 1e-6), "#{w} vs #{x}" }
+      assert_in_delta p.get_attribute(H::DICT, 'length_mm'), Vec.dist(pa, pb), 0.05
+    end
   end
 
   # The user's case: pipe stretched with Push/Pull, then a fitting from the

@@ -50,7 +50,12 @@ module ArtK
         # Parts not offered in the browser: duplicates of a better copy of
         # the same part (the valve database beats the piping file, whose
         # wafer checks are drawn on a 1 m spool), and spools without ends.
+        # Steel pipe fittings (socket / butt weld) – steel pipe is no longer
+        # offered for drawing (1.21.0); runs of it still use them.
+        STEEL_ONLY = %w[cs_sw cs_bw].freeze
+
         def hidden?(i, better)
+          return true if STEEL_ONLY.include?(i['family'])
           return true if i['ports'].empty? && i['bbox'].transpose.map { |a, b| b - a }.max >= 900.0
 
           i['src'] == 'piping' && better[group_key(i) + [i['size'], i['size2']]]

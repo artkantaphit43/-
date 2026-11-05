@@ -2,6 +2,6 @@
 
 module ArtK
   module PlantPipe
-    VERSION = '1.20.2'
+    VERSION = '1.21.0'
   end
 end

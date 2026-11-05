@@ -31,6 +31,7 @@
   section.on { display: block; }
   fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px 10px; margin: 0 0 12px; background: var(--panel); }
   legend { padding: 0 4px; font-weight: 600; font-size: 12px; color: var(--mut); }
+  [hidden] { display: none !important; }
   label { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 8px; margin: 6px 0; }
   label.chk { grid-template-columns: 18px 1fr; }
   select, input[type=number], input[type=text] {
@@ -84,15 +85,15 @@
 
 <section id="tab-pipe" class="on">
   <fieldset>
-    <legend>แท็ก + ระบบ – ท่อนี้ใช้กับงานอะไร (Tag / Service)</legend>
+    <legend>แท็ก – ท่อนี้ใช้กับงานอะไร (Tag)</legend>
     <label>แท็ก (Tag)<select id="tagsel"></select></label>
     <div class="tagrow"><input type="text" id="newtag" maxlength="40" placeholder="ชื่อแท็กใหม่ เช่น สตีม, ลม">
       <button class="btn sec" id="addtag" type="button">+ เพิ่ม</button>
       <button class="btn sec" id="savetag" type="button" title="ให้แท็กที่เลือกจำค่าที่ตั้งอยู่ตอนนี้">จำค่า</button>
       <button class="btn sec" id="deltag" type="button">ลบ</button></div>
-    <div class="info">เลือกแท็ก = ได้ระบบ วัสดุ ฉนวน สีตามที่แท็กจำไว้ (เลือกแค่ขนาด) · ท่อใหม่เข้าแท็กนั้นเลย ·
+    <div class="info">เลือกแท็ก = ได้วัสดุ ฉนวน สีตามที่แท็กจำไว้ (เลือกแค่ขนาด) · ท่อใหม่เข้าแท็กนั้นเลย ·
       + เพิ่ม = แท็กใหม่จำค่าที่ตั้งอยู่ · จำค่า = แท็กที่เลือกจำค่าตอนนี้</div>
-    <label>ระบบ<select id="service"></select></label>
+    <label class="chk"><input type="checkbox" id="gravity"><span>ท่อระบาย (ลาดตามทิศการไหล) – น้ำเสีย / น้ำทิ้ง</span></label>
     <div class="info" id="svcinfo"></div>
     <div class="tagrow">
       <button class="btn" data-cmd="retag">ย้ายท่อที่เลือกไปแท็กนี้<small>Move selected runs to this tag</small></button>
@@ -102,7 +103,7 @@
   <fieldset>
     <legend>ชนิดท่อ (Pipe)</legend>
     <label>ชนิดท่อ / วัสดุ<select id="catalog"></select></label>
-    <div class="info">PVC, HDPE แข็ง / HDPE ม้วน (ดัดโค้ง), เหล็กดำ, สแตนเลส, GI, PP-R, ทองแดง</div>
+    <div class="info">PVC มอก.17 / PVC Sch40, HDPE แข็ง / HDPE ม้วน (ดัดโค้ง), GSP</div>
     <label>ขนาด (Size)<select id="size"></select></label>
     <label>ชั้น/Schedule<select id="rating"></select></label>
     <label id="hdperow" hidden>ข้อต่อ HDPE<select id="hdpe_joint">
@@ -244,8 +245,12 @@ const PP = (() => {
   }
 
   function render() {
-    fill($('service'), D.services.map((s) => [s.code, `${s.code} – ${s.th} (${s.en})`]), S.service);
-    fill($('catalog'), Object.entries(D.catalogs).map(([k, c]) => [k, `${c.name_th} – ${c.name}`]), S.catalog);
+    $('gravity').checked = !!(svc() || {}).gravity;
+    // PVC, HDPE, GSP only (1.21.0) – a pipe of another kind keeps its own entry
+    const shown = D.shown_catalogs || Object.keys(D.catalogs);
+    fill($('catalog'), Object.entries(D.catalogs).filter(([k]) => shown.includes(k) || k === S.catalog)
+      .sort(([a], [b]) => shown.indexOf(a) - shown.indexOf(b))
+      .map(([k, c]) => [k, `${c.name_th} – ${c.name}`]), S.catalog);
     fill($('size'), cat().sizes.map((z) => [z.size, z.size]), S.size);
     fill($('rating'), Object.keys(sizeRec().walls).map((r) => [r, r]), S.rating);
     fill($('color_scheme'), Object.entries(D.schemes), S.color_scheme);
@@ -256,7 +261,7 @@ const PP = (() => {
     // the user's tags (each remembers its pipe), then the model's other tags
     const names = P.map((q) => q.name);
     const others = (D.tags || []).concat(S.tag ? [S.tag] : []).filter((t, i, a) => !names.includes(t) && a.indexOf(t) === i);
-    fill($('tagsel'), [['', '— ตามระบบ (ไม่ใช้แท็กเอง) —']].concat(names.map((n) => [n, n]),
+    fill($('tagsel'), [['', '— อัตโนมัติ (ไม่ใช้แท็กเอง) —']].concat(names.map((n) => [n, n]),
       others.map((t) => [t, `${t} (แท็กในโมเดล)`])), S.tag || '');
     $('deltag').disabled = !names.includes(S.tag);
     const mine = P.find((q) => q.name === S.tag);
@@ -447,11 +452,10 @@ const PP = (() => {
 
   function onChange(e) {
     const id = e.target.id;
-    if (id === 'service') {
-      S.service = e.target.value;
-      const s = svc();
-      S.catalog = s.catalog; S.size = s.size; S.rating = s.rating; S.insulation_mm = s.insulation;
-      if (s.gravity) S.slope_pct = cat().sizes.find((z) => z.size === s.size)?.min_slope ?? S.slope_pct;
+    if (id === 'gravity') {
+      // no services any more (1.21.0): water supply or drainage (with a fall)
+      S.service = e.target.checked ? 'SAN' : 'CW';
+      if (e.target.checked) S.slope_pct = Math.max(Number(S.slope_pct) || 0, sizeRec().min_slope || 0);
     } else if (id === 'catalog') {
       const oldOd = sizeRec().od;
       S.catalog = e.target.value;

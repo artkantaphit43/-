@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.20.2**
-(`dist/artk_plant_pipe-1.20.2.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (329 runs, all green).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.0**
+(`dist/artk_plant_pipe-1.21.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (332 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -262,6 +262,15 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   ALIGNED_TEXT_ABOVE – มี respond_to? กัน) · EL ซ้ำระดับเดียวกันภายใน `EL_NEAR` 1500 ไม่ใส่ (riser ก่อน ปลายเปิดทีหลัง) · `DRAFT_REV` 2 stamp
   `draft_rev` บนแนว → `Migrate.stale_draft?` วาดดราฟเก่าใหม่ตอนเปิดไฟล์ · ข้อความ/มิติ SketchUp ขนาดคงที่บนจอ – แนะนำผู้ใช้ตั้ง Model Info
   (ขนาดตัวอักษร, Hide when foreshortened, หน่วย มม.), ซ่อนแท็ก PP-Dimensions ตอนซูมออก, มุม Iso + Parallel Projection
+- **Plant Piping 1.21.0 – ไฟล์เบา** (ผู้ใช้: "ปลั๊กอินค่อนข้างหนัก ส่วนใหญ่คือท่อ…ไม่เอาระบบละ เหลือ PVC HDPE GSP"): ท่อตรง/ฉนวน =
+  Component ร่วมต่อขนาด (`Builder#straight_instance`, ยาว `BASE_LEN` 1000 ตามแกน Z แล้ว scale Z = ความยาวตัด; attr `base_len`) –
+  ทดสอบ 40 ท่อน GSP: mesh 2,560 → 64 polygon · `end_center` ของท่อตรงย้ายมาอยู่ในแนวท่อ (ข้างท่อ) · `RunEditor.placed_ends` อ่านปลายท่อผ่าน
+  transformation ของ component (ยืด Scale/Push-Pull อ่านกลับได้เหมือนเดิม) · `AutoSync.unique_open_pipe` = เข้าแก้ท่อที่ใช้ร่วม → close_active,
+  make_unique, เปิดกลับ · `Migrate.offer_light` ถามครั้งเดียวตอนเปิดไฟล์เก่า (ท่อเป็น group) → render ใหม่ทั้งไฟล์ (model key `light_pipes`) ·
+  `Picker.run_data` แคชข้อมูลแนวท่อ (cl/drawn/od/smooth เป็น stamp) – เดิมทุก mouse move อ่าน JSON ทุกท่อ · UI: ซ่อนรายการระบบ → checkbox
+  *ท่อระบาย* (SAN/CW), ชนิดท่อเหลือ `Catalog::SHOWN` (PVC_TIS17, PVCS40, HDPE, HDPEC, GSP; ชนิดอื่นของไฟล์เก่ายังแสดงเมื่อเลือกอยู่),
+  คลังซ่อน cs_sw/cs_bw · แก้บั๊ก `[hidden]` ของ label (แถว "ข้อต่อ HDPE" โชว์กับ PVC) · stub: ComponentInstance ไม่มี `entities` (เหมือน SU จริง),
+  มี `make_unique` · **ยังไม่ได้ทำ**: rebuild เฉพาะช่วงที่เพิ่ม (ยังลบ/สร้างทั้งแนว แต่ตอนนี้แค่วาง instance จึงเร็วขึ้นมาก), ซัพพอร์ตยังเป็น group ต่อชิ้น
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

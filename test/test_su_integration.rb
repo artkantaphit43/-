@@ -49,15 +49,13 @@ class TestSuIntegration < Minitest::Test
   # own tools snap to "Center"; ends inside fittings get none.
   def test_open_pipe_ends_get_snappable_center
     run, = Builder.create_run(@model, l_run, @settings)
-    centers = children(run, 'pipe').flat_map do |p|
-      p.entities.select { |e| H.instance?(e) && H.type_of(e) == 'end_center' }
-    end
+    # straight pipes are shared components: their end circles sit beside them
+    centers = children(run, 'end_center')
     assert_equal 2, centers.size
     centers.each do |c|
       assert_equal 1, c.entities.count { |e| e.is_a?(Sketchup::ConstructionPoint) }
       assert_operator c.entities.count { |e| e.is_a?(Sketchup::Edge) }, :>=, 12
     end
-    assert_empty children(run, 'end_center')
   end
 
   # The user (1.16.5, "เขาไม่หุ้มตรงข้องอหรอ"): 4" + 100 insulation – thicker

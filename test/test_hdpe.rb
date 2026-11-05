@@ -195,10 +195,10 @@ class TestHdpe < Minitest::Test
   def test_water_pipe_stripes_with_true_colours
     run, = Builder.create_run(@model, [[[0, 0, 0], [3000, 0, 0]]], settings('110 mm').merge('color_scheme' => 'material'))
     pipe = children(run, 'pipe').first
-    mats = pipe.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }
+    mats = pipe.definition.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }
     assert_includes mats, 'PP_Stripe_Blue'
     run2, = Builder.create_run(@model, [[[0, 900, 0], [3000, 900, 0]]], settings('110 mm').merge('color_scheme' => 'distinct'))
-    refute_includes children(run2, 'pipe').first.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }, 'PP_Stripe_Blue'
+    refute_includes children(run2, 'pipe').first.definition.entities.grep(Sketchup::MeshBlob).map { |m| m.material&.name }, 'PP_Stripe_Blue'
   end
 
   def test_old_hdpe_runs_rebuild_with_the_new_fittings

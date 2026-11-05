@@ -528,20 +528,57 @@ module ArtK
         eb = pipe_ext(ctx, b) || (joined?(ctx, b) ? ins : 0.0)
         pa = Vec.sub(a, Vec.scale(dir, ea))
         pb = Vec.add(b, Vec.scale(dir, eb))
-        part = Mesh::Part.new.add(:pipe, Mesh.cylinder(pa, pb, o.ro, ri: o.ri, steps: ctx[:steps]))
-        add_stripes(ctx, part, [pa, pb])
-        g = H.add_part_group(ctx[:model], ctx[:ents], part, steps: ctx[:steps])
+        g = straight_instance(ctx, 'Pipe', pa, pb, stripe_role(ctx)) do |len|
+          part = Mesh::Part.new.add(:pipe, Mesh.cylinder([0.0, 0.0, 0.0], [0.0, 0.0, len], o.ro, ri: o.ri,
+                                                         steps: ctx[:steps], ref: [1.0, 0.0, 0.0]))
+          add_stripes(ctx, part, [[0.0, 0.0, 0.0], [0.0, 0.0, len]])
+          part
+        end
         cut = Vec.dist(pa, pb)
         finish_piece(ctx, g, "Pipe #{spec.size} L=#{cut.round}", ctx[:mat],
                      'type' => 'pipe', 'length_mm' => cut.round(1),
                      'weight_kg_m' => spec.weight_kg_m.round(3), 'stick_m' => spec.stick_length_m,
-                     'geom' => JSON.generate('a' => a, 'b' => b, 'ea' => ea, 'eb' => eb),
+                     'geom' => JSON.generate('a' => a, 'b' => b, 'ea' => ea, 'eb' => eb), 'base_len' => BASE_LEN,
                      'remark' => spec.estimated ? 'wall thickness estimated' : nil)
         [[a, pa], [b, pb]].each do |end_pt, at|
-          add_end_center(ctx, g, at, dir, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, end_pt) <= 1.0 }
+          add_end_center(ctx, nil, at, dir, o.ro) if ctx[:open_ends].any? { |p| Vec.dist(p, end_pt) <= 1.0 }
         end
         add_stick_joints(ctx, [pa, pb])
-        insulate(ctx, Mesh.cylinder(a, b, o.ro + ctx[:ins], ri: o.ro + 0.5, steps: ctx[:steps]), d[:length])
+        insulate_straight(ctx, a, b, d[:length])
+      end
+
+      # ---- straight pipes as scaled components ----
+      #
+      # Every straight pipe of one size is an instance of one component
+      # (BASE_LEN mm long, along its Z axis) stretched to its length –
+      # scaling along the axis keeps the section exact, so a model with
+      # hundreds of pipes stores the pipe mesh once per size instead of once
+      # per pipe. Stretching with Scale reads back the same way as before
+      # (the transformed end rings). Opening one for editing makes it
+      # unique first (RunEditor::AutoSync), so the other pipes stay as they are.
+      BASE_LEN = 1000.0
+
+      def straight_instance(ctx, kind, a, b, variant = nil)
+        o = ctx[:opts]
+        len = Vec.dist(a, b)
+        dir = Vec.unit(Vec.sub(b, a))
+        x = Vec.perpendicular(dir)
+        name = "#{kind} | #{spec_key(ctx[:spec])} | ro#{o.ro.round(3)} ri#{o.ri.to_f.round(3)} " \
+               "ins#{ctx[:ins].round(1)} | s#{ctx[:steps]}#{variant ? " | #{variant}" : ''}"
+        defn = H.part_definition(ctx[:model], name, steps: ctx[:steps]) { yield(BASE_LEN) }
+        tr = H.frame_transform(o: a, x: x, y: Vec.cross(dir, x), z: dir) * Geom::Transformation.scaling(1.0, 1.0, len / BASE_LEN)
+        ctx[:ents].add_instance(defn, tr)
+      end
+
+      def insulate_straight(ctx, a, b, length_mm)
+        return unless ctx[:ins].positive?
+
+        ro = ctx[:opts].ro
+        g = straight_instance(ctx, 'Insulation', a, b) do |len|
+          Mesh::Part.new.add(:insulation, Mesh.cylinder([0.0, 0.0, 0.0], [0.0, 0.0, len], ro + ctx[:ins], ri: ro + 0.5,
+                                                        steps: ctx[:steps], ref: [1.0, 0.0, 0.0]))
+        end
+        finish_insulation(ctx, g, length_mm)
       end
 
       # Co-extruded colour stripes of PE pipe (ISO 4427 / TIS 982: blue for
@@ -683,12 +720,13 @@ module ArtK
       # The circle starts where the pipe mesh starts (same ref axis and
       # segment count), so its edges lie exactly on the pipe rim.
       def add_end_center(ctx, pipe, at, axis, ro, ref: nil)
-        g = pipe.entities.add_group
+        g = (pipe ? pipe.entities : ctx[:ents]).add_group
         ax = Vec.unit(axis)
         c = H.to_pt(at)
         g.entities.add_arc(c, H.to_vec(ref || Vec.perpendicular(ax)), H.to_vec(ax), H.mm(ro), 0.0, 2 * Math::PI, ctx[:steps])
         g.entities.add_cpoint(c)
         g.name = 'Pipe End Center'
+        g.layer = ctx[:tag] unless pipe
         H.set_attrs(g, 'type' => 'end_center')
         g
       rescue StandardError => e
@@ -1204,6 +1242,10 @@ module ArtK
         return unless ctx[:ins].positive?
 
         g = H.add_part_group(ctx[:model], ctx[:ents], Mesh::Part.new.add(:insulation, solid), steps: ctx[:steps])
+        finish_insulation(ctx, g, length_mm)
+      end
+
+      def finish_insulation(ctx, g, length_mm)
         g.name = "Insulation #{ctx[:ins].round} mm"
         g.material = H.insulation_material(ctx[:model])
         g.layer = H.tag(ctx[:model], H::TAG_INSULATION)

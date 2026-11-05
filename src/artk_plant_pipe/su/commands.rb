@@ -512,7 +512,7 @@ module ArtK
           Builder.place_valve(Builder.context(model, run, s, Settings.spec(s), Services.get(s['service']), run.name),
                               'gate', Vec.add(o, [700, 0, 0]), [1, 0, 0])
           run.entities.each do |e|
-            next unless H.instance?(e) && H.type_of(e) != 'centerline'
+            next unless H.instance?(e) && !%w[centerline end_center].include?(H.type_of(e))
 
             ents = e.respond_to?(:definition) ? e.definition.entities : e.entities
             faces = ents.count { |x| x.is_a?(Sketchup::Face) }

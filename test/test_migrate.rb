@@ -70,6 +70,45 @@ class TestMigrate < Minitest::Test
     assert_equal 0, Migrate.model(@model)[:upgraded], 'second open: nothing to do'
   end
 
+  # A run as 1.20 left it: every straight pipe a group of its own.
+  def heavy_run(segs)
+    run, = Builder.create_run(@model, segs, Settings.sanitize('service' => 'CW', 'catalog' => 'GSP_BS1387', 'size' => '1"'))
+    Collector.pieces(run, 'pipe').each do |p|
+      g = run.entities.add_group
+      H.set_attrs(g, H.attrs(p))
+      g.entities.add_line(Geom::Point3d.new(0, 0, 0), Geom::Point3d.new(1, 0, 0))
+      p.erase!
+    end
+    run
+  end
+
+  # Files from before 1.21.0 (every pipe its own mesh) are offered light
+  # pipes once, on open: same runs, pipes now shared components.
+  def test_heavy_pipes_of_old_files_made_light_once_on_open
+    run = heavy_run([[[0.0, 0, 0], [3000.0, 0, 0]], [[3000.0, 0, 0], [3000.0, 2000, 0]]])
+    before = H.get_json(run, 'cl')
+    assert_equal [run], Migrate.heavy_runs(@model)
+    assert_equal 1, Migrate.offer_light(@model)
+    assert_empty Migrate.heavy_runs(@model)
+    pipes = Collector.pieces(run, 'pipe')
+    assert_equal 2, pipes.size
+    assert(pipes.all? { |p| p.is_a?(Sketchup::ComponentInstance) })
+    assert_same pipes[0].definition, pipes[1].definition
+    assert_equal before, H.get_json(run, 'cl'), 'same centre line'
+    assert_equal 1, count(run, 'elbow')
+    heavy_run([[[0.0, 900, 0], [3000.0, 900, 0]]])
+    assert_equal 0, Migrate.offer_light(@model), 'asked once per file'
+  end
+
+  def test_light_pipes_declined_leaves_the_file_as_it_is
+    run = heavy_run([[[0.0, 0, 0], [3000.0, 0, 0]]])
+    UI.answer = 7 # IDNO
+    assert_equal 0, Migrate.offer_light(@model)
+    assert_equal [run], Migrate.heavy_runs(@model)
+  ensure
+    UI.answer = nil
+  end
+
   def test_new_version_draws_onto_old_runs
     main, branch = load_old_model
     Migrate.model(@model)

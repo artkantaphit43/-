@@ -144,6 +144,43 @@ module ArtK
         :rebuilt
       end
 
+      LIGHT_KEY = 'light_pipes' # the file was offered 1.21.0's light pipes
+
+      # Runs drawn before 1.21.0 hold every straight pipe as its own mesh
+      # (heavy files, slow to draw in). Offered once per file, on open:
+      # redraw them with the pipes as shared components.
+      def heavy_runs(model)
+        records(model.entities).select do |e|
+          H.run?(e) && !Builder.run_settings(e)['draft'] && DataFormat.version(H.attrs(e)) <= DataFormat::CURRENT &&
+            e.entities.any? { |x| x.is_a?(Sketchup::Group) && !x.is_a?(Sketchup::ComponentInstance) && H.type_of(x) == 'pipe' && !H.get_json(x, 'geom', {})['path'] }
+        end
+      end
+
+      def offer_light(model)
+        return 0 if model.get_attribute(H::DICT, LIGHT_KEY)
+
+        runs = heavy_runs(model)
+        return 0 if runs.empty? # nothing to offer: the file is left unmodified
+
+        model.set_attribute(H::DICT, LIGHT_KEY, 1)
+        return 0 unless UI.messagebox(light_question(runs.size), MB_YESNO) == IDYES
+
+        model.start_operation('Plant Piping: Lighter Pipes', true)
+        runs.each { |run| Builder.render(model, run, Builder.run_settings(run)) }
+        H.purge_parts(model)
+        model.commit_operation
+        runs.size
+      rescue StandardError
+        model.abort_operation
+        raise
+      end
+
+      def light_question(n)
+        "Plant Piping TH – ไฟล์นี้วาดด้วยเวอร์ชันเก่า: ท่อตรงทุกท่อนเก็บรูปทรงแยกกัน (#{n} แนว) ไฟล์จึงหนัก\n\n" \
+          "แปลงเป็นแบบเบาให้เลยไหม? (ท่อขนาดเดียวกันใช้ Component เดียว ยืดตามความยาว)\n" \
+          "• ตำแหน่ง ขนาด วัสดุ ข้อต่อ วาล์ว ซัพพอร์ต เหมือนเดิม\n• ไฟล์ใหญ่อาจใช้เวลาสักครู่ · กด Undo ย้อนได้"
+      end
+
       def newer_warning
         'ไฟล์นี้มีท่อที่วาดด้วย Plant Piping TH เวอร์ชันใหม่กว่าที่ติดตั้งอยู่ – ' \
           'ควรอัปเดตปลั๊กอินก่อนแก้ไขท่อเหล่านั้น'
@@ -155,6 +192,7 @@ module ArtK
         def onOpenModel(model)
           res = Migrate.model(model)
           UI.messagebox(Migrate.newer_warning) if res[:newer].positive?
+          Migrate.offer_light(model)
         rescue StandardError => e
           puts "Plant Piping: data upgrade failed – #{e.message}"
         end
