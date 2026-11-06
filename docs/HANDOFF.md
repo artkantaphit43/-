@@ -1,8 +1,8 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.0**
-(`dist/artk_plant_pipe-1.21.0.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.1**
+(`dist/artk_plant_pipe-1.21.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
 (`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (332 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
@@ -271,6 +271,10 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   *ท่อระบาย* (SAN/CW), ชนิดท่อเหลือ `Catalog::SHOWN` (PVC_TIS17, PVCS40, HDPE, HDPEC, GSP; ชนิดอื่นของไฟล์เก่ายังแสดงเมื่อเลือกอยู่),
   คลังซ่อน cs_sw/cs_bw · แก้บั๊ก `[hidden]` ของ label (แถว "ข้อต่อ HDPE" โชว์กับ PVC) · stub: ComponentInstance ไม่มี `entities` (เหมือน SU จริง),
   มี `make_unique` · **ยังไม่ได้ทำ**: rebuild เฉพาะช่วงที่เพิ่ม (ยังลบ/สร้างทั้งแนว แต่ตอนนี้แค่วาง instance จึงเร็วขึ้นมาก), ซัพพอร์ตยังเป็น group ต่อชิ้น
+- **Plant Piping 1.21.1 – ท้องท่อ (BOP) ใช้ได้จริง** (ผู้ใช้: "ตรงระบุจับที่เซนเตอร์หรือท้องท่อ ในส่วนท้องท่อใช้จริงไม่ได้"):
+  เดิม `bop_offset?` ยกเฉพาะคลิกกลางผิว (face + DOF 2) → สแนปมุม/ขอบคาน (ที่ใช้จริง) ไม่ยก ท่อทะลุคาน · ตอนนี้ยกเมื่อสแนป geometry จริง
+  (vertex / edge / face) ที่ไม่ใช่ท่อของเรา, ยก od/2 + ฉนวน (`bop_lift`, ใต้ฉนวนวางบนเหล็ก เหมือน support_rest) · เส้นอนุมานจากจุดก่อน (แกน/ขนาน
+  ไม่มี geometry) ไม่ยก กันขั้นบันได · readout แสดง "ท้องท่อ (CL +xx)" · เทสต์ใน test_pipe_tool (stub InputPoint.next_edge)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

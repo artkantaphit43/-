@@ -18,8 +18,11 @@ module ArtK
     #   vertical risers, unless you snap to an existing point.
     # * Gravity services get their fall applied automatically on level
     #   segments, in the direction you draw (= flow direction).
-    # * Elevation reference "BOP" lifts points picked on geometry by half
-    #   the OD, so a pipe drawn on a rack beam sits on the beam.
+    # * Elevation reference "BOP": a point picked on the model's geometry
+    #   (a face, an edge or an endpoint – beam top, floor, a line drawn at
+    #   the level) is the underside of the pipe (of its insulation, when
+    #   insulated), so the pipe sits on it; picks on our own pipes stay
+    #   centreline points.
     class PipeTool
       H = ModelHelpers
 
@@ -276,11 +279,12 @@ module ArtK
       def constrain(ip)
         raw = H.from_pt(ip.position)
         @own = own_snap?(ip)
+        @bop = false
         if (@rest = support_rest(ip, raw))
           lift = @spec.od / 2.0 + (@rest[:bare] ? 0.0 : @settings['insulation_mm'].to_f)
           raw = [*(@rest[:point] || raw)[0, 2], @rest[:z] + lift]
-        elsif bop_offset?(ip)
-          raw[2] += @spec.od / 2.0
+        elsif (@bop = bop_offset?(ip))
+          raw[2] += bop_lift
         end
         return raw if @points.empty?
 
@@ -336,16 +340,25 @@ module ArtK
         false
       end
 
+      # 1.21.1: any pick on real geometry – before, only the inside of a
+      # face counted, so snapping to a beam's edge or corner (what you
+      # usually do) drew the pipe through the beam. Inference lines from
+      # the last point (axis, parallel – no geometry) are not lifted, or
+      # every click would climb another half OD.
       def bop_offset?(ip)
         return false unless @settings['elevation_ref'] == 'bop'
-        # only a pick on a surface (floor, beam top) lifts the pipe onto it;
-        # points on edges / guides are taken as the centreline itself
-        return false unless ip.face && ip.degrees_of_freedom == 2
+        return false unless ip.vertex || ip.edge || ip.face
 
         path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
         path.none? { |e| e.respond_to?(:attribute_dictionary) && H.type_of(e) }
       rescue StandardError
         false
+      end
+
+      # Centre above the picked underside: half the OD plus the insulation
+      # (the insulation's underside rests on the steel).
+      def bop_lift
+        @spec.od / 2.0 + @settings['insulation_mm'].to_f
       end
 
       def snap45(last, raw)
@@ -684,6 +697,7 @@ module ArtK
           sc = view.screen_coords(H.to_pt(@cursor))
           tag = @settings['tag'].to_s.empty? ? '' : " · แท็ก #{@settings['tag']}"
           tag += ' · เส้น (ดราฟ)' if @settings['draft']
+          tag += " · ท้องท่อ (CL +#{bop_lift.round})" if @bop
           txt = "#{@spec.size} #{@settings['service']} · #{@spec.material} #{@spec.rating}#{tag} – คลิกจุดเริ่ม (click start)"
           view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
           return
@@ -694,6 +708,7 @@ module ArtK
         dz = @cursor[2] - last[2]
         txt = "#{@spec.size} #{@settings['service']}  L=#{len.round} mm"
         txt += "  Δz=#{dz.round} mm" if dz.abs >= 1.0
+        txt += "  ท้องท่อ (CL +#{bop_lift.round})" if @bop
         sc = view.screen_coords(H.to_pt(@cursor))
         view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
       end
