@@ -463,27 +463,45 @@ module ArtK
         segs
       end
 
+      # Where a join meets the run it continues: 'at' (our own first point)
+      # plus 'main_off' when the reducer is eccentric (1.21.2).
+      def join_main_point(j)
+        off = j['main_off']
+        off.is_a?(Array) ? Vec.add(j['at'], off) : j['at']
+      end
+
       # Reducer / expander / adaptor at a join: main size at 'at', our size
-      # at 'at' + dir × length.
+      # at 'at' + dir × length. Eccentric (BOP, flat on the bottom – a
+      # pipe on the rack changing size keeps its underside on the beam):
+      # the main end sits 'main_off' from 'at', the body steps between.
       def render_join(ctx, j, warnings)
         main = main_spec(j)
         spec = ctx[:spec]
         dir = Vec.unit(j['dir'])
         len = join_length(main, spec, main_joint: j['main_joint'], joint: ctx[:settings]['hdpe_joint'])
         mo = main_opts(j, ctx)
-        kind = (main.od - spec.od).abs < 0.5 ? 'Adaptor' : (main.od > spec.od ? 'Concentric Reducer' : 'Concentric Expander')
         f = Mesh.frame(j['at'], dir)
+        off = j['main_off'].is_a?(Array) ? [Vec.dot(j['main_off'], f[:y]), Vec.dot(j['main_off'], f[:z])] : [0.0, 0.0]
+        ecc = Math.hypot(*off) >= 0.05
+        kind = if (main.od - spec.od).abs < 0.5 then 'Adaptor'
+               elsif ecc then main.od > spec.od ? 'Eccentric Reducer' : 'Eccentric Expander'
+               else main.od > spec.od ? 'Concentric Reducer' : 'Concentric Expander'
+               end
         sgn = Hdpe.style?(mo) || Hdpe.style?(ctx[:opts]) ? up_sign(f) : 1
         name = "PP #{kind} #{len} | #{spec_key(main)} > #{spec_key(spec)} | #{lod_key(ctx)}" \
-               "#{style_key(mo)}#{style_key(ctx[:opts])}#{sgn.negative? ? ' | dn' : ''}"
-        inst = place_part(ctx, name, f) { Hdpe.flip(sgn) { Parts.reducer(len, mo, ctx[:opts]) } }
+               "#{style_key(mo)}#{style_key(ctx[:opts])}#{sgn.negative? ? ' | dn' : ''}" \
+               "#{ecc ? " | ecc #{off.map { |c| c.round(1) }.join(',')}" : ''}"
+        inst = place_part(ctx, name, f) do
+          part = Hdpe.flip(sgn) { Parts.reducer(len, mo, ctx[:opts]) }
+          ecc ? Parts.eccentric(part, len, off) : part
+        end
         main_code = j['main_service'] || ctx[:common]['service']
         big, small = [main, spec].sort_by { |x| -x.od }
         finish_piece(ctx, inst, "#{kind} #{main.size} x #{spec.size}", ctx[:mat],
                      'type' => 'reducer', 'kind' => kind, 'size' => "#{big.size} x #{small.size}",
                      'joint_desc' => joint_attrs(Hdpe.style?(ctx[:opts]) ? ctx[:opts] : mo)['joint_desc'],
                      'service' => ctx[:common]['service'], 'main_service' => main_code,
-                     'geom' => JSON.generate('a' => j['at'], 'b' => Vec.add(j['at'], Vec.scale(dir, len)),
+                     'geom' => JSON.generate('a' => join_main_point(j), 'b' => Vec.add(j['at'], Vec.scale(dir, len)),
                                              'r' => Parts.body_radius(main.od >= spec.od ? mo : ctx[:opts])))
       rescue StandardError => e
         warnings << "Reducer: #{e.message}"
@@ -1470,8 +1488,8 @@ module ArtK
         u = Vec.unit(j['dir'])
         w = iso_up(u)
         len = [[main.od, spec.od].max, 60.0].max
-        a = j['at']
-        b = Vec.add(a, Vec.scale(u, len))
+        a = join_main_point(j)
+        b = Vec.add(j['at'], Vec.scale(u, len))
         h1 = [main.od * 0.5, 20.0].max
         h2 = [spec.od * 0.5, 12.0].max
         pts = [Vec.add(a, Vec.scale(w, h1)), Vec.add(b, Vec.scale(w, h2)), Vec.add(b, Vec.scale(w, -h2)), Vec.add(a, Vec.scale(w, -h1))]

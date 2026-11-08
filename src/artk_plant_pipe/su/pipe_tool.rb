@@ -244,6 +244,7 @@ module ArtK
         @warn_end = nil
         @hover = nil
         @rest = nil
+        @bop_base = nil
         @ip.clear
         @anchor.clear
         load_settings
@@ -364,7 +365,14 @@ module ArtK
       # (the insulation's underside rests on the steel) – the pipe kind's
       # own OD, whichever is drawn.
       def bop_lift
-        BopPick.lift(@spec, @settings)
+        @bop_base || BopPick.lift(@spec, @settings)
+      end
+
+      # Half OD + insulation of an existing run (how high its centre sits
+      # above what it rests on).
+      def run_lift(run)
+        rs = Builder.run_settings(run)
+        BopPick.lift(Settings.spec(rs), rs)
       end
 
       def snap45(last, raw)
@@ -419,6 +427,7 @@ module ArtK
       def end_target(raw)
         e = Picker.run_end(@model, raw) or return nil
         return nil if Vec.dist(e[:world], @points.first) < 1.0 || Vec.dist(e[:world], @points.last) < 1.0
+        return nil if @start_link && Vec.dist(e[:world], @start_link[:point]) < 1.0
 
         { kind: :end, run: e[:run], tr: e[:tr], point: e[:world] }
       end
@@ -450,6 +459,7 @@ module ArtK
       end
 
       def start_run(pt)
+        @bop_base = nil
         link = link_at(pt)
         if link
           # A different size/material selected → reducer + new run;
@@ -461,8 +471,31 @@ module ArtK
           @start_link = link
           pt = link[:point]
           load_settings if %i[append node].include?(link[:kind])
+          pt = bop_start(link, pt) if BopPick.on?(@settings)
         end
         @points << pt
+      end
+
+      # BOP, a line starting on a pipe of another size (1.21.2 – before, the
+      # next point on the beam was lifted for the new size while the start
+      # sat on the old pipe's centre, so the line stepped a few cm there:
+      # a short slope or two elbows):
+      # * a branch off a main: the main's centre is the line's level (a
+      #   reducing tee, the branch level with the main);
+      # * continuing an end / a fitting at another size: the new pipe rests
+      #   on the beam like the old one – its centre a step up / down,
+      #   taken by an eccentric reducer flat on the bottom.
+      def bop_start(link, pt)
+        case link[:kind]
+        when :tee
+          @bop_base = run_lift(link[:hit][:run])
+          pt
+        when :reduce, :node_reduce
+          rise = BopPick.lift(@spec, @settings) - run_lift(link[:run])
+          rise.abs < 0.05 ? pt : [pt[0], pt[1], pt[2] + rise]
+        else
+          pt
+        end
       end
 
       def same_spec?(rs)
@@ -489,23 +522,27 @@ module ArtK
       def finish_with_reducer(segs, stub: false)
         run = @start_link[:run]
         tr = @start_link[:tr]
-        p0 = segs.first[0]
+        base = @start_link[:point] # run A's end / fitting (its centre)
+        rise = eccentric_rise(segs.first[1], base)
+        p0 = Vec.add(base, rise)
         d1 = Vec.unit(Vec.sub(segs.first[1], p0))
-        dir_a = end_direction(run, tr, p0) || d1
+        dir_a = end_direction(run, tr, base) || d1
         ang = stub ? Math::PI / 2 : Vec.angle(dir_a, d1)
         raise 'ท่อย้อนกลับทางเดิม (line folds back)' if ang > 179.0 * Math::PI / 180
 
         spec_a = Builder.run_spec(run)
-        q = p0
+        q = base
         @model.start_operation('Plant Piping: Reducer + New Run', true)
         warnings = []
         if ang > 0.5 * Math::PI / 180
           leg = stub ? stub_length(run) : Builder.elbow_take_for(spec_a, Builder.run_settings(run), ang * 180.0 / Math::PI) + 1.0
-          q = Vec.add(p0, Vec.scale(d1, leg))
+          q = Vec.add(base, Vec.scale(d1, leg))
           inv_a = tr.inverse
-          warnings.concat(Builder.extend_run(@model, run, [[H.transform_mm(inv_a, p0), H.transform_mm(inv_a, q)]],
+          warnings.concat(Builder.extend_run(@model, run, [[H.transform_mm(inv_a, base), H.transform_mm(inv_a, q)]],
                                              op: false))
         end
+        main_end = q
+        q = Vec.add(q, rise) # the new run starts here (eccentric: off A's centre)
         segs = [[q, segs.first[1]]] + segs[1..]
         len = Builder.join_length(spec_a, @spec, main_joint: Builder.run_settings(run)['hdpe_joint'],
                                                  joint: @settings['hdpe_joint'])
@@ -517,6 +554,10 @@ module ArtK
                  'main_catalog' => a['catalog'], 'main_size' => a['size'], 'main_rating' => a['rating'],
                  'main_service' => a['service'], 'main_pid' => run.persistent_id,
                  'main_joint' => Builder.run_settings(run)['hdpe_joint'] }
+        if Vec.length(rise) >= 0.05
+          join['main_off'] = Vec.sub(H.transform_mm(inv, main_end), join['at'])
+          join['eccentric'] = 'fob'
+        end
         local = segs.map { |x, y| [H.transform_mm(inv, x), H.transform_mm(inv, y)] }
         new_run, w = Builder.create_run(@model, local, @settings, joins: [join], op: false)
         @model.commit_operation
@@ -525,6 +566,23 @@ module ArtK
       rescue StandardError
         @model.abort_operation
         raise
+      end
+
+      # BOP: the step of the centre where a pipe of another size continues
+      # run A along the beam, both resting on it (eccentric reducer, flat
+      # on the bottom) – when the line's first segment runs level at the
+      # new pipe's own underside. A line going straight up / down from
+      # there keeps A's centre (a concentric reducer).
+      def eccentric_rise(first, base)
+        none = [0.0, 0.0, 0.0]
+        return none unless BopPick.on?(@settings)
+
+        want = BopPick.lift(@spec, @settings) - run_lift(@start_link[:run])
+        return none if want.abs < 0.05
+        return none if ((first[2] - base[2]) - want).abs > 1.0
+        return none if Math.hypot(first[0] - base[0], first[1] - base[1]) < 1.0
+
+        [0.0, 0.0, want]
       end
 
       # Branch leg of run A out of its new tee: the tee's branch outlet plus a
@@ -561,6 +619,7 @@ module ArtK
           return view.invalidate
         end
         end_on_end(view)
+        level_to_end_link if BopPick.on?(@settings)
         segs = @points.each_cons(2).map { |a, b| [a, b] }.reject { |a, b| Vec.dist(a, b) < 1.0 }
         if segs.empty?
           reset_state
@@ -622,6 +681,20 @@ module ArtK
         UI.messagebox("Plant Piping: ไม่สามารถสร้างท่อได้ (could not build run)\n#{e.message}")
         reset_state
         view.invalidate
+      end
+
+      # BOP: a line drawn on the beam that ends on the side / a fitting of a
+      # pipe of another size – that pipe's centre is the level: the line
+      # moves to it as a whole, instead of stepping on its last segment.
+      def level_to_end_link
+        return if @start_link || !@end_link || !%i[tee node].include?(@end_link[:kind]) || @points.size < 2
+
+        run = @end_link[:kind] == :tee ? @end_link[:hit][:run] : @end_link[:run]
+        want = run_lift(run) - bop_lift
+        dz = @points[-1][2] - @points[-2][2]
+        return if want.abs < 0.05 || (dz - want).abs > 1.0
+
+        @points[0..-2] = @points[0..-2].map { |p| [p[0], p[1], p[2] + dz] }
       end
 
       # Ending on another run's open end: a line drawn from free space is
@@ -726,7 +799,9 @@ module ArtK
         dz = @cursor[2] - last[2]
         txt = "#{@spec.size} #{@settings['service']}  L=#{len.round} mm"
         txt += "  Δz=#{dz.round} mm" if dz.abs >= 1.0
-        txt += "  ท้องท่อวางที่จุดนี้ (CL +#{bop_lift.round})" if @bop
+        if @bop
+          txt += @bop_base ? "  ระดับตามท่อหลัก (CL +#{bop_lift.round})" : "  ท้องท่อวางที่จุดนี้ (CL +#{bop_lift.round})"
+        end
         sc = view.screen_coords(H.to_pt(@cursor))
         view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
       end

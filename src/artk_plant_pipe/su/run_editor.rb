@@ -110,7 +110,7 @@ module ArtK
           (H.get_json(other, 'tees', []) + H.get_json(other, 'joins', [])).each do |t|
             next unless t['main_pid'] == run.persistent_id
 
-            at = H.transform_mm(inv, H.transform_mm(tr, t['at']))
+            at = H.transform_mm(inv, H.transform_mm(tr, Builder.join_main_point(t)))
             on = cl.flatten(1).any? { |p| Vec.dist(p, at) <= TOL } || RunEdit.segment_index(cl, at)
             out << "#{other.name}: จุดต่อแยกไม่อยู่บนท่อนี้แล้ว ตรวจจุดต่อ (branch point is off this pipe now)" unless on
           end

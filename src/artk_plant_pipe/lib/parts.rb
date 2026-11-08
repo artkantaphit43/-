@@ -221,6 +221,27 @@ module ArtK
         joint_end(part, [len, 0.0, 0.0], [1.0, 0.0, 0.0], b)
       end
 
+      # An eccentric reducer from a concentric one (along +X, 0 → len): the
+      # main end (x ≤ len/3) moved by +off+ ([y, z] across the axis), the
+      # taper stepping across, our end (x ≥ 2·len/3) in place. Each cross
+      # section stays a circle, so a flat-bottomed (FOB) reducer keeps the
+      # undersides of both pipes in line.
+      def eccentric(part, len, off)
+        x1 = len / 3.0
+        x2 = 2.0 * len / 3.0
+        out = Mesh::Part.new
+        part.solids.each do |role, solid|
+          polys = solid.polys.map do |poly|
+            poly.map do |q|
+              w = ((x2 - q[0]) / (x2 - x1)).clamp(0.0, 1.0)
+              [q[0], q[1] + off[0] * w, q[2] + off[1] * w]
+            end
+          end
+          out.add(role, Mesh::Solid.new(polys))
+        end
+        out
+      end
+
       # Weld-neck flange (steel) or stub/adaptor flange (plastics):
       # mating face at x = 0 facing −X, hub towards +X.
       def flange(o, holes: true)

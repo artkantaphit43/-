@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.2**
-(`dist/artk_plant_pipe-1.21.2.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (351 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.3**
+(`dist/artk_plant_pipe-1.21.3.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (356 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -286,6 +286,14 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   · StretchTool `bop` ยกตาม od/ฉนวนของแนวนั้น · Builder.rebuild → `keep_underside` (run settings `elevation_ref` = bop) เลื่อนทั้งแนวด้วย
   `RunEditor.lift!` (ไม่ทำเมื่อ `Migrate.tied?` → คำเตือน) · หน้าตั้งค่า `#bopinfo` · เทสต์ `test/test_bop.rb` 17 ตัว (บน 1.21.1 ล้ม 12) ทุก `Catalog::SHOWN`
   × ฉนวน 0/38.1 · stub: `Face.with(pts)` + `outer_loop`, `ConstructionLine`, `IDNO`
+- **Plant Piping 1.21.3 – เปลี่ยนขนาดต่อจากท่อเดิมในโหมดท้องท่อ** (ผู้ใช้ส่งรูปท่อหักขึ้นลงตรงรอยต่อ: "ทำไมเป็นงั้นแค่เปลี่ยนขนาดท่อ"):
+  จุดต่อ (link) อยู่ที่ศูนย์กลางท่อเดิม แต่จุดถัดไปบนคานถูกยกตามขนาดใหม่ → ต่างกัน Δ = lift ใหม่ − lift เดิม ไม่กี่ซม. → ท่อเอียงสั้นๆ / snap45 riser
+  (|Δz| > h) → ข้องอ 2 ตัวซ้อน, หรือ A ได้ข้องอ 0.8° (finish_with_reducer เห็นว่า "เลี้ยว") · แก้: `PipeTool#bop_start` – เริ่มจาก tee = `@bop_base`
+  (lift ท่อหลัก, สามทางระดับตามท่อหลัก); reduce/node_reduce = จุดเริ่มยก Δ · `eccentric_rise` ใน finish_with_reducer (ใช้ `@start_link[:point]` เป็นฐาน
+  ทั้งกรณีเริ่มจากปลายและวาดไปจบที่ปลาย-กลับทิศ) → join `main_off` (+ `eccentric: fob`), ท่อใหม่เริ่มที่ฐาน+Δ · ขึ้น/ลงดิ่งทันที = concentric ·
+  `level_to_end_link` – วาดบนคานไปจบข้าง/ข้อต่อท่อขนาดอื่น (ไม่มี start link) ทั้งเส้นเลื่อนมาระดับท่อนั้น · `Builder.join_main_point`,
+  `render_join` เยื้องด้วย `Parts.eccentric` (เฉือนหน้าตัดตาม x: ≤ len/3 เลื่อนเต็ม, ≥ 2len/3 ไม่เลื่อน – หน้าตัดยังกลม) ชื่อ definition มี `| ecc y,z`,
+  kind Eccentric Reducer/Expander · RunEditor.branch_warnings ใช้ join_main_point · เทสต์ใหม่ 5 ตัวใน test_bop (บน 1.21.2 ล้ม 4)
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

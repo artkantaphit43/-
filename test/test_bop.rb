@@ -58,6 +58,8 @@ class TestBop < Minitest::Test
     @edge = Sketchup::Edge.new(pt(0, 50, 100), pt(6000, 50, 100))
     @post = Sketchup::Edge.new(pt(0, 50, 0), pt(0, 50, 100)) # vertical
     @corner = Sketchup::Vertex.new(pt(0, 50, 100))
+    # a slab top level with the beam top, all round
+    @slab = Sketchup::Face.with([pt(-9000, -9000, 100), pt(9000, -9000, 100), pt(9000, 9000, 100), pt(-9000, 9000, 100)])
   end
 
   def pick(tool, mm, vertex: nil, edge: nil, face: nil, path: nil, dof: nil, under: nil)
@@ -261,7 +263,7 @@ class TestBop < Minitest::Test
 
   # Lines drawn on the beam tops, converted: they are the underside.
   def test_convert_edges_lifts_the_lines_to_the_pipe_centre
-    s = Settings.sanitize('service' => 'CW', 'catalog' => 'HDPE_PE100', 'size' => '63',
+    s = Settings.sanitize('service' => 'CW', 'catalog' => 'HDPE_PE100', 'size' => '63 mm',
                           'elevation_ref' => 'bop', 'insulation_mm' => 25.4)
     edges = [[[0, 0, TOP], [4000, 0, TOP]], [[4000, 0, TOP], [4000, 0, 0]]].map do |a, b|
       @model.entities.add_line(H.to_pt(a), H.to_pt(b))
@@ -330,5 +332,113 @@ class TestBop < Minitest::Test
     warnings = Builder.rebuild(@model, [main], H.load_settings.merge('size' => '4"'))
     assert_equal z, zs(main)
     assert(warnings.any? { |w| w.include?('ท้องท่อ') }, warnings.inspect)
+  end
+
+  # --- a pipe of another size off a pipe on the beam (1.21.2 screenshot:
+  # the new pipe stepped a few cm at the joint – two elbows / a slope) ---
+
+  def main_on_beam(size)
+    t = tool('catalog' => 'PVC_TIS17', 'size' => size)
+    pick(t, [0, 0, TOP], face: @top, path: [@beam, @top])
+    pick(t, [5000, 0, TOP], face: @top, path: [@beam, @top])
+    t.onReturn(@view)
+    m = runs.first
+    [m, m.entities.find { |e| H.type_of(e) == 'pipe' }, cl(m).first[2]]
+  end
+
+  def bends(run)
+    run.entities.count { |e| H.type_of(e) == 'elbow' }
+  end
+
+  def lift_of(size)
+    Settings.spec(Settings.sanitize('catalog' => 'PVC_TIS17', 'size' => size)).od / 2.0
+  end
+
+  def beam_edge_at(y)
+    Sketchup::Edge.new(pt(-9000, y, 100), pt(9000, y, 100))
+  end
+
+  # continuing the 2" line at 3" along the beam: straight on, the 3" pipe
+  # on the beam too – an eccentric expander, flat on the bottom
+  def test_continuing_at_another_size_stays_on_the_beam_with_an_eccentric_reducer
+    { face: ->(x) { { face: @top, path: [@beam, @top] } },
+      edge: ->(_x) { e = beam_edge_at(0); { edge: e, path: [@beam, e] } } }.each do |how, opts|
+      setup
+      m, piece, z = main_on_beam('2"')
+      t = tool('catalog' => 'PVC_TIS17', 'size' => '3"')
+      pick(t, [5000, 0, z], face: Sketchup::Face.new, path: [m, piece], dof: 2) # the 2" open end
+      pick(t, [9000, 0, TOP], **(how == :face ? { face: @slab, path: [@beam, @slab] } : opts.call(9000)))
+      t.onReturn(@view)
+      assert_equal 2, runs.size, how
+      n = runs.find { |r| r != m }
+      assert_equal [(TOP + lift_of('3"')).round(3)], zs(n), how
+      assert_equal [z.round(3)], zs(m), how
+      assert_equal 0, bends(m) + bends(n), "#{how}: no elbows at the joint"
+      j = H.get_json(n, 'joins').first
+      assert_in_delta(lift_of('2"') - lift_of('3"'), j['main_off'][2], 1e-6)
+      red = n.entities.find { |e| H.type_of(e) == 'reducer' }
+      assert_equal 'Eccentric Expander', red.get_attribute(H::DICT, 'kind')
+    end
+  end
+
+  # the same, drawn the other way: from the beam to the 2" end
+  def test_drawing_to_the_end_of_another_size_makes_the_same_eccentric_joint
+    m, piece, z = main_on_beam('2"')
+    t = tool('catalog' => 'PVC_TIS17', 'size' => '3"')
+    pick(t, [9000, 0, TOP], face: @slab, path: [@beam, @slab])
+    pick(t, [5000, 0, z], face: Sketchup::Face.new, path: [m, piece], dof: 2) # onto the 2" end
+    n = runs.find { |r| r != m }
+    assert n, 'a new run'
+    assert_equal [(TOP + lift_of('3"')).round(3)], zs(n)
+    assert_equal 0, bends(m) + bends(n)
+    assert H.get_json(n, 'joins').first['main_off']
+  end
+
+  # branching a 3" (or 1") pipe off the 2" main along the beam: level with
+  # the main (a reducing tee), no step
+  def test_branch_of_another_size_runs_level_with_its_main
+    %w[3" 1"].each do |size|
+      { face: { face: @top, path: [@beam, @top] }, edge: :edge }.each do |how, opts|
+        setup
+        m, piece, z = main_on_beam('2"')
+        t = tool('catalog' => 'PVC_TIS17', 'size' => size)
+        pick(t, [2500, 0, z + 30], face: Sketchup::Face.new, path: [m, piece], dof: 2)
+        o = opts == :edge ? (e = Sketchup::Edge.new(pt(2500, -50, 100), pt(2500, 50, 100)); { edge: e, path: [@beam, e] }) : opts
+        pick(t, [2500, 45, TOP], **o)
+        pick(t, [2500, 3000, z], dof: 1) # on along the green axis
+        t.onReturn(@view)
+        b = runs.find { |r| r != m }
+        assert_equal [z.round(3)], zs(b), "#{size} #{how}"
+        assert_equal 0, bends(b), "#{size} #{how}: no step elbows"
+      end
+    end
+  end
+
+  # a 3" line drawn on the beam ending on the side of the 2" main: it meets
+  # the main level, not with a slope on its last metre
+  def test_line_ending_on_a_main_of_another_size_meets_it_level
+    m, piece, z = main_on_beam('2"')
+    t = tool('catalog' => 'PVC_TIS17', 'size' => '3"')
+    pick(t, [2500, 3000, TOP], face: @slab, path: [@beam, @slab])
+    pick(t, [2500, 0, z + 30], face: Sketchup::Face.new, path: [m, piece], dof: 2) # on the main
+    b = runs.find { |r| r != m }
+    assert b, 'a branch'
+    assert_equal [z.round(3)], zs(b)
+    assert_equal 1, H.get_json(b, 'tees').size
+  end
+
+  # going straight up from the 2" end at 3": no eccentric step there
+  def test_riser_after_a_size_change_is_concentric
+    m, piece, z = main_on_beam('2"')
+    t = tool('catalog' => 'PVC_TIS17', 'size' => '3"')
+    pick(t, [5000, 0, z], face: Sketchup::Face.new, path: [m, piece], dof: 2)
+    t.onKeyDown(VK_UP, 0, 0, @view)
+    pick(t, [5000, 0, TOP + 1500])
+    t.onReturn(@view)
+    n = runs.find { |r| r != m }
+    a, b = H.get_json(n, 'cl').first
+    assert_equal [5000.0, 0.0], a[0, 2].map { |c| c.round(3) }
+    assert_in_delta 0.0, Math.hypot(b[0] - a[0], b[1] - a[1]), 1e-6
+    refute H.get_json(n, 'joins').first['main_off']
   end
 end

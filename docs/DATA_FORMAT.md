@@ -120,6 +120,12 @@ fusion spigot / … – shown in the BOM), `fitting_desc` on elbows, couplers an
 butt fusion stick joint, drawing only); valves on fusion lines carry `stub_ends` (count) and
 `stub_dn`. Tee and join records may carry `main_joint` – the main run's `hdpe_joint`.
 
+**Join records (1.21.3, new optional keys):** `main_off` – vector (run-local mm) from `at` (this
+run's own first point, as before) to the end of the run it continues, when the reducer is
+**eccentric**; `eccentric = 'fob'` (flat on the bottom – drawn in BOP mode, both pipes resting on
+the beam). The reducer piece is then `kind = Eccentric Reducer / Eccentric Expander` and its
+`geom.a` is that main end. Without `main_off` the join is concentric at `at`, as before (old files).
+
 **Settings / run settings (1.18.0, new key):** `tag` – the SketchUp tag the run goes on ('' = its
 service's `PP-<code> <name>`, as before); `Builder.retag` moves runs, a rebuild with other settings keeps it.
 
