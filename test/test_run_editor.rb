@@ -10,7 +10,7 @@ module ArtK
   end
 end
 require File.join(LIB, 'run_edit')
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector run_editor picker reports library commands
+%w[model_helpers bop_pick migrate builder ref_models ref_builder support_builder collector run_editor picker reports library commands
    ref_browser stretch_tool].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end

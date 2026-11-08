@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool
+%w[model_helpers bop_pick migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool
    color_pick_tool].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
@@ -46,31 +46,7 @@ class TestPipeTool < Minitest::Test
     H.get_json(run, 'cl').flatten(1)
   end
 
-  # Elevation reference BOP (1.21.1): what you snap to on the model – a
-  # beam's corner, its edge, its top face – is the pipe's underside (its
-  # insulation's, when insulated); free cursor positions and inference
-  # lines are not lifted.
-  def test_bop_lifts_picks_on_geometry_to_the_pipe_centre
-    t = tool_with('service' => 'CW', 'catalog' => 'GSP_BS1387', 'size' => '2"', 'elevation_ref' => 'bop',
-                  'insulation_mm' => 25.4, 'snap45' => true)
-    lift = Settings.spec(H.load_settings).od / 2.0 + 25.4
-    Sketchup::InputPoint.next_vertex = :beam_corner # endpoint of a beam edge
-    click(t, [0, 0, 3000])
-    Sketchup::InputPoint.next_vertex = nil
-    Sketchup::InputPoint.next_dof = 1
-    Sketchup::InputPoint.next_edge = :beam_edge # on the beam's top edge
-    click(t, [4000, 0, 3000])
-    Sketchup::InputPoint.next_edge = nil
-    Sketchup::InputPoint.next_dof = 1 # along the red axis from there: inference only
-    click(t, [4000, 3000, 3000 + lift])
-    t.onReturn(@view)
-    pts = cl_points(runs.first).uniq
-    assert_equal [3000 + lift] * 3, pts.map { |p| p[2].round(6) }
-  ensure
-    Sketchup::InputPoint.next_dof = nil
-    Sketchup::InputPoint.next_edge = nil
-  end
-
+  # Elevation reference BOP: test_bop.rb (a real beam, every pipe kind, every tool).
   def test_centreline_reference_takes_picks_as_they_are
     t = tool_with('service' => 'CW', 'catalog' => 'GSP_BS1387', 'size' => '2"', 'elevation_ref' => 'cl')
     Sketchup::InputPoint.next_vertex = :beam_corner

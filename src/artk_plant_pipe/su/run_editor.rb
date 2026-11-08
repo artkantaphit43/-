@@ -65,6 +65,25 @@ module ArtK
         raise
       end
 
+      # The whole run up / down by +dz+ (run-local mm) with its valves,
+      # supports and end fittings – a pipe on the rack keeping its underside
+      # when its size or insulation changes (BOP, 1.21.2). Not when it is
+      # joined to another run. Stores the data only; the caller renders.
+      # True when moved.
+      def lift!(model, run, dz)
+        before = data(run)
+        return false if Migrate.tied?(model, run, before)
+
+        moves = before['cl'].flatten(1).uniq { |p| p.map { |c| c.round(3) } }.map { |p| [p, Vec.add(p, [0.0, 0.0, dz])] }
+        after, = RunEdit.move_points(before, moves)
+        return false unless after
+
+        # what a hanger hangs from stays where it is
+        after['supports'].zip(before['supports']).each { |a, b| a['target'] = b['target'] if b.key?('target') }
+        store(run, after)
+        true
+      end
+
       # Writes edited data (RunEdit's) back onto +run+ and its pieces.
       def store(run, after)
         H.set_json(run, 'cl', after['cl'])

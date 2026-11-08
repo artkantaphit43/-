@@ -69,7 +69,9 @@ module ArtK
         warnings = []
         model.start_operation('Plant Piping: Rebuild Runs', true)
         runs.each do |run|
-          merged = run_settings(run).merge(settings_for_rebuild(settings))
+          old = run_settings(run)
+          merged = old.merge(settings_for_rebuild(settings))
+          warnings.concat(keep_underside(model, run, old, merged))
           warnings.concat(render(model, run, merged).map { |w| "#{run.name}: #{w}" })
         end
         warnings.concat(refresh_branches(model, runs))
@@ -141,6 +143,19 @@ module ArtK
           warnings.concat(render(model, run, run_settings(run)).map { |w| "#{run.name}: #{w}" })
         end
         warnings
+      end
+
+      # A pipe drawn to its underside (BOP – on the rack) keeps it when its
+      # size or insulation changes: the run moves by the change in half OD
+      # + insulation. Joined to other runs it keeps its centre – said so.
+      def keep_underside(model, run, old, new)
+        return [] unless BopPick.on?(old)
+
+        dz = BopPick.lift(Settings.spec(new), new) - BopPick.lift(Settings.spec(old), old)
+        return [] if dz.abs < 0.05 || RunEditor.lift!(model, run, dz)
+
+        ["#{run.name}: ต่อกับแนวท่ออื่น – คงศูนย์กลางเดิม ท้องท่อ#{dz.positive? ? 'ต่ำลง' : 'สูงขึ้น'} " \
+         "#{dz.abs.round(1)} มม. (ตรวจการวางบนคาน)"]
       end
 
       # Keys that a rebuild applies from the current settings.

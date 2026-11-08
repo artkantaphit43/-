@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.1**
-(`dist/artk_plant_pipe-1.21.1.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (332 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.2**
+(`dist/artk_plant_pipe-1.21.2.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (351 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -275,6 +275,17 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   เดิม `bop_offset?` ยกเฉพาะคลิกกลางผิว (face + DOF 2) → สแนปมุม/ขอบคาน (ที่ใช้จริง) ไม่ยก ท่อทะลุคาน · ตอนนี้ยกเมื่อสแนป geometry จริง
   (vertex / edge / face) ที่ไม่ใช่ท่อของเรา, ยก od/2 + ฉนวน (`bop_lift`, ใต้ฉนวนวางบนเหล็ก เหมือน support_rest) · เส้นอนุมานจากจุดก่อน (แกน/ขนาน
   ไม่มี geometry) ไม่ยก กันขั้นบันได · readout แสดง "ท้องท่อ (CL +xx)" · เทสต์ใน test_pipe_tool (stub InputPoint.next_edge)
+- **Plant Piping 1.21.2 – ท้องท่อ (BOP) ครบทุกจุด** (ผู้ใช้: "ท้องท่อใช้ไม่ได้จริงจ้า แก้ให้ครบทุกอันอย่าแก้อันเดียว"):
+  1.21.1 ยังพังใน SU จริง: ยกเมื่อ `ip.face` ไม่ว่าง แต่ SU รายงานผิวใต้เคอร์เซอร์แม้จุดอนุมานลอยตามแกนจากจุดก่อน → ยกซ้ำเป็นขั้นบันได;
+  เส้นไกด์/พื้นว่างไม่ยก; ผนัง/เสาแนวดิ่งถูกยก; แปลงเส้น/ยืดท่อ/เปลี่ยนขนาดไม่สน BOP · ใหม่: `su/bop_pick.rb` (`BopPick`) ตรวจด้วยเรขาคณิตว่าตำแหน่ง
+  **อยู่บน** vertex / edge ไม่ดิ่ง / face ไม่ดิ่ง (ในขอบเขต, Newell normal) / ConstructionLine ไม่ดิ่ง / ConstructionPoint / พื้น z=0 (ไม่มีอะไรใต้เคอร์เซอร์)
+  ลองทุก transform (identity – เปิดแก้กรุ๊ป SU ให้พิกัดโลก, `ip.transformation`, ผลคูณ instance_path ทุก suffix, PickHelper `transformation_at`, × edit_transform)
+  ผู้สมัครจาก ip (vertex/edge/face/path.last) + PickHelper ใต้เคอร์เซอร์ · path ผ่านชิ้นของเรา = ไม่ยก · ยก `BopPick.lift` = od/2 + ฉนวน
+  · PipeTool: `@picks` ทุก mouse move (เฉพาะ BOP), `link_at` จุดที่ยกต่อท่อได้เฉพาะ ≤ 2 มม. (ไม่แตกสามทางจากท่อข้างๆบนราง), `@bop` ปิดเมื่อ
+  45°/แกน/ความลาดทำให้ z ไม่ตรงจุดที่ชี้ (readout ไม่โกหก), readout ก่อนคลิกบอก "ชี้ผิว/ขอบ/มุมคาน หรือพื้น" · Commands.convert_selection ยกทุกจุด dz
+  · StretchTool `bop` ยกตาม od/ฉนวนของแนวนั้น · Builder.rebuild → `keep_underside` (run settings `elevation_ref` = bop) เลื่อนทั้งแนวด้วย
+  `RunEditor.lift!` (ไม่ทำเมื่อ `Migrate.tied?` → คำเตือน) · หน้าตั้งค่า `#bopinfo` · เทสต์ `test/test_bop.rb` 17 ตัว (บน 1.21.1 ล้ม 12) ทุก `Catalog::SHOWN`
+  × ฉนวน 0/38.1 · stub: `Face.with(pts)` + `outer_loop`, `ConstructionLine`, `IDNO`
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

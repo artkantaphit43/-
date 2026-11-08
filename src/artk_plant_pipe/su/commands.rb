@@ -79,13 +79,17 @@ module ArtK
           UI.messagebox('เลือกเส้น (Edges) ที่เป็นแนวศูนย์กลางท่อก่อน (select centreline edges first)')
           return
         end
-        segs = edges.map { |e| [H.from_pt(e.start.position), H.from_pt(e.end.position)] }
         settings = H.load_settings
+        # BOP (ท้องท่อ): the lines are the pipe's underside (1.21.2) – the
+        # centre goes up by half the OD plus the insulation
+        dz = BopPick.on?(settings) ? BopPick.lift(Settings.spec(settings), settings) : 0.0
+        up = ->(pt) { p = H.from_pt(pt); [p[0], p[1], p[2] + dz] }
+        segs = edges.map { |e| [up.call(e.start.position), up.call(e.end.position)] }
         comps = Network.components(segs)
         # arcs / curves (Arc, Freehand, Bezier, CAD splines) become pipe bent
         # along them instead of an elbow at every facet
         curves = edges.filter_map { |e| e.respond_to?(:curve) && e.curve }.uniq
-                      .map { |c| c.vertices.map { |v| H.from_pt(v.position) } }
+                      .map { |c| c.vertices.map { |v| up.call(v.position) } }
         smooth = Network.curve_points(segs, curves)
         warnings = []
         made = []
@@ -105,6 +109,7 @@ module ArtK
         model.commit_operation
         SupportBuilder.notify_changed(model, made) unless made.empty?
         summary = "สร้าง #{comps.size} แนวท่อ (created #{comps.size} run(s))"
+        summary += " · ท้องท่อ = เส้นที่เลือก (ศูนย์กลางสูงกว่าเส้น #{dz.round(1)} มม.)" if dz.positive?
         show_warnings(warnings, summary)
       rescue StandardError => e
         model.abort_operation

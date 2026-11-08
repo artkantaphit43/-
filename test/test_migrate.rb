@@ -9,7 +9,7 @@ module ArtK
     VERSION = 'test' unless defined?(VERSION)
   end
 end
-%w[model_helpers migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool run_editor].each do |f|
+%w[model_helpers bop_pick migrate builder ref_models ref_builder support_builder collector picker reports commands pipe_tool support_tool run_editor].each do |f|
   require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__)
 end
 

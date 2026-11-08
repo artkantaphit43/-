@@ -237,6 +237,19 @@ module Sketchup
   class Face < Entity
     attr_accessor :back_material, :pins
 
+    Loop = Struct.new(:vertices)
+
+    # a face with its outline (BOP picks): Face.with([p0, p1, p2, …])
+    def self.with(pts)
+      f = new
+      f.instance_variable_set(:@outline, pts.map { |p| Vertex.new(p) })
+      f
+    end
+
+    def outer_loop
+      @outline && Loop.new(@outline)
+    end
+
     def position_material(mat, pins, _front)
       self.material = mat
       @pins = pins
@@ -274,6 +287,10 @@ module Sketchup
   end
   class ConstructionPoint < Entity
     attr_accessor :position
+  end
+
+  class ConstructionLine < Entity
+    attr_accessor :position, :direction
   end
 
   class Entities
@@ -611,6 +628,7 @@ end
 MB_YESNO = 4
 MB_OKCANCEL = 1
 IDYES = 6
+IDNO = 7 unless defined?(IDNO)
 IDOK = 1
 
 class Numeric

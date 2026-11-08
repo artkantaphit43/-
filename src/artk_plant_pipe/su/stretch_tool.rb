@@ -43,7 +43,7 @@ module ArtK
       def onMouseMove(_flags, x, y, view)
         if @grab
           @ip.pick(view, x, y, @anchor)
-          @target = @ip.valid? ? constrain(H.from_pt(@ip.position)) : nil
+          @target = @ip.valid? ? constrain(bop(@ip, view, x, y)) : nil
           view.tooltip = target_tip || ''
           Sketchup.vcb_value = @target ? Sketchup.format_length(H.mm(Vec.dist(@grab[:world], @target))) : ''
         else
@@ -146,9 +146,24 @@ module ArtK
                           other: H.transform_mm(hit[:tr], other))
         end
         @grab = hit
+        @bop_on = BopPick.on?(H.load_settings)
         @anchor = Sketchup::InputPoint.new(H.to_pt(hit[:world]))
         @target = nil
         status
+      end
+
+      # The picked point; in BOP mode (ท้องท่อ) a point on a beam / floor /
+      # guide is the pipe's underside – the centre goes up by the run's own
+      # half OD plus its insulation (1.21.2).
+      def bop(ip, view, x, y)
+        raw = H.from_pt(ip.position)
+        @bop = false
+        return raw unless @bop_on
+        return raw unless BopPick.picked?(ip, BopPick.under(view, x, y), @model)
+
+        @bop = true
+        rs = Builder.run_settings(@grab[:run])
+        [raw[0], raw[1], raw[2] + BopPick.lift(Settings.spec(rs), rs)]
       end
 
       # Open ends move along their pipe unless an axis is locked; corners
@@ -213,7 +228,7 @@ module ArtK
           len = Vec.dot(Vec.sub(@target, @grab[:other]), @grab[:u])
           "#{s >= 0 ? 'ยืด +' : 'หด '}#{s.round} mm → ท่อช่วงนี้ยาว #{len.round} mm"
         else
-          "ย้าย #{d.round} mm"
+          "ย้าย #{d.round} mm#{@bop ? ' · ท้องท่อวางที่จุดนี้' : ''}"
         end
       end
 

@@ -75,6 +75,9 @@ module ArtK
         else
           @ip.pick(view, x, y, @anchor)
         end
+        # BOP: what lies under the cursor, to tell a pick on the beam from
+        # a point inferred in the air above it
+        @picks = BopPick.on?(@settings) ? BopPick.under(view, x, y) : []
         @cursor = @ip.valid? ? constrain(@ip) : nil
         @hover = nil
         if @cursor && @points.empty?
@@ -288,6 +291,14 @@ module ArtK
         end
         return raw if @points.empty?
 
+        pt = follow(ip, raw)
+        # kept level with the last point (45° tidy-up / axis / fall): the
+        # underside is not on what you point at – the readout says so
+        @bop &&= (pt[2] - raw[2]).abs < 0.5
+        pt
+      end
+
+      def follow(ip, raw)
         last = @points.last
         return Vec.add(last, Vec.scale(@axis, Vec.dot(Vec.sub(raw, last), @axis))).then { |p| apply_slope(last, p) } if @axis
         # a snapped point is the user's own geometry – used as it is, for
@@ -340,25 +351,20 @@ module ArtK
         false
       end
 
-      # 1.21.1: any pick on real geometry – before, only the inside of a
-      # face counted, so snapping to a beam's edge or corner (what you
-      # usually do) drew the pipe through the beam. Inference lines from
-      # the last point (axis, parallel – no geometry) are not lifted, or
-      # every click would climb another half OD.
+      # BOP (ท้องท่อ): the pick lies on the model's geometry that gives a
+      # level – a beam's corner / edge / top face, a floor, a guide, the
+      # ground – not on one of our pipes (BopPick, 1.21.2). Before, any
+      # face SketchUp reported counted, so a point inferred in the air
+      # above a beam was lifted again, and guides / the ground never were.
       def bop_offset?(ip)
-        return false unless @settings['elevation_ref'] == 'bop'
-        return false unless ip.vertex || ip.edge || ip.face
-
-        path = ip.respond_to?(:instance_path) ? ip.instance_path.to_a : []
-        path.none? { |e| e.respond_to?(:attribute_dictionary) && H.type_of(e) }
-      rescue StandardError
-        false
+        BopPick.on?(@settings) && BopPick.picked?(ip, @picks || [], @model)
       end
 
       # Centre above the picked underside: half the OD plus the insulation
-      # (the insulation's underside rests on the steel).
+      # (the insulation's underside rests on the steel) – the pipe kind's
+      # own OD, whichever is drawn.
       def bop_lift
-        @spec.od / 2.0 + @settings['insulation_mm'].to_f
+        BopPick.lift(@spec, @settings)
       end
 
       def snap45(last, raw)
@@ -403,7 +409,9 @@ module ArtK
       # only one right there, not a pipe beside it (1.17.1).
       def link_at(pt, exclude_run: nil)
         link = detect_link(pt, exclude_run: exclude_run)
-        link && @own && Vec.dist(link[:point], pt) > 2.0 ? nil : link
+        # a pick on the beam (BOP) is where the pipe goes, not a branch off
+        # the pipe lying beside it on the rack
+        link && (@own || @bop) && Vec.dist(link[:point], pt) > 2.0 ? nil : link
       end
 
       # Open pipe end (its Center) under the cursor while drawing, other
@@ -690,6 +698,16 @@ module ArtK
                                'คลิกจุด, พิมพ์ความยาว, ลูกศร=ล็อกแกน, ดับเบิลคลิก/Enter=จบ, Esc=ยกเลิก'
       end
 
+      # Before the first click in BOP mode: is the pipe's underside going
+      # onto this point, or (not on a beam / floor) is it the centre?
+      def bop_note
+        return '' unless BopPick.on?(@settings)
+        return " · ท้องท่อวางที่จุดนี้ (CL +#{bop_lift.round})" if @bop
+        return '' if @rest || @hover
+
+        ' · ท้องท่อ: ชี้ผิว/ขอบ/มุมคาน หรือพื้น (ตอนนี้ = ศูนย์กลาง)'
+      end
+
       def draw_readout(view)
         return unless @cursor
 
@@ -697,7 +715,7 @@ module ArtK
           sc = view.screen_coords(H.to_pt(@cursor))
           tag = @settings['tag'].to_s.empty? ? '' : " · แท็ก #{@settings['tag']}"
           tag += ' · เส้น (ดราฟ)' if @settings['draft']
-          tag += " · ท้องท่อ (CL +#{bop_lift.round})" if @bop
+          tag += bop_note
           txt = "#{@spec.size} #{@settings['service']} · #{@spec.material} #{@spec.rating}#{tag} – คลิกจุดเริ่ม (click start)"
           view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
           return
@@ -708,7 +726,7 @@ module ArtK
         dz = @cursor[2] - last[2]
         txt = "#{@spec.size} #{@settings['service']}  L=#{len.round} mm"
         txt += "  Δz=#{dz.round} mm" if dz.abs >= 1.0
-        txt += "  ท้องท่อ (CL +#{bop_lift.round})" if @bop
+        txt += "  ท้องท่อวางที่จุดนี้ (CL +#{bop_lift.round})" if @bop
         sc = view.screen_coords(H.to_pt(@cursor))
         view.draw_text(Geom::Point3d.new(sc.x + 18, sc.y + 18, 0), txt)
       end

@@ -17,7 +17,7 @@ module SteelSU
     require_relative 'su_stub'
     ArtK::PlantPipe.const_set(:PLUGIN_ROOT, File.expand_path('../src/artk_plant_pipe', __dir__)) unless defined?(ArtK::PlantPipe::PLUGIN_ROOT)
     ArtK::PlantPipe.const_set(:VERSION, 'test') unless defined?(ArtK::PlantPipe::VERSION)
-    %w[model_helpers migrate builder ref_models ref_builder support_builder collector run_editor picker reports commands
+    %w[model_helpers bop_pick migrate builder ref_models ref_builder support_builder collector run_editor picker reports commands
        pipe_tool support_tool api].each { |f| require File.expand_path("../src/artk_plant_pipe/su/#{f}", __dir__) }
     ArtK::SteelSupport.const_set(:PLUGIN_ROOT, SS_ROOT) unless defined?(ArtK::SteelSupport::PLUGIN_ROOT)
     require File.join(SS_ROOT, 'version')

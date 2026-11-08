@@ -13,7 +13,7 @@ module ArtK
       require File.join(PLUGIN_ROOT, 'lib', f)
     end
     # SketchUp integration
-    %w[model_helpers migrate builder ref_models ref_builder support_builder collector run_editor picker pipe_tool
+    %w[model_helpers bop_pick migrate builder ref_models ref_builder support_builder collector run_editor picker pipe_tool
        stretch_tool valve_tool support_tool reports library commands dialog ref_browser color_pick_tool api].each do |f|
       require File.join(PLUGIN_ROOT, 'su', f)
     end
