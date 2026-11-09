@@ -1,9 +1,9 @@
 # Handoff – Plant Piping TH (SketchUp extension)
 
 Summary of the previous chat so a new session can continue. Repo `artkantaphit43/-`,
-branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.3**
-(`dist/artk_plant_pipe-1.21.3.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
-(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (356 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
+branch `claude/sketchup-water-plumbing-plugin-d83v6f`, current version **1.21.4**
+(`dist/artk_plant_pipe-1.21.4.rbz`) + ปลั๊กอินแยก **Steel Supports TH 2.5.2**
+(`dist/artk_steel_support-2.5.2.rbz`, `src/artk_steel_support/`, docs/STEEL_SUPPORTS.md). Tests: `rake test` (365 runs, all green; ในเครื่อง cloud ไม่มีคำสั่ง rake → `ruby -Itest -e 'Dir["test/test_*.rb"].sort.each{|f| require "./"+f}'`).
 
 **1.11.0 รวมทุก branch ของปลั๊กอินนี้ไว้ที่ branch นี้แล้ว** (งานจากแชตอื่นที่แยกออกจาก 1.6.0):
 **1.6.1** (`dist/artk_plant_pipe-1.6.1.rbz`, branch `claude/sketchup-pipe-end-center-fm0hq9`) = 1.6.0 + ปลายท่อเปิดมีกลุ่ม
@@ -294,6 +294,13 @@ pipe `geom` บันทึก `ea/eb` (ระยะท่อเข้าข้�
   `level_to_end_link` – วาดบนคานไปจบข้าง/ข้อต่อท่อขนาดอื่น (ไม่มี start link) ทั้งเส้นเลื่อนมาระดับท่อนั้น · `Builder.join_main_point`,
   `render_join` เยื้องด้วย `Parts.eccentric` (เฉือนหน้าตัดตาม x: ≤ len/3 เลื่อนเต็ม, ≥ 2len/3 ไม่เลื่อน – หน้าตัดยังกลม) ชื่อ definition มี `| ecc y,z`,
   kind Eccentric Reducer/Expander · RunEditor.branch_warnings ใช้ join_main_point · เทสต์ใหม่ 5 ตัวใน test_bop (บน 1.21.2 ล้ม 4)
+- **Plant Piping 1.21.4 – ท่อในกลุ่มอื่น** (ผู้ใช้: "รู้แล้วว่าทำไม เพราะมันอยู่คนละกลุ่มกัน แย่จัด" – รูปท่อหักขึ้นลงของ 1.21.3 มาจากท่อคนละกลุ่ม):
+  `H.active_runs` เดิมเห็นแค่ run ใน `model.active_entities` → Picker (nearest_pipe/run_node/run_end), support_builder, API (Steel Supports)
+  มองไม่เห็นท่อในกลุ่มอื่น → ไม่ต่อ tee/ต่อปลาย/Center · ตอนนี้ `active_runs` = `context_runs` (เดิม) + `nested_runs` ทุกกลุ่ม/คอมโพเนนต์ในบริบทที่เปิด
+  (edit_transform × …) + นอกบริบท (จาก root, ข้าม `active_path.last`) · ข้ามชิ้นของเรา/ซัพพอร์ต (`container?`), ซ่อน (`hidden?` / แท็กปิด),
+  memo ต่อ definition, uniq ด้วย `t.to_a` (คอมโพเนนต์หลายชุด = หลายรายการ) · cache 0.5 s คีย์ = model, active_path, `runs_changed!` (create_run),
+  ขนาด root entities · `RunEditor.sync_context` ใช้ `context_runs` (ไม่ sync ทั้งโมเดลทุกครั้งที่เปิดเครื่องมือ) · stub: `Transformation#to_a` ·
+  เทสต์ `test/test_groups.rb` 9 ตัว (บนโค้ดเก่าล้ม 8) · walk 400 กลุ่ม×120 เส้น + 30 ท่อ ≈ 8 ms
 - **ส่งไฟล์ .rbz ให้ผู้ใช้ด้วย SendUserFile ทุกครั้งที่ออกเวอร์ชัน** (ผู้ใช้หาไฟล์ใน repo ไม่เจอ)
 
 ## ข้อจำกัด / งานที่อาจทำต่อ

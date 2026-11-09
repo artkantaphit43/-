@@ -39,6 +39,7 @@ module ArtK
         model.start_operation('Plant Piping: Draw Run', true) if op
         run = model.active_entities.add_group
         H.set_attrs(run, 'type' => 'run')
+        H.runs_changed!
         H.set_json(run, 'cl', segs)
         H.set_json(run, 'tees', tees)
         H.set_json(run, 'joins', joins)

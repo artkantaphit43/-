@@ -248,7 +248,7 @@ module ArtK
       def sync_context(model)
         return unless defined?(AutoSync) && AutoSync.enabled?
 
-        runs = H.active_runs(model).map(&:first)
+        runs = H.context_runs(model).map(&:first)
         res = sync(model, runs)
         return if res[:synced].empty?
 

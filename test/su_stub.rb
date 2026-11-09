@@ -68,6 +68,11 @@ module Geom
       @r = r || [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] # columns
     end
 
+    # 16 values, column-major (as SketchUp's)
+    def to_a
+      @r.flat_map { |c| c + [0.0] } + @t + [1.0]
+    end
+
     def self.axes(o, x, y, z)
       new(o.to_a, [x.to_a, y.to_a, z.to_a].map { |c| c.map(&:to_f) })
     end

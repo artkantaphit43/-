@@ -369,10 +369,91 @@ module ArtK
         end
       end
 
-      # Runs in the active context with their world transformations.
-      def active_runs(model)
+      # Runs directly in the open context with their world transformations.
+      def context_runs(model)
         tr = edit_transform(model)
         model.active_entities.select { |e| run?(e) }.map { |r| [r, tr * r.transformation] }
+      end
+
+      RUNS_TTL = 0.5 # s – the run list is walked at most this often
+
+      # Every run the tools can draw onto / pick, with its world
+      # transformation: those in the open context and (1.21.4) those inside
+      # other groups and components anywhere in the model, at any depth –
+      # before, only the open context counted, so a pipe drawn onto a pipe
+      # in another group was not joined to it (no tee, no continuation, no
+      # Center snap) and Steel Supports did not see it. Hidden groups /
+      # tags are left out. Cached briefly: this runs on every mouse move.
+      def active_runs(model)
+        key = runs_key(model)
+        c = @runs_cache
+        return c[:list] if c && c[:key] == key && Time.now - c[:at] < RUNS_TTL
+
+        list = context_runs(model)
+        mine = list.map { |r, _| r.object_id }
+        et = edit_transform(model)
+        memo = {}
+        model.active_entities.each do |e|
+          nested_runs(e, et * e.transformation, list, memo) if container?(e)
+        end
+        if model.active_path
+          open = model.active_path.last
+          model.entities.each do |e|
+            if run?(e)
+              list << [e, e.transformation] unless mine.include?(e.object_id) || hidden?(e)
+            elsif container?(e)
+              nested_runs(e, e.transformation, list, memo, skip: open)
+            end
+          end
+        end
+        list = list.uniq { |r, t| [r.object_id, t.to_a.map { |v| v.round(6) }] }
+        @runs_cache = { key: key, at: Time.now, list: list }
+        list
+      end
+
+      # A new / removed run is seen at once (the next mouse move).
+      def runs_changed!
+        @runs_gen = (@runs_gen || 0) + 1
+      end
+
+      def runs_key(model)
+        ents = model.entities
+        [model.object_id, (model.active_path || []).map(&:object_id), @runs_gen,
+         ents.respond_to?(:length) ? ents.length : ents.count]
+      end
+
+      # A group / component that may hold runs: not a run, not one of our
+      # pieces, not another extension's support.
+      def container?(e)
+        instance?(e) && !type_of(e) && !(e.respond_to?(:attribute_dictionary) && e.attribute_dictionary('ArtK_SteelSupport'))
+      end
+
+      def hidden?(e)
+        return true if e.respond_to?(:hidden?) && e.hidden?
+
+        layer = e.respond_to?(:layer) ? e.layer : nil
+        !!(layer && layer.respond_to?(:visible?) && !layer.visible?)
+      end
+
+      # Runs inside +inst+ (world transformation +tr+) into +out+; each
+      # definition is looked through once (+memo+: its runs, local).
+      def nested_runs(inst, tr, out, memo, skip: nil, depth: 0)
+        return if inst.equal?(skip) || depth > 12 || hidden?(inst)
+
+        inside = memo[inst.definition.object_id] ||= begin
+          found = []
+          inst.definition.entities.each do |e|
+            next unless instance?(e)
+
+            found << [e, :run] if run?(e) && !hidden?(e)
+            found << [e, :box] if container?(e)
+          end
+          found
+        end
+        inside.each do |e, kind|
+          t = tr * e.transformation
+          kind == :run ? out << [e, t] : nested_runs(e, t, out, memo, skip: skip, depth: depth + 1)
+        end
       end
 
       def selected_runs(model)
